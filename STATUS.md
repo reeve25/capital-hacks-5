@@ -13,7 +13,7 @@ Current state only. Full Silent Voice history: `C:\Users\reeve\dev\_old-silent-v
 
 ## Pending
 - **User contact, today only if possible:** Sac State AT Lab, AIRC 2011, M-F 8-5, 916-278-3409 (not reconfirmed). Maryjane Rees Audiology Clinic, Folsom Hall Suite 1000, weekdays 8-5 per a 2022 story (confirm first). Nobody has been contacted; no target user has confirmed anything.
-- CI failed at startup on all 13 `silent-voice` runs and on the new repo's two-line workflow. Suspected cause, not proven: GitHub budgets page shows Actions at $0.00 / $0.00, "Usage blocked", while the public repo passes. Reeve wants CI on, but GitHub requires a payment method to edit or delete that budget (delete attempt returned 400, Nov 6). The workflow stays disabled until Reeve adds a card; then cap Actions at $1, enable it and test a run. Local checks are the gate.
+- CI works: run `42312250483` passed on Nov 6, after every earlier private-repo run failed at startup. It started passing once Reeve added a card and the Actions budget went from $0 to $1 with stop-usage on.
 - Unconfirmed: deadline, pitch length, platform, prize stacking, Reeve's Claude plan upgrade (the CLI reports `pro`).
 - Team setup per Reeve, Nov 6: both laptops and the one Claude account are his, and Nathan borrows one. Nathan is newer to coding and the laptop runs Windows. Lanes not agreed yet. Repo `reeve25/capital-hacks-5` is live and passed a two-clone test on Reeve's laptop. The `nathanjeevs` invite is pending, and the second laptop is not set up or tested.
 

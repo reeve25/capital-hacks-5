@@ -1,0 +1,24 @@
+# M1 independent review — 2026-11-06 01:17 PT
+
+Reviewed current `grid_fixture.py`, `landmarks.py`, `evaluation.py`, `benchmark.py`, their tests and the actual GRID split manifest. No shared app code was edited. This is a code/protocol review and small fixture spot-check; full benchmark reproduction is pending parent completion.
+
+## Findings
+
+No blocking defect found in the current split, normalization, DTW or accounting implementation. Original takes are split before cropping: actual manifest has **102/102 unique takes**, **18 enrollment / 24 validation / 60 test**. Enrollment includes only the six IV classes. OOV classes are absent from enrollment. The source labels/take paths do not enter numeric `rank`/`dtw`; thresholds are selected from validation before the first held-out test item. Rejected/feature-failed IV trials remain in raw top-k denominators. Accepted-wrong denominator is explicitly IV accepted trials; OOV and nonspeech have separate false-acceptance denominators. Null accepted-wrong when zero accepted avoids inventing a zero error rate.
+
+Eye-corner rotation/scale normalization is algebraically sound for translation, roll and uniform scale. Pixel width/height correction before normalization avoids treating normalized x/y with different physical units as Euclidean coordinates. Mouth geometry stays represented. DTW divides accumulated RMS frame costs by `n+m` as documented; this is a particular distance convention, not calibrated probability or true optimal-path-length normalization. Its length dependence remains a baseline limitation. Exact repeats check deterministic outputs on two distinct real clips.
+
+**Required interpretation:** word boundaries are oracle ground-truth alignments, so segment length also reflects those boundaries. This is an isolated **spoken-word** geometry benchmark and cannot establish unsegmented manual capture performance, silent articulation, patient benefit, or universal OOV rejection. The benchmark currently labels its scope accordingly. Initial-silence clips are a limited nonspeech distribution; they do not represent smiles/head movement. Small correlated one-speaker Wilson intervals are descriptive rather than clinical/generalization bounds.
+
+## Alignment-unit correction independently checked
+
+- **Actual author archive:** `alignments/s1/bbaf2n.align` has `41000 47250 two` and final boundary `74500`. At **25,000 ticks/second**, that digit interval is **1.640–1.890 seconds**, corresponding to zero-based frame starts **41–47** at 25 fps (exclusive stop 48). Final boundary is 2.98 seconds, consistent with 75 frames / 3 seconds. Interpreting these as 100-nanosecond HTK timestamps would end the entire clip at 7.45 milliseconds and is inconsistent with the decoded media.
+- **Independent primary-source cross-check:** [Sheffield's example alignment](https://spandh.dcs.shef.ac.uk/gridcorpus/examples/swwp2s.align) likewise ends at `74500`; its digit interval is `36000 43250 two`. [The author site](https://spandh.dcs.shef.ac.uk/gridcorpus/) specifies endpointed audio sampled at 25 kHz. Together with actual payload/video duration, this supports sample-tick interpretation. The author page itself does not explicitly state the alignment units; that last step is a reasoned inference verified against this release's media.
+- **Conflicting code rejected:** [Lhotse's current GRID recipe](https://github.com/lhotse-speech/lhotse/blob/master/lhotse/recipes/grid.py) divides alignment values by 1000 when constructing seconds. Applied directly to this actual archive it would imply a 74.5-second utterance, so it was not adopted as timing authority. A separate [LipNet implementation](https://github.com/rizkiarm/LipNet/blob/master/lipnet/lipreading/aligns.py) divides by 1000 to obtain frame positions; that scale fits 25 fps, but alone does not explain seconds. No external recipe was installed or executed.
+- **Measured 3/3 local fixture spots:** OpenCV metadata reports 75 frames at 25 fps and actual first-frame decode succeeded for `sgiczp` (zero ticks 39000–48000, frame starts 39–47), `lrbr6p` (six 36000–43000, 36–42), and `pric5a` (initial silence 0–17250, 0–17). This was not a full-frame decode count or a visual confirmation of the spoken word.
+
+The parent caught the initial wrong-unit assumption before benchmarking and added a real-unit frame-interval regression. Current test `test_actual_grid_sample_ticks_map_to_video_frames` passed in this review.
+
+## Observed checks
+
+From `app/`, `.venv/Scripts/python.exe -m unittest discover -s tests -v`: **19/19 passed**, exit 0, observed runtime 0.650 seconds. Manifest uniqueness/split counts and three lightweight video spots were independently read/calculated. No model inference, heavy concurrent job, speech output or human capture was run by this reviewer. Benchmark result review remains pending.

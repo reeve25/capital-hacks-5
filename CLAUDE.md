@@ -14,7 +14,7 @@ Read STATUS.md at the start of every session and update it after every decision 
 - Changes to something shared (API shape, data format, a file another open task touches) get a team log note before the edit.
 - When main demos well, tag it: `git tag demo-N && git push origin demo-N`.
 - Notes-only edits from the main checkout: branch, commit exact paths, ship, then `git switch main && git pull`.
-- CI is disabled: the account's $0 Actions budget appears to block private-repo runs, and GitHub needs a payment method to change it. Local checks are the gate. Say CI is green only after seeing it pass.
+- CI runs `tools/check.sh` on every PR and on main. `tools/ship.sh` merges without waiting for it, so local checks are the gate and CI is the second signal. Say CI is green only after seeing it pass.
 
 ## How Reeve and Nathan want this run
 - Product and creative calls are theirs together: bring real options and a lean, then ask. Execution is hands-off.

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Block commits containing staged secrets; output is redacted by default.
+# core.hooksPath here replaces any global hooks, so this carries that scan over.
+command -v gitleaks >/dev/null 2>&1 || exit 0
+exec gitleaks git --pre-commit --staged --redact --no-banner --log-level error .

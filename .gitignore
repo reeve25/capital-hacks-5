@@ -1,0 +1,27 @@
+# Secrets and per-person files
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# Devpost corpus, shared as the data-v1 release asset
+research/devpost/projects.jsonl
+
+# Model weights: setup fetches them, GitHub rejects files over 100 MB
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Dependencies and build output
+node_modules/
+.venv/
+__pycache__/
+dist/
+build/
+.next/

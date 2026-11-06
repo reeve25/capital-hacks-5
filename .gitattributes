@@ -1,0 +1,4 @@
+# LF everywhere: CRLF breaks bash hooks and scripts on Windows.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

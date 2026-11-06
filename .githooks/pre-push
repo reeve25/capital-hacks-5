@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# GitHub Free can't protect main on a private repo, so this hook stops direct pushes from each clone.
+while read -r _ _ remote_ref _; do
+  if [ "$remote_ref" = refs/heads/main ]; then
+    echo "pre-push: direct push to main is off. Use tools/ship.sh from a task branch." >&2
+    exit 1
+  fi
+done
+exec bash tools/check.sh

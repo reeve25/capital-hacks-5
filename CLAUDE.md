@@ -13,7 +13,8 @@ Read STATUS.md at the start of every session and update it after every decision 
 - The pre-push hook runs `tools/check.sh` and blocks direct pushes to main. Never skip it with `--no-verify`.
 - Changes to something shared (API shape, data format, a file another open task touches) get a team log note before the edit.
 - When main demos well, tag it: `git tag demo-N && git push origin demo-N`.
-- CI is a second signal, and local checks are the gate. Say CI is green only after seeing it pass.
+- Notes-only edits from the main checkout: branch, commit exact paths, ship, then `git switch main && git pull`.
+- CI is disabled: the account's $0 Actions budget appears to block private-repo runs, so local checks are the gate. Say CI is green only after seeing it pass.
 
 ## How Reeve and Nathan want this run
 - Product and creative calls are theirs together: bring real options and a lean, then ask. Execution is hands-off.
@@ -21,12 +22,14 @@ Read STATUS.md at the start of every session and update it after every decision 
 - Important decisions get thought through, not skipped. Don't drop an option because it is harder to clear. Read the primary sources first. If the available tools can't settle it, hand it to Reeve with a ready-to-paste question or Gemini prompt, and keep the option open until then.
 - Give the full findings and reasoning. Don't compress research to keep a message short.
 - Explain the problem first: who benefits and what their day looks like now, before any demo or tech.
-- The edge is maximizing AI-assisted development. Prefer software-first ideas. Don't pitch ideas limited by hardware or skills he and Nathan lack.
+- The edge is maximizing AI-assisted development. Hardware is open (Reeve, Nov 6): they can buy equipment, assemble and build. Ideas must still be doable by them.
 
 ## What wins (Reeve, Nov 6)
 - The demo must be impressive. Choose by thinking backward: the coolest thing a judge could see, then check it can be built.
 - Reeve reports that judges emphasize User Identification: actively seek the user and make sure the product works for them, then show that in the presentation. Only present validation that happened, with consent for any name, quote or footage. Log it in `USERS.md`.
-- Reeve, Nov 6 about 14:50: Health + Accessibility track only (physical and mental well-being, patient access, care delivery, everyday accessibility). The demo must blow judges away and be a clear winning candidate if built. No physical building.
+- Reeve, Nov 6 about 14:50: Health + Accessibility track only (physical and mental well-being, patient access, care delivery, everyday accessibility). The demo must blow judges away and be a clear winning candidate if built.
+- The bar is what Silent Voice had (Reeve, Nov 6, after rejecting Still Here, Tongue X-Ray and Last Muscle): easily demonstrable, cool, innovative, an instant visible benefit to someone's life, and doable by us. The problem meets a clear solution in one step, on stage. Reject ideas that need a score, a study or an explanation before the benefit shows.
+- Use `/interview` and the other project skills throughout the hackathon.
 - Test every idea: retell in one sentence; "that's real"; only possible now; a life visibly changes; survives the toughest question.
 - Judging criteria: innovation, applicability, technical proficiency, potential impact. No weights published.
 

@@ -9,10 +9,11 @@ Current state only. Full Silent Voice history: `C:\Users\reeve\dev\_old-silent-v
 - **10 wild demos delivered 14:35, not chosen:** `research/wild-demos-2026-11-06.md`. Reeve and Nathan pick through `/interview`. Codex's check finished 14:45 and killed 5 of the 10; the demo file's top section has the correction, sources not yet spot-checked. The Claude check was still running and writes `research/wild-demos-rivals-claude-2026-11-06.md`. Corpus and scripts: `research/devpost/` (keep the JSONL out of git).
 
 - **14:50: Reeve rejected the whole wild-demo list ("none of these are exciting").** New round: Health + Accessibility only, must blow judges away, no physical building. Options presented about 14:55, awaiting their pick: `research/health-round-2026-11-06.md` (Still Here, Tongue X-Ray, Last Muscle; advisor lean Still Here, not a decision). This supersedes the wild-demos lean.
+- **Reeve rejected all three health options:** Still Here and Tongue X-Ray are too complicated to show instant impact; Last Muscle looks infeasible and not fully demoable. The bar is now CLAUDE.md "What wins": what Silent Voice had, with hardware open. **Next: run `/interview` with Reeve and Nathan on what they want, then generate ideas with Codex checking rivals before they are shown.** No lean stands.
 
 ## Pending
 - **User contact, today only if possible:** Sac State AT Lab, AIRC 2011, M-F 8-5, 916-278-3409 (not reconfirmed). Maryjane Rees Audiology Clinic, Folsom Hall Suite 1000, weekdays 8-5 per a 2022 story (confirm first). Nobody has been contacted; no target user has confirmed anything.
-- CI failed at startup on all 13 `silent-voice` runs with 0 jobs, cause unread; billing page shows GitHub Free and no block, but every success found is on a public repo. Checked on the new repo's first push.
+- CI failed at startup on all 13 `silent-voice` runs and on the new repo's two-line workflow. Likely cause, read Nov 6 but not proven: GitHub budgets page shows Actions at $0.00 / $0.00, "Usage blocked", while the public repo passes. The workflow is disabled until Reeve decides whether to change that setting; local checks are the gate.
 - Unconfirmed: deadline, pitch length, platform, prize stacking, Reeve's Claude plan upgrade (the CLI reports `pro`).
 - Team setup per Reeve, Nov 6: both laptops and the one Claude account are his, and Nathan borrows one. Nathan is newer to coding and the laptop runs Windows. Lanes not agreed yet.
 

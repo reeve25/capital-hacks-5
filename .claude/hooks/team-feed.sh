@@ -35,10 +35,11 @@ if [ -n "$head" ]; then
 fi
 
 # Repo-wide endpoint: it can sort newest first, so a long log costs one request.
-per_page=20
-[ "$mode" = start ] && per_page=8
-raw=$(gh api "repos/{owner}/{repo}/issues/comments?sort=created&direction=desc&per_page=$per_page" \
-  --jq 'reverse | .[] | "\(.id)\t\(.user.login)\t\(.body | gsub("\\s+"; " ") | .[0:300])"' 2>/dev/null | tr -d '\r')
+# It also returns review bots' PR comments, which would crowd out the team's notes.
+keep=20
+[ "$mode" = start ] && keep=8
+raw=$(gh api "repos/{owner}/{repo}/issues/comments?sort=created&direction=desc&per_page=50" \
+  --jq '[.[] | select(.user.type != "Bot")] | .[0:'"$keep"'] | reverse | .[] | "\(.id)\t\(.user.login)\t\(.body | gsub("\\s+"; " ") | .[0:300])"' 2>/dev/null | tr -d '\r')
 
 notes="" newest=$last_comment
 while IFS=$'\t' read -r id who body; do

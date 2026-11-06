@@ -14,7 +14,8 @@ mkdir "$tmp/bin"
 cat > "$tmp/bin/gh" <<'STUB'
 #!/usr/bin/env bash
 case "$*" in
-  *issues/comments*) cat "$GH_STUB_COMMENTS" ;;
+  # The stub can't run jq, so it answers only if the hook still asks to drop bot comments.
+  *issues/comments*'"Bot"'*) cat "$GH_STUB_COMMENTS" ;;
   *"issue list"*) echo '  #2 [nathanjeevs] build the demo' ;;
 esac
 STUB

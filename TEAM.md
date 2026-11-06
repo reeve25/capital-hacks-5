@@ -12,7 +12,7 @@ You don't need to remember any commands. Say these to Claude in plain English.
 | Mark a working demo | "Tag this as a good demo" |
 
 ## Starting a task
-In the VS Code terminal, from the repo folder, run `claude -w short-task-name`. That gives the task its own copy of the code, so it can't collide with other work. When Claude says the task shipped, exit and start the next one under a new name.
+Run `claude` once in the repo folder, then say what you want, like "start a task for the mic bug." Claude gives the task its own copy of the code, so it can't collide with other work, and cleans that copy up after it ships. To run two tasks at once, open a second terminal and do the same there.
 
 ## Where things live
 - `CLAUDE.md`: the rules both Claudes follow.

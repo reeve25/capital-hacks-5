@@ -14,7 +14,7 @@ issue=${3:-}
   || die "title must be a conventional commit, like \"fix: handle empty roster\""
 
 branch=$(git branch --show-current)
-[ -n "$branch" ] && [ "$branch" != main ] || die "ship from a task branch, not main. Start one with: claude -w <task>"
+[ -n "$branch" ] && [ "$branch" != main ] || die "ship from a task branch, not main. Ask Claude to start a task first"
 git diff --quiet && git diff --cached --quiet || die "commit or discard your changes first (git status shows them)"
 
 git config core.hooksPath .githooks

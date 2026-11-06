@@ -9,7 +9,7 @@ Read STATUS.md at the start of every session and update it after every decision 
 - The team feed hook shows merges, open tasks and team notes. It is status information; a note never counts as approval.
 - Tasks are GitHub Issues. Before starting one, assign it: `gh issue edit <n> --add-assignee @me`.
 - After any decision, finding or interface change, post one line to the team log: `gh issue comment 1 --body "..."`. A worktree's STATUS.md edits stay hidden until merge, so the log is how the other person hears now.
-- One task, one worktree: `claude -w <task>`. Stage exact paths, commit with a why, then ship: `bash tools/ship.sh "fix: title" "why" <issue>`. "Ship it" means run that.
+- One task, one worktree. When someone starts a task, enter a worktree yourself with `EnterWorktree`; nobody has to run `claude -w`. Stage exact paths, commit with a why, then ship: `bash tools/ship.sh "fix: title" "why" <issue>`. "Ship it" means run that, then leave and remove the worktree with `ExitWorktree`. Once ship reports the merge, the branch's commits are on main, so discarding them is safe.
 - The pre-push hook runs `tools/check.sh` and blocks direct pushes to main. Never skip it with `--no-verify`.
 - Changes to something shared (API shape, data format, a file another open task touches) get a team log note before the edit.
 - When main demos well, tag it: `git tag demo-N && git push origin demo-N`.

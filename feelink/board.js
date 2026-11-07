@@ -64,10 +64,11 @@
 
   // Found by touch: marks ink samples within `radius` of the finger's path from a to b (a may equal b).
   // Uses the swept path so a fast finger still reveals what it crossed. Returns how many were newly found.
-  function markFelt(samples, felt, a, b, radius = FELT_MM) {
+  // `mark` is what gets stored (the stage stores the time found, so fresh ink can settle); it must be truthy.
+  function markFelt(samples, felt, a, b, radius = FELT_MM, mark = 1) {
     let found = 0;
     for (let i = 0; i < samples.length; i++) {
-      if (!felt[i] && distPointSeg(samples[i], a, b) <= radius) { felt[i] = 1; found++; }
+      if (!felt[i] && distPointSeg(samples[i], a, b) <= radius) { felt[i] = mark; found++; }
     }
     return found;
   }
@@ -157,7 +158,60 @@
   // Exponential approach toward a target, frame-rate independent.
   const follow = (cur, target, dtMs, tauMs) => cur + (target - cur) * (1 - Math.exp(-dtMs / tauMs));
 
-  const api = { FELT_MM, RESAMPLE_MM, fit, toMm, clampToBoard, smooth, resample, distPointSeg, markFelt, feltRuns, parseHaptic, HapticRings, mixHex, follow };
+  // CSS-style cubic-bezier timing function (x1, y1, x2, y2), solved for y at a given x in 0..1.
+  function cubicBezier(x1, y1, x2, y2) {
+    const bz = (t, a, b) => 3 * a * t * (1 - t) * (1 - t) + 3 * b * t * t * (1 - t) + t * t * t;
+    return (x) => {
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      let lo = 0, hi = 1, t = x;
+      for (let i = 0; i < 30; i++) { t = (lo + hi) / 2; if (bz(t, x1, x2) < x) lo = t; else hi = t; }
+      return bz(t, y1, y2);
+    };
+  }
+  // Strong ease-out: the ring pops out in the first few frames, so even a 15 fps GIF catches it.
+  const easeOut = cubicBezier(0.23, 1, 0.32, 1);
+
+  // GIF-safe motion. A 128-colour Bayer palette turns fading alpha into speckle and pale bands, so the
+  // stage animates size and stroke width with flat colours instead: no alpha, no colour ramps.
+  const RING_MS = 700, RING_MIN_W = 0.3;
+  // Ring geometry `ageMs` after a haptic event: {r, w} in mm, or null once it has thinned away.
+  // Strength 0..1 (a fade level) sets weight and reach; bursts (corner, end, tick) are the heaviest.
+  function ringAt(ageMs, strength, burst, baseR) {
+    if (ageMs < 0 || ageMs >= RING_MS) return null;
+    const p = ageMs / RING_MS;
+    const w0 = burst ? 2.0 : 1.0 + 0.8 * strength;
+    const reach = burst ? 13 : 6 + 6 * strength;
+    const w = w0 * (1 - p);
+    if (w < RING_MIN_W) return null;
+    return { r: baseR + reach * easeOut(p), w };
+  }
+
+  // Cursor size factor: a fingertip lands slightly large and settles, and shrinks away on lift
+  // (exit faster than entrance). 0 means hidden. upAt is null while the finger is down.
+  const TOUCH_MS = 180, LIFT_MS = 140, TOUCH_GROW = 0.3, LIFT_TO = 0.5;
+  function cursorScale(now, downAt, upAt) {
+    if (upAt == null) return 1 + TOUCH_GROW * (1 - easeOut(Math.min(1, Math.max(0, (now - downAt) / TOUCH_MS))));
+    const p = (now - upAt) / LIFT_MS;
+    if (p >= 1) return 0;
+    return 1 - (1 - LIFT_TO) * easeOut(Math.max(0, p));
+  }
+
+  // Found ink settles: drawn wider when found, easing back to normal width. Returns the extra width
+  // factor 0..1 for ink found at `foundAt` (0 when settled or never found).
+  const SETTLE_MS = 450;
+  function settle(foundAt, now) {
+    if (!foundAt) return 0;
+    const p = (now - foundAt) / SETTLE_MS;
+    return p >= 1 || p < 0 ? 0 : 1 - easeOut(p);
+  }
+
+  // Trail fade 0..1 quantised to a few flat steps, so the GIF palette sees 4 trail colours, not dozens.
+  const TRAIL_STEPS = 4;
+  const trailStep = (age) => Math.min(TRAIL_STEPS, Math.floor(Math.max(0, age) * TRAIL_STEPS)) / TRAIL_STEPS;
+
+  const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, resample, distPointSeg,
+    markFelt, feltRuns, parseHaptic, HapticRings, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

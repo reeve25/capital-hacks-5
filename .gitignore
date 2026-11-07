@@ -26,3 +26,6 @@ dist/
 build/
 .next/
 feelink/results.jsonl
+
+# Raw takes and composed GIF/MP4 output (tools/record)
+recordings/

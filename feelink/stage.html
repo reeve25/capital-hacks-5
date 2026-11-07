@@ -119,7 +119,8 @@ es.onmessage = (m) => {
   let ev;
   try { ev = JSON.parse(m.data); } catch { return; }
   const now = performance.now();
-  if (ev.type === 'finger' || ev.type === 'hello' || ev.type === 'haptic' || ev.type === 'presence') lastPhoneAt = now;
+  // phoneconfig repeats every 2 s while the phone is live and is its presence signal (#34).
+  if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'hello' || ev.type === 'presence') lastPhoneAt = now;
   if (ev.type === 'sync') setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
   else if (ev.type === 'stroke') { if (!mine || ev.id !== mine.id) upsert({ id: ev.id, by: ev.by, pts: ev.pts || [] }); }
   else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); }

@@ -1,0 +1,2 @@
+# Engine binaries never go in git; the launcher caches them in ~/.impeccable
+bin/

@@ -82,7 +82,11 @@ test('parseHaptic: rings only for real, successful, non-stop buzzes', () => {
   assert.equal(B.parseHaptic(null), null);
   assert.equal(B.parseHaptic({ type: 'haptic', kind: 'stop' }).level, 0);
   assert.deepEqual(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: [40, 20], t: 1 }),
-    { burst: false, kind: 'hold', level: 4, top: 4, strength: 1 });
+    { burst: false, kind: 'hold', level: 4, top: 4, strength: 1, ms: 60 });
+  // feel.html sends the hold as a bare number and fades as on/off arrays.
+  assert.equal(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true }).ms, 5000);
+  assert.equal(B.parseHaptic({ type: 'haptic', kind: 'fade', level: 1, top: 4, pattern: [12, 60, 12, 60] }).ms, 144);
+  assert.equal(B.parseHaptic({ type: 'haptic', kind: 'fade', level: 1, top: 4 }).ms, 0);
   const fade = B.parseHaptic({ type: 'haptic', kind: 'fade', level: 2, top: 4 });
   assert.equal(fade.burst, false);
   assert.equal(fade.strength, 0.5);
@@ -105,6 +109,30 @@ test('HapticRings: a held level re-armed by the phone pulses at a cadence, not p
   // 3 s at a 450 ms cadence is about 6 rings after the first, all from tick(); re-arms add none.
   assert.ok(rings >= 5 && rings <= 7, `cadence rings ${rings}`);
   assert.equal(r.onHaptic(hold, 3010).length, 0, 're-arm of the same level does not ring');
+});
+
+test('HapticRings: the line\'s 5 s hold re-armed at 4.5 s keeps pulsing, and stop ends it', () => {
+  // Matches feel.html's setBuzz: vibrate('hold', 5000), re-armed at HOLD_MS * 0.9.
+  const r = new B.HapticRings({ holdMs: 1000, periodTopMs: 450, periodLowMs: 900 });
+  const hold = B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true });
+  r.onHaptic(hold, 0);
+  let rings = 0, lastRingAt = 0;
+  for (let t = 16; t <= 10000; t += 16) {
+    if (t % 4500 < 16) r.onHaptic(hold, t);
+    const n = r.tick(t).length;
+    if (n) lastRingAt = t;
+    rings += n;
+  }
+  assert.ok(rings >= 20, `a 10 s hold keeps pulsing, got ${rings} rings`);
+  assert.ok(lastRingAt > 9400, `still pulsing near the end, last ring at ${lastRingAt}`);
+  r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'stop', pattern: 1, ok: true }), 10010);
+  assert.deepEqual(r.tick(10500), []);
+  // Without a re-arm or stop, the state lapses once the phone's own 5 s buzz has run out.
+  r.onHaptic(hold, 20000);
+  assert.ok(r.tick(24900).length <= 1);
+  assert.equal(r.state && r.state.level, 4, 'still held inside the 5 s buzz');
+  r.tick(25300);
+  assert.equal(r.state, null, 'lapsed after the buzz ran out');
 });
 
 test('HapticRings: level change rings, bursts ring, stop and silence end the state', () => {

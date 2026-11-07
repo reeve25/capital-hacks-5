@@ -135,3 +135,71 @@ test('mixHex and follow', () => {
   assert.ok(B.follow(0, 10, 16, 35) > 0 && B.follow(0, 10, 16, 35) < 10);
   assert.equal(B.follow(3, 3, 16, 35), 3);
 });
+
+test('markFelt stores a caller mark (the time found) and keeps the first one', () => {
+  const samples = B.resample([{ x: 10, y: 50 }, { x: 20, y: 50 }]);
+  const felt = new Float64Array(samples.length);
+  B.markFelt(samples, felt, { x: 12, y: 50 }, { x: 12, y: 50 }, B.FELT_MM, 1234);
+  assert.ok(felt.includes(1234));
+  B.markFelt(samples, felt, { x: 12, y: 50 }, { x: 14, y: 50 }, B.FELT_MM, 2000);
+  assert.equal(felt[2], 1234, 'already-found ink keeps its first time');
+  assert.equal(B.feltRuns(felt).length, 1);
+});
+
+test('cubicBezier easing matches its endpoints and is a strong ease-out', () => {
+  const e = B.cubicBezier(0.23, 1, 0.32, 1);
+  assert.equal(e(0), 0);
+  assert.equal(e(1), 1);
+  assert.ok(e(0.2) > 0.6, `most of the move lands early, got ${e(0.2)}`);
+  let prev = 0;
+  for (let x = 0.05; x <= 1; x += 0.05) { const y = e(x); assert.ok(y >= prev - 1e-9); prev = y; }
+  const lin = B.cubicBezier(0, 0, 1, 1);
+  assert.ok(Math.abs(lin(0.37) - 0.37) < 1e-3);
+});
+
+test('ringAt: flat ring that grows and thins, never alpha, gone by RING_MS', () => {
+  assert.equal(B.ringAt(-1, 1, false, 3.4), null, 'a delayed burst ring waits');
+  assert.equal(B.ringAt(B.RING_MS, 1, false, 3.4), null);
+  const a = B.ringAt(0, 1, false, 3.4), b = B.ringAt(200, 1, false, 3.4), c = B.ringAt(500, 1, false, 3.4);
+  assert.deepEqual(Object.keys(a).sort(), ['r', 'w']);
+  assert.equal(a.r, 3.4);
+  assert.ok(b.r > a.r && c.r > b.r && c.w < b.w && b.w < a.w);
+  // At 15 fps (66.7 ms per frame) the ring is visible for at least 8 GIF frames.
+  let frames = 0;
+  for (let t = 0; t < B.RING_MS; t += 1000 / 15) if (B.ringAt(t, 1, false, 3.4)) frames++;
+  assert.ok(frames >= 8, `frames ${frames}`);
+  // Stronger buzzes draw heavier, wider rings; bursts are the heaviest.
+  const faint = B.ringAt(300, 0.25, false, 3.4), strong = B.ringAt(300, 1, false, 3.4), burst = B.ringAt(300, 1, true, 3.4);
+  assert.ok(faint.w < strong.w && strong.w < burst.w);
+  assert.ok(faint.r < strong.r && strong.r < burst.r);
+  // Every visible ring is at least ~1.2 GIF px wide (about 4 px/mm in the GIF panel).
+  for (let t = 0; t < B.RING_MS; t += 10) { const g = B.ringAt(t, 0.25, false, 3.4); if (g) assert.ok(g.w >= 0.3); }
+});
+
+test('cursorScale: lands large and settles, shrinks then hides on lift', () => {
+  assert.ok(B.cursorScale(0, 0, null) > 1.25);
+  assert.ok(Math.abs(B.cursorScale(400, 0, null) - 1) < 1e-9);
+  assert.ok(B.cursorScale(60, 0, null) < B.cursorScale(20, 0, null));
+  assert.equal(B.cursorScale(1000, 0, 1000), 1);
+  const mid = B.cursorScale(1070, 0, 1000);
+  assert.ok(mid < 1 && mid >= 0.5);
+  assert.equal(B.cursorScale(1140, 0, 1000), 0);
+  assert.equal(B.cursorScale(5000, 0, 1000), 0);
+});
+
+test('settle: fresh ink is extra wide, settles within SETTLE_MS, never-found ink never settles', () => {
+  assert.equal(B.settle(0, 500), 0);
+  assert.equal(B.settle(1000, 1000), 1);
+  assert.ok(B.settle(1000, 1100) > 0 && B.settle(1000, 1100) < 1);
+  assert.equal(B.settle(1000, 1000 + B.SETTLE_MS), 0);
+  assert.equal(B.settle(2000, 1000), 0, 'future stamps do nothing');
+});
+
+test('trailStep quantises the fade to a few flat colours', () => {
+  const seen = new Set();
+  for (let i = 0; i <= 1000; i++) seen.add(B.trailStep(i / 1000));
+  assert.equal(seen.size, B.TRAIL_STEPS + 1);
+  assert.equal(B.trailStep(0), 0);
+  assert.equal(B.trailStep(1), 1);
+  assert.equal(B.trailStep(-0.2), 0);
+});

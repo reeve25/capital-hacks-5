@@ -9,7 +9,8 @@
 A real run draws a test stroke on the live board and injects touches with `adb shell input`, so run it only
 while nobody is using the phone. /feel must already be in Live mode: if the first (held) touch sends no finger
 event, it stops there. Afterwards it sends Undo, the same event as draw.html's button, but only while its stroke
-is still the newest one, since Undo removes the newest. Stdlib only.
+is still the newest item, since Undo removes the newest stroke or landmark; then it checks the relay's sync that the
+Undo took its stroke. Stdlib only.
 """
 import argparse
 import bisect
@@ -252,33 +253,53 @@ class Listener(threading.Thread):
         self.sock.close()
 
 
-def board_ids(events):
-    """Stroke ids on the relay, oldest first, replayed from the events it sent."""
-    ids = []
+def board_items(events):
+    """(kind, id) of every stroke and landmark on the relay, oldest first, replayed from the events it sent.
+    Undo pops the newest of either kind (feelink/server.py). A sync lists the two kinds apart, so items already
+    known keep their order and new ones go last; only items on the board before the run lose their cross-kind
+    order, and those are all older than the test stroke."""
+    items = []
     for _, ev in events:
         kind = ev.get("type")
         if kind == "sync":
-            ids = [s["id"] for s in ev.get("strokes", [])]
-        elif kind == "stroke" and ev.get("id") not in ids:
-            ids.append(ev["id"])
+            on = [("stroke", s["id"]) for s in ev.get("strokes", [])] + \
+                 [("landmark", m["id"]) for m in ev.get("landmarks", [])]
+            items = [i for i in items if i in on] + [i for i in on if i not in items]
+        elif kind in ("stroke", "landmark") and (kind, ev.get("id")) not in items:
+            items.append((kind, ev["id"]))
         elif kind == "clear":
-            ids = []
-        elif kind == "undo" and ids:
-            ids.pop()
-    return ids
+            items = []
+        elif kind == "undo" and items:
+            items.pop()
+    return items
+
+
+def _names(items):
+    return ", ".join(f"{kind} {item_id}" for kind, item_id in items)
 
 
 def remove_stroke(relay, listener, sid):
+    """Undo the test stroke only while it is the newest item, then confirm from the relay's sync that Undo took it."""
+    mine = ("stroke", sid)
     listener.wait_for(lambda ev: ev.get("id") == sid, 0, 1)  # our own stroke event may still be on its way
-    ids = board_ids(listener.events)
-    if sid not in ids:
+    items = board_items(listener.events)
+    if mine not in items:
         return "test stroke already gone"
-    if ids[-1] != sid:
-        return f"test stroke {sid} NOT removed: a newer stroke arrived, and Undo would remove that one instead"
+    newer = items[items.index(mine) + 1:]
+    if newer:
+        return f"test stroke {sid} NOT removed: {_names(newer)} came after it, and Undo would remove the newest instead"
     t = now()
     post(relay, {"type": "undo"})
-    ok = listener.wait_for(lambda ev: ev.get("type") == "sync", t, 3) and sid not in board_ids(listener.events)
-    return "test stroke removed with Undo" if ok else "Undo sent, but the relay did not confirm it"
+    if not listener.wait_for(lambda ev: ev.get("type") == "sync", t, 3):
+        return "Undo sent, but the relay did not confirm it"
+    events = list(listener.events)
+    left = board_items(events)
+    if mine not in left:
+        return "test stroke removed with Undo"
+    # Something reached the relay between the check and the Undo, and the Undo took it: name it so it can be redrawn.
+    k = next((n for n, (ta, ev) in enumerate(events) if ta >= t and ev.get("type") == "undo"), len(events))
+    took = [i for i in board_items(events[:k]) if i not in left]
+    return f"test stroke {sid} NOT removed: Undo removed {_names(took) or 'a newer item'} that arrived just before it"
 
 
 # ---- Phones: the real one over adb, and a stand-in for testing without it ----
@@ -365,7 +386,7 @@ def run(relay, phone, geo):
     if not listener.wait_for(lambda ev: ev.get("type") == "sync", 0, 3):
         raise SystemExit("relay sent no sync event")
     rec = {"simulated": phone.simulated, "sync": None, "taps": [], "geo": geo,
-           "board_before": len(board_ids(listener.events))}
+           "board_before": len(board_items(listener.events))}
     if not phone.simulated:
         try:
             rec["sync"] = phone.clock()
@@ -574,8 +595,8 @@ def analyse(rec):
         elif timed:
             out.append("  Gesture: no Chrome vibrations during injected touches (no user activation, page not in "
                        "Live, or the touch missed the line).")
-    out.append(f"Cleanup: {rec['cleanup']}" + (f"; the board had {rec['board_before']} other strokes before the run"
-                                                if rec["board_before"] else ""))
+    out.append(f"Cleanup: {rec['cleanup']}" + (f"; the board had {rec['board_before']} other strokes or landmarks "
+                                                "before the run" if rec["board_before"] else ""))
     return out, stats
 
 
@@ -696,6 +717,46 @@ def selftest():
             raise AssertionError("run went on without finger events")
         except SystemExit as e:
             assert "not open in Live mode" in str(e) and not server.Handler.relay.strokes, e
+
+        # Cleanup with landmarks on the board, since Undo pops the newest stroke or landmark.
+        ev = lambda **e: (0.0, e)
+        assert board_items([ev(type="sync", strokes=[{"id": "a"}], landmarks=[{"id": "m"}]), ev(type="stroke", id="b"),
+                            ev(type="landmark", id="n"), ev(type="stroke", id="a"), ev(type="undo"),
+                            ev(type="sync", strokes=[{"id": "a"}, {"id": "b"}], landmarks=[{"id": "m"}])]) \
+            == [("stroke", "a"), ("landmark", "m"), ("stroke", "b")]
+        board = server.Handler.relay
+        line = {"type": "stroke", "id": "t1", "by": "laptop", "pts": [{"x": x, "y": y} for x, y in STROKE]}
+        door = {"type": "landmark", "id": "door", "x": 5, "y": 5, "name": "Door", "by": "tutor"}
+        listener = Listener(relay)
+        listener.start()
+        try:
+            # A landmark placed after the test stroke: no Undo, and the report names it.
+            post(relay, line)
+            post(relay, door)
+            listener.wait_for(lambda e: e.get("id") == "door", 0, 2)
+            msg = remove_stroke(relay, listener, "t1")
+            assert msg.startswith("test stroke t1 NOT removed: landmark door came after it") \
+                and list(board.strokes) == ["t1"] and list(board.landmarks) == ["door"], msg
+            post(relay, {"type": "undo"})
+            listener.wait_for(lambda e: e.get("type") == "sync" and not e["landmarks"], 0, 2)
+            # A landmark that reaches the relay just before the Undo: the sync shows the Undo took it, not the stroke.
+            publish = board.publish
+
+            def landmark_first(event):
+                if event.get("type") == "undo":
+                    publish({**door, "id": "exit", "name": "Exit"})
+                publish(event)
+            board.publish = landmark_first
+            try:
+                msg = remove_stroke(relay, listener, "t1")
+            finally:
+                del board.publish
+            assert msg == "test stroke t1 NOT removed: Undo removed landmark exit that arrived just before it" \
+                and list(board.strokes) == ["t1"] and not board.landmarks, msg
+            msg = remove_stroke(relay, listener, "t1")
+            assert msg == "test stroke removed with Undo" and not board.strokes and not board.landmarks, msg
+        finally:
+            listener.close()
     finally:
         httpd.shutdown()
     print("selftest: ok")

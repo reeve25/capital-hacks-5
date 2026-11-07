@@ -1,6 +1,6 @@
 # Capital Hacks 5.0
 
-Reeve and Nathan, Nov 6-8, 2026, Sac State Carlsen Center (Library 1520). Goal: win the $1,500 grand prize with something that works live.
+Reeve and Nathan, Nov 6-8, 2026, Sac State Carlsen Center (Library 1520). Goal: win the $1,500 grand prize with a 4-minute slide pitch built on real recorded takes of FeelInk.
 
 Read STATUS.md at the start of every session and update it after every decision or verified result. It holds current state only, so replace stale lines instead of appending a log.
 
@@ -17,9 +17,13 @@ Read STATUS.md at the start of every session and update it after every decision 
 - CI runs `tools/check.sh` on every PR and on main. `tools/ship.sh` merges without waiting for it, so local checks are the gate and CI is the second signal. Say CI is green only after seeing it pass.
 
 ## How Reeve and Nathan want this run
-- Product and creative calls are theirs together: bring real options and a lean, then ask. Execution is hands-off.
-- Check in with Reeve and Nathan before narrowing the idea direction, including before choosing which ideas get researched first.
-- Important decisions get thought through, not skipped. Don't drop an option because it is harder to clear. Read the primary sources first. If the available tools can't settle it, hand it to Reeve with a ready-to-paste question or Gemini prompt, and keep the option open until then.
+Human-directed product strategy, AI-directed execution (Reeve and Nathan, Sat Nov 7).
+- **Level 1, decide and execute, no permission needed:** implementation approaches and ordinary architecture; UI styling, layout, components and animation within the chosen direction; libraries, refactors, tests, bug fixes, optimizations; creating and assigning dev issues, launching agents, managing worktrees, reviewing and integrating in-scope work; choosing between reasonable technical alternatives; research and non-destructive experiments; reversible demo refinements. Record important assumptions and decisions, then continue.
+- **Level 2, inform and proceed:** meaningful changes inside the agreed scope. Make the call, record the reasoning in STATUS.md or `.plans/`, post to the team log when relevant, keep going. Block only on a real ownership conflict or dependency. Informing is not asking.
+- **Level 3, ask the humans, only for:** changing FeelInk's purpose, audience or core experience; choosing between substantially different creative or product directions; dropping or replacing an agreed major demo feature; a scope change that risks Sunday; touching another person's files without coordination; changing the shared event protocol without the team-log notice and coordination; anything the hard rules gate (purchases, public releases, submissions, external communications); truly consequential calls where human preference beats technical judgment. When asking, give your preferred option, the alternatives, the trade-offs and why a decision is needed: real options and a lean, thought through, primary sources read, and an option not dropped just because it is harder to clear. Never ask what inspection, testing, research or engineering judgment can answer.
+- Normal repo work (issues, branches, worktrees, commits, shipping our own PRs to main via `tools/ship.sh`) needs no repeated approval. External or public actions still do. Ownership, security, secrets, consent, outward-action and Git rules below stay in force.
+- **Manager model:** the lead session is the engineering manager. Each implementation agent gets one narrow objective, explicit file ownership, its own issue and worktree, acceptance criteria, a requirement to test, and a short completion report (what changed, what remains uncertain). The manager owns architecture, dependencies, review, conflict prevention and integration, and keeps working on the critical path while agents run. Parallelize only where it pays. No two agents on the same files; Claude and Codex never edit the same files at once; Codex runs one job at a time.
+- **Models:** Fable 5.1 as manager, Opus 5.5 for complex implementation agents (Agent tool `model: "fable"` / `"opus"`). If a model or orchestration feature isn't available, say exactly what isn't and use the closest supported workflow. Never claim an agent launched when it didn't.
 - Give the full findings and reasoning. Don't compress research to keep a message short.
 - Explain the problem first: who benefits and what their day looks like now, before any demo or tech. Then say what the product physically is, what it looks like and how that person uses it, step by step (Reeve, Nov 6: a stage moment alone doesn't explain the product).
 - The edge is maximizing AI-assisted development: AI lets two people build what used to take a team. Hardware: no physical project; owned gear plus unmodified store gadgets, under $50 total (Reeve and Nathan, Nov 6, about 21:00). Full bar: `.plans/winning-idea-bar-spec.md`.

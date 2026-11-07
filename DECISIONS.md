@@ -4,28 +4,13 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 14:50)
+## Open, in order of urgency (Sat Nov 7, 15:25). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
-### A0. Reeve, Do first (5 minutes with the phone): tell the lead when the Pixel is free
-The #34 check found that Chrome's long-press click cut the line buzz after about 0.3 s of a resting finger (11 of 11). The fix is on main (4731746) but the phone tab still runs old code. When the phone is free the lead restarts the relay (so it stores landmarks), reloads `/feel` and taps Live; then Reeve feels, in this order: a still finger on a line keeps buzzing for the whole hold; 2-finger draw and 3-finger home still work; the landmark cue is distinct from the corner cue; the phone speaks the landmark name, and how long after the buzz. Report in plain words. The blind run (D1) happens only after this passes. Someone used the phone at 14:42, so the agent stopped touching it.
+### A0. Reeve, Do: feel the current build (phone is set up as of 15:09)
+Relay restarted, Pixel `/feel` reloaded to main 41f4576 (long-press fix, landmarks, core slider 1-5 mm), test route posted (Classroom down, then right to Library). Fresh `/stage` and `/draw` tabs are open in a new Chrome window on Reeve's laptop; the old tabs are stale. Reeve: tap Live, set core to 4 mm, trace the route, report: the hold lasts on a still finger; 2-finger draw; landmark buzz distinct from the corner; name spoken, and how late. The stage does not draw landmarks yet (#65).
 
-
-### D1. Decide: blind 5-shape run, pass bar and roles (#33)
-Blocked on A0 (the long-press fix must be on the phone first).
-Why it matters: it is the only measured validation for the "Validation & Performance Metrics" rubric line, and it needs the phone, which is the bottleneck. The 11:41 warm-up (1 of 8 right) ran on the buggy build and does not count.
-Proposal (lead, posted on #33): phone test mode, 5 shuffled shapes, eyes closed, initials typed in the "who" field, 90 s cap then "don't know" counts as wrong. Pass bar: 3 of 5 correct with median time under 45 s counts as "works" for the deck; anything else is reported in full, never hidden. Roles: the tester must not have watched the queue, so one person tests and the other runs the laptop.
-Needed: yes to the bar or your own numbers; who tests, who draws; when (the phone is free once the #34 check reports; the lead posts the time).
-Then, if the landmark build is on the phone: one route task (3 segments, 2 named landmarks, tester names the landmarks in order and counts the turns), descriptive only, no pass bar.
-
-### D2. Decide: deck shape
-Option A: rubric order. Problem and user; the product (what it physically is, how the student uses it step by step); GIF 1 freehand hero take; GIF 2 route with landmarks; technical innovation and AI-build disclosure; validation numbers; impact and roadmap; honest limitations.
-Option B: cold open. The route GIF alone on slide 1 for about 10 s with no words, then the same rubric order.
-Lead's lean: B, because the stated bar is "one second, no explaining" and every rubric line still follows in order. Eight slides at about 30 s each fits 4 minutes.
-
-### D3. Decide: deck tool
-Option 1: Google Slides as the working copy (both edit live, GIFs animate when presenting, the lead can drive it through the Google connector), exported to PPTX and PDF at the end as fallbacks.
-Option 2: a PPTX built directly (offline-safe, harder to co-edit).
-Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his laptop? The organizers' answers (A1) decide the final export.
+### D1. Decided by Reeve 15:00 ("it works"), numbers below; optional repeat
+Measured, results.jsonl 14:49-14:54, tester RM, old build, core 14 mm, fade 6: 5 trials, 4 of 5 correct (Z 99.0 s, plus 101.4 s, open at top 49.9 s, square 27.9 s; triangle wrong, 36.4 s), median 49.9 s, no aborts. Versus the proposed bar (3 of 5, median under 45 s): accuracy passes, speed misses by 5 s. Open: whether to repeat at core 4 mm on the fixed build for a cleaner deck number, and whether the tester was blindfolded or eyes closed (for the slide label).
 
 ### D4. Decide: close the dead hand-leash issues #13 to #23
 They belong to the hand-leash plan dropped on Nov 6 ("a physical project is not going to work"). Closing them cleans the open-issue list the team feed shows. Needs Reeve's yes.
@@ -53,5 +38,21 @@ Codex's 28 findings in `research/feelink-fact-sheet-review-codex-2026-11-07.md`,
 - The relay, keep-alive and DevTools forward run from the Fable lead's window (logs in `.tmp/`); closing that window stops them.
 - Both leads' time stamps have run fast today (the Opus lead by about 30 min, Nathan's lead by about an hour). The lead now runs `date` before writing a time.
 
+## Parked until Reeve reopens them (deck and presentation)
+### D2. Decide: deck shape
+Option A: rubric order. Problem and user; the product (what it physically is, how the student uses it step by step); GIF 1 freehand hero take; GIF 2 route with landmarks; technical innovation and AI-build disclosure; validation numbers; impact and roadmap; honest limitations.
+Option B: cold open. The route GIF alone on slide 1 for about 10 s with no words, then the same rubric order.
+Lead's lean: B, because the stated bar is "one second, no explaining" and every rubric line still follows in order. Eight slides at about 30 s each fits 4 minutes.
+
+### D3. Decide: deck tool
+Option 1: Google Slides as the working copy (both edit live, GIFs animate when presenting, the lead can drive it through the Google connector), exported to PPTX and PDF at the end as fallbacks.
+Option 2: a PPTX built directly (offline-safe, harder to co-edit).
+Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his laptop? The organizers' answers (A1) decide the final export.
+
+Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
+
 ## Decided (newest first)
+- Sat 15:12, Reeve: product first; no deck or presentation planning until he reopens it.
+- Sat 15:00, Reeve: D1 blind run accepted as done (4 of 5, median 49.9 s, see D1). Line width: strong core 1-5 mm, never 14; fade proportionate (shipped as slider 1-5 default 4, fade 0-8, PR on main 41f4576).
+- Sat 15:00, Reeve: always reload phone AND laptop pages to current main before any test.
 - Sat 14:20, Reeve: direction update, lead with education, demonstrate with routes (`.plans/feelink-direction-update-2026-11-07.md`).

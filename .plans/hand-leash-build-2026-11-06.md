@@ -1,5 +1,7 @@
 # Hand leash build plan, Nov 6, 2026, about 19:15 PT
 
+**ON HOLD since about 20:16: do not build or buy from this plan.** Nathan objected that it is over-specified and has unnecessary items. Reeve raised that a device that only pulls gives no warning of obstacles and asked whether a cane makes more sense. Codex's independent review agrees it should not be built as written: `research/hand-leash-plan-review-codex-2026-11-06.md`. Its geometry, forces and safety settings are assumptions, not measurements. Product direction is reopened.
+
 Nothing is built. No servo has pulled a hand yet. The only test so far: a floss tug reported as reading clearly (Reeve's answer at 18:50; who wore it, where it was tied and the force were not recorded).
 
 Labels: **Read** (source page or PDF read), **Excerpt** (search excerpt only), **Live** (read from Amazon or a store site tonight), **Computed** (`tools/leash_geometry.py`, a model, not a measurement), **Reasoned** (my judgment, untested).

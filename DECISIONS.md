@@ -4,9 +4,14 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 14:45)
+## Open, in order of urgency (Sat Nov 7, 14:50)
+
+### A0. Reeve, Do first (5 minutes with the phone): tell the lead when the Pixel is free
+The #34 check found that Chrome's long-press click cut the line buzz after about 0.3 s of a resting finger (11 of 11). The fix is on main (4731746) but the phone tab still runs old code. When the phone is free the lead restarts the relay (so it stores landmarks), reloads `/feel` and taps Live; then Reeve feels, in this order: a still finger on a line keeps buzzing for the whole hold; 2-finger draw and 3-finger home still work; the landmark cue is distinct from the corner cue; the phone speaks the landmark name, and how long after the buzz. Report in plain words. The blind run (D1) happens only after this passes. Someone used the phone at 14:42, so the agent stopped touching it.
+
 
 ### D1. Decide: blind 5-shape run, pass bar and roles (#33)
+Blocked on A0 (the long-press fix must be on the phone first).
 Why it matters: it is the only measured validation for the "Validation & Performance Metrics" rubric line, and it needs the phone, which is the bottleneck. The 11:41 warm-up (1 of 8 right) ran on the buggy build and does not count.
 Proposal (lead, posted on #33): phone test mode, 5 shuffled shapes, eyes closed, initials typed in the "who" field, 90 s cap then "don't know" counts as wrong. Pass bar: 3 of 5 correct with median time under 45 s counts as "works" for the deck; anything else is reported in full, never hidden. Roles: the tester must not have watched the queue, so one person tests and the other runs the laptop.
 Needed: yes to the bar or your own numbers; who tests, who draws; when (the phone is free once the #34 check reports; the lead posts the time).

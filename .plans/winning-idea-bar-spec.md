@@ -5,6 +5,22 @@ Interview Nov 6, 2026, about 15:15-15:35 PT. Reeve and Nathan answered together 
 ## The bar in one paragraph
 Use AI-assisted engineering to build something two people could not have built before, which fixes a problem that seems impressive to fix: one people assume is permanent, or one whose fix costs a fortune today. Anyone looking at the invention should see at once that it fixes the problem directly and practically. Judges should ask to try it. The thing speaks for itself.
 
+## Update, Nov 6 about 21:00 PT, second interview. This overrides everything below where they differ.
+Reeve and Nathan at the keyboard (Reeve's statement), answering through the question tool. Quotes are theirs.
+- **Physical line:** owned gear unmodified, plus store gadgets that work out of the box. Nothing built or modified. Under $50 total, in hand by Saturday morning, Reeve's yes on any purchase. Gear question left blank, so assume only the iPhone 15 Pro Max, Pixel 8, two Windows laptops and the RTX 4050 (reported) until told otherwise.
+- **What must survive from Silent Voice:** "one second, no explaining". The problem and the fix happen in the same instant.
+- **Moment types:** all four accepted: broken becomes clear, invisible becomes visible, body becomes the control, you gain a new ability.
+- **Who is in the moment:** all four accepted: presenter, judge at our laptop, judge's own phone, the whole room.
+- **Rival rule:** "lets allow more ideas". Advisor reading, not confirmed: no rival kills an idea automatically; near-clones with a prize get a loud label naming the rival, and they decide. Replaces "Dead" in the Rival rule section below.
+- **Silent Voice:** back only with a leap over thaimtl/Silent-Voice that visibly shows on stage. It competes against new ideas.
+- **Auto-rejects:** question left blank, and it said anything not picked stays banned, so the list stands, except lip reading for Silent Voice's own re-entry.
+- **Validation and users:** "dont worry about any of that we will handle it , just focus on makign a incredible demo product". They also said they know someone relevant, "but dont concern yourself wit that". So pitches skip validation plans, and nobody gets contacted or asked about. CLAUDE.md still holds: present only validation that happened.
+- **What "seem functional" means:** really runs, in a narrow setup. Trained on the presenter, calibrated setup or limited scope are fine. Mocked output is never passed off as live.
+- **Felt-in-the-body pattern:** "Coincidence". The earlier favorites got energy for looking concretely demoable and fixing something real.
+- **Cloud:** "Anything that works", including inside the live core. The rubric still marks novel execution above basic wrappers, so the novel part has to be ours.
+- **Tracks:** Health + Accessibility, Construction + Sustainability and Open Tech are open on the same demo bar. Civic + GovTech was not opened.
+- **Codex:** writes its own independent idea list, shown labeled by source. Rival checks on favorites run before any deep design.
+
 ## Update, Nov 6 about 20:40 PT, after the cane round. This overrides everything below where they differ.
 Reeve: "a physical project is not going to work, it still needs to be a super impressive demo and idea, and win the rubric and everything". Earlier in the same chat, on steering the hand: "this is too physically complicated to build".
 - **No physical project.** Superseded: the Hardware and Budget rows and test 5 below. Advisor reading, not yet confirmed: nothing built or worn; ordinary phones, laptops, the RTX 4050, webcams and earbuds are fine.

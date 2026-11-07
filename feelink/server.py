@@ -2,6 +2,7 @@
 """FeelInk relay: serves the two pages, relays drawing events and logs test results. Stdlib only.
 
 Usage: python feelink/server.py [port]
+       python -I feelink/server.py --selftest   offline check of the relay store
 Anyone on the same network can open these pages, so run it only while testing.
 """
 import json
@@ -27,14 +28,20 @@ PAGES = {
 class Relay:
     def __init__(self):
         self.lock = threading.Lock()
-        self.strokes = {}  # id -> stroke, insertion-ordered, so undo pops the newest
+        self.strokes = {}  # id -> stroke
+        self.landmarks = {}  # id -> landmark (a named point), kept like strokes
+        self.order = {}  # (type, id) in first-arrival order, so undo pops the newest stroke or landmark
         self.clients = []
+
+    def sync(self):
+        """The whole board, for a client that just joined or after an undo. Call with the lock held."""
+        return {"type": "sync", "strokes": list(self.strokes.values()), "landmarks": list(self.landmarks.values())}
 
     def subscribe(self):
         q = queue.Queue()
         with self.lock:
             self.clients.append(q)
-            q.put({"type": "sync", "strokes": list(self.strokes.values())})
+            q.put(self.sync())
         return q
 
     def unsubscribe(self, q):
@@ -46,14 +53,22 @@ class Relay:
             kind = event.get("type")
             if kind == "stroke":
                 self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"]}
+                self.order.setdefault(("stroke", event["id"]))
+            elif kind == "landmark":
+                self.landmarks[event["id"]] = {"id": event["id"], "x": event["x"], "y": event["y"],
+                                               "name": event.get("name", ""), "by": event.get("by")}
+                self.order.setdefault(("landmark", event["id"]))
             elif kind == "clear":
                 self.strokes.clear()
-            elif kind == "undo" and self.strokes:
-                self.strokes.pop(next(reversed(self.strokes)))
+                self.landmarks.clear()
+                self.order.clear()
+            elif kind == "undo" and self.order:
+                (newest, item_id), _ = self.order.popitem()  # a dict pops its last-inserted key
+                (self.strokes if newest == "stroke" else self.landmarks).pop(item_id)
             for q in self.clients:
                 q.put(event)
             if kind == "undo":
-                sync = {"type": "sync", "strokes": list(self.strokes.values())}
+                sync = self.sync()
                 for q in self.clients:
                     q.put(sync)
 
@@ -126,7 +141,54 @@ def lan_addresses():
         return []
 
 
+def selftest():
+    """Relay store: sync, clear and undo with strokes and landmarks mixed. No network."""
+    relay = Relay()
+    q = relay.subscribe()
+    drain = lambda: [q.get_nowait() for _ in range(q.qsize())]
+    ids = lambda: ([s["id"] for s in relay.strokes.values()], [m["id"] for m in relay.landmarks.values()])
+    assert drain() == [{"type": "sync", "strokes": [], "landmarks": []}]
+
+    s1 = {"type": "stroke", "id": "s1", "by": "tutor", "pts": [{"x": 5, "y": 37}, {"x": 5, "y": 83}]}
+    lib = {"type": "landmark", "id": "m1", "x": 5, "y": 83, "name": "Library", "by": "tutor"}
+    s2 = {"type": "stroke", "id": "s2", "by": "tutor", "pts": [{"x": 5, "y": 83}, {"x": 51, "y": 83}]}
+    for ev in (s1, lib, s2):
+        relay.publish(ev)
+    assert drain() == [s1, lib, s2]  # relayed unchanged, in order
+    stored = lambda ev: {k: v for k, v in ev.items() if k != "type"}
+    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [stored(s1), stored(s2)], "landmarks": [stored(lib)]}
+
+    # A growing stroke and a renamed landmark are re-posted with the same id and keep their places.
+    relay.publish({**s1, "pts": s1["pts"] + [{"x": 6, "y": 84}]})
+    relay.publish({**lib, "name": "Main library"})
+    assert ids() == (["s1", "s2"], ["m1"]) and relay.landmarks["m1"]["name"] == "Main library"
+    drain()
+
+    # Undo pops the newest item of either kind: s2, then the landmark, then s1.
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1"], ["m1"])
+    undo, sync = drain()
+    assert undo == {"type": "undo"} and sync["type"] == "sync" and [m["id"] for m in sync["landmarks"]] == ["m1"]
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1"], [])
+    assert drain()[-1] == {"type": "sync", "strokes": [relay.strokes["s1"]], "landmarks": []}
+    relay.publish({"type": "undo"})
+    assert ids() == ([], [])
+    relay.publish({"type": "undo"})  # nothing left: still relayed, no error
+    assert ids() == ([], []) and drain()[-1] == {"type": "sync", "strokes": [], "landmarks": []}
+
+    # Clear empties both, and leaves no stale order behind for the next undo.
+    for ev in (lib, s1, {"type": "clear"}, s2):
+        relay.publish(ev)
+    assert ids() == (["s2"], [])
+    relay.publish({"type": "undo"})
+    assert ids() == ([], []) and not relay.order
+    print("server selftest: ok")
+
+
 def main():
+    if sys.argv[1:] == ["--selftest"]:
+        return selftest()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"Laptop canvas: http://localhost:{port}/draw")

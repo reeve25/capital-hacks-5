@@ -2,6 +2,8 @@
 // Pure logic with no browser calls, so `node --test feelink/tactile.test.cjs` can check it.
 (function (root) {
   const BOARD = { w: 56, h: 120 };
+  // A landmark (a named point such as "Library") is found within this many mm of the finger, on the line or off it.
+  const LANDMARK_MM = 4;
 
   function distPointSeg(p, a, b) {
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -100,8 +102,10 @@
       this.steps = opts.steps ?? 3;
       this.top = this.steps + 1;
       this.nodeRadius = opts.nodeRadius ?? 5;
+      this.landmarkRadius = opts.landmarkRadius ?? LANDMARK_MM;
       this.sceneOpts = opts;
       this.scene = { segs: [], nodes: [] };
+      this.landmarks = [];
       this.last = null;
       this.level = 0;
       this.node = null;
@@ -109,7 +113,24 @@
 
     setStrokes(strokes) {
       this.scene = buildScene(strokes, this.sceneOpts);
-      this.node = this.node && this.scene.nodes.find((n) => n.x === this.node.x && n.y === this.node.y) || null;
+      this.keepNode();
+    }
+
+    // Landmarks as the relay sends them: {id, x, y, name}. Each becomes a node of kind 'landmark'.
+    setLandmarks(list) {
+      this.landmarks = (list || []).filter((l) => l && Number.isFinite(l.x) && Number.isFinite(l.y))
+        .map((l) => ({ x: l.x, y: l.y, kind: 'landmark', id: l.id, name: typeof l.name === 'string' ? l.name : '' }));
+      this.keepNode();
+    }
+
+    // The relay resends the scene on every edit, so the node under a resting finger is kept if it is still
+    // there; otherwise the next refresh would cue it (and speak a landmark) again with no movement.
+    keepNode() {
+      const n = this.node;
+      if (!n) return;
+      this.node = (n.kind === 'landmark'
+        ? this.landmarks.find((m) => m.id === n.id && m.x === n.x && m.y === n.y && m.name === n.name)
+        : this.scene.nodes.find((m) => m.x === n.x && m.y === n.y)) || null;
     }
 
     nearest(p) {
@@ -132,26 +153,53 @@
       return Math.ceil((this.halfWidth + this.fade - d) / this.fade * this.steps);
     }
 
+    // Corners and ends. One a landmark sits on is skipped: the landmark replaces its cue, so the finger
+    // does not get a corner buzz at 5 mm and then a landmark buzz at 4 mm for the same spot.
     nodeAt(p) {
       let best = null, bestD = this.nodeRadius;
       for (const n of this.scene.nodes) {
+        const d = Math.hypot(n.x - p.x, n.y - p.y);
+        if (d <= bestD && !this.landmarks.some((l) => Math.hypot(l.x - n.x, l.y - n.y) <= this.landmarkRadius)) { best = n; bestD = d; }
+      }
+      return best;
+    }
+
+    // Leaving takes a quarter more distance than entering, so a finger resting on the edge of a landmark
+    // does not repeat its buzz and name. Scales with the one radius constant.
+    landmarkAt(p) {
+      const cur = this.node && this.node.kind === 'landmark' ? this.node : null;
+      if (cur && Math.hypot(cur.x - p.x, cur.y - p.y) <= this.landmarkRadius * 1.25) return cur;
+      let best = null, bestD = this.landmarkRadius;
+      for (const n of this.landmarks) {
         const d = Math.hypot(n.x - p.x, n.y - p.y);
         if (d <= bestD) { best = n; bestD = d; }
       }
       return best;
     }
 
-    // Returns one command or null: {type:'level',level}, {type:'tick'} or {type:'node',kind,level}.
+    // A landmark counts on the line or off it, and wins over a corner or end: its name says more.
+    // Corners and ends count only on the line.
+    nodeFor(p, level) {
+      return this.landmarkAt(p) || (level === this.top ? this.nodeAt(p) : null);
+    }
+
+    nodeCommand(node, level) {
+      if (node.kind === 'landmark') return { type: 'node', kind: 'landmark', level, name: node.name };
+      return { type: 'node', kind: node.kind, level };
+    }
+
+    // Returns one command or null: {type:'level',level}, {type:'tick'} or {type:'node',kind,level},
+    // plus name when kind is 'landmark'.
     move(p) {
       const prev = this.last;
       const prevLevel = this.level;
       const level = this.levelAt(p);
-      const node = level === this.top ? this.nodeAt(p) : null;
+      const node = this.nodeFor(p, level);
       const nodeChanged = node !== this.node;
       this.last = p;
       this.level = level;
       this.node = node;
-      if (node && nodeChanged) return { type: 'node', kind: node.kind, level };
+      if (node && nodeChanged) return this.nodeCommand(node, level);
       if (level !== prevLevel) return { type: 'level', level };
       // A fast finger can jump a line between samples, so test the path, not just the endpoints.
       if (level === 0 && prev && this.sweptNearest(prev, p) <= this.halfWidth) return { type: 'tick' };
@@ -163,8 +211,8 @@
       if (!this.last) return null;
       const prevLevel = this.level, prevNode = this.node;
       this.level = this.levelAt(this.last);
-      this.node = this.level === this.top ? this.nodeAt(this.last) : null;
-      if (this.node && this.node !== prevNode) return { type: 'node', kind: this.node.kind, level: this.level };
+      this.node = this.nodeFor(this.last, this.level);
+      if (this.node && this.node !== prevNode) return this.nodeCommand(this.node, this.level);
       return this.level !== prevLevel ? { type: 'level', level: this.level } : null;
     }
 
@@ -219,7 +267,7 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, sendQueue };
+  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, sendQueue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

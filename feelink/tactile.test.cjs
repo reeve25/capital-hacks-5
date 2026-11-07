@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Renderer, SHAPES, buildScene, simplify, sendQueue } = require('./tactile.js');
+const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, sendQueue } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -79,6 +79,76 @@ test('a circle has no false corners', () => {
 test('a wobbly hand-drawn straight line simplifies to two points', () => {
   const wobble = Array.from({ length: 30 }, (_, i) => ({ x: 10 + i, y: 50 + (i % 2 ? 0.8 : -0.8) }));
   assert.equal(simplify(wobble, 2).length, 2);
+});
+
+const library = { id: 'lm1', x: 28, y: 50, name: 'Library', by: 'tutor' };
+
+test('a landmark is found within 4 mm of the finger, on the line or off it, with its name', () => {
+  assert.equal(LANDMARK_MM, 4);
+  const door = { id: 'lm2', x: 28, y: 20, name: 'Door' };
+  const r = rendererWith([hline]);
+  r.setLandmarks([library, door]);
+  assert.equal(r.move({ x: 28, y: 30 }), null);
+  assert.deepEqual(r.move({ x: 28, y: 23.9 }), { type: 'node', kind: 'landmark', level: 0, name: 'Door' });
+  assert.equal(r.move({ x: 28, y: 35 }), null);
+  assert.deepEqual(r.move({ x: 28, y: 46 }), { type: 'node', kind: 'landmark', level: r.top, name: 'Library' });
+  const far = rendererWith([hline]);
+  far.setLandmarks([library]);
+  assert.deepEqual(far.move({ x: 32.1, y: 50 }), { type: 'level', level: far.top });
+});
+
+// The cues met tracing a polyline end to end in 0.5 mm steps, as kind or kind:name.
+function trace(r, pts) {
+  const samples = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.5);
+    for (let k = 0; k < n; k++) samples.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+  }
+  samples.push(pts[pts.length - 1]);
+  return samples.map((p) => r.move(p)).filter((c) => c && c.type === 'node').map((c) => (c.name ? `${c.kind}:${c.name}` : c.kind));
+}
+
+test('a landmark on a corner or end replaces that cue, and a route reads in order', () => {
+  const route = SHAPES.L[0].pts; // (5,37) down to the corner (5,83), then right to (51,83)
+  const cues = (landmarks) => { const r = rendererWith(SHAPES.L); r.setLandmarks(landmarks); return trace(r, route); };
+  assert.deepEqual(cues([]), ['end', 'corner', 'end']);
+  assert.deepEqual(cues([{ id: 'a', x: 28, y: 83, name: 'Fountain' }]), ['end', 'corner', 'landmark:Fountain', 'end']);
+  assert.deepEqual(cues([{ id: 'b', x: 5, y: 83, name: 'Office' }]), ['end', 'landmark:Office', 'end']);
+  assert.deepEqual(cues([{ id: 'c', x: 51, y: 83, name: 'Library' }]), ['end', 'corner', 'landmark:Library']);
+  // At the corner itself, with a landmark there, the landmark wins.
+  const r = rendererWith(SHAPES.L);
+  r.setLandmarks([{ id: 'b', x: 5, y: 83, name: 'Office' }]);
+  r.move({ x: 5, y: 60 });
+  assert.deepEqual(r.move({ x: 5, y: 83 }), { type: 'node', kind: 'landmark', level: r.top, name: 'Office' });
+});
+
+test('a landmark cues once per entry: resting on its edge or a resent scene does not repeat it', () => {
+  const r = rendererWith([hline]);
+  r.setLandmarks([library]);
+  const enter = { type: 'node', kind: 'landmark', level: r.top, name: 'Library' };
+  assert.equal(r.move({ x: 28, y: 20 }), null);
+  assert.deepEqual(r.move({ x: 25, y: 50 }), enter);
+  assert.equal(r.move({ x: 23.5, y: 50 }), null); // 4.5 mm: past the 4 mm entry radius, inside the 5 mm exit
+  assert.equal(r.move({ x: 24.5, y: 50 }), null);
+  r.setStrokes([hline]);
+  r.setLandmarks([{ ...library }]);
+  assert.equal(r.refresh(), null);
+  assert.equal(r.move({ x: 22, y: 50 }), null); // 6 mm: left, still on the line, so no cue
+  assert.deepEqual(r.move({ x: 24.5, y: 50 }), enter);
+  assert.equal(r.lift().level, 0);
+  assert.deepEqual(r.move({ x: 28, y: 50 }), enter); // a new touch is a new entry
+});
+
+test('a landmark placed or removed under a resting finger is felt with no movement', () => {
+  const r = rendererWith([hline]);
+  r.move({ x: 28, y: 50 });
+  r.setLandmarks([library]);
+  assert.deepEqual(r.refresh(), { type: 'node', kind: 'landmark', level: r.top, name: 'Library' });
+  assert.equal(r.refresh(), null);
+  r.setLandmarks([]); // undo
+  assert.equal(r.refresh(), null);
+  r.setLandmarks([library]);
+  assert.deepEqual(r.refresh(), { type: 'node', kind: 'landmark', level: r.top, name: 'Library' });
 });
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -1,5 +1,5 @@
 // Geometry and haptic rendering for FeelInk. All coordinates are millimetres on the board.
-// Pure logic with no browser calls, so `node --test feelink/` can check it.
+// Pure logic with no browser calls, so `node --test feelink/tactile.test.cjs` can check it.
 (function (root) {
   const BOARD = { w: 56, h: 120 };
 
@@ -92,11 +92,13 @@
     return { segs, nodes };
   }
 
-  // Levels: 0 off the line, 1 in the soft shoulder beside it, 2 on it.
+  // Levels: 0 off the line, 1..steps in the fade beside it (1 faintest), top on it.
   class Renderer {
     constructor(opts) {
       this.halfWidth = opts.halfWidth ?? 4.5;
-      this.shoulder = opts.shoulder ?? 0;
+      this.fade = opts.fade ?? 0;
+      this.steps = opts.steps ?? 3;
+      this.top = this.steps + 1;
       this.nodeRadius = opts.nodeRadius ?? 5;
       this.sceneOpts = opts;
       this.scene = { segs: [], nodes: [] };
@@ -124,8 +126,10 @@
 
     levelAt(p) {
       const d = this.nearest(p);
-      if (d <= this.halfWidth) return 2;
-      return this.shoulder > 0 && d <= this.halfWidth + this.shoulder ? 1 : 0;
+      if (d <= this.halfWidth) return this.top;
+      if (d > this.halfWidth + this.fade) return 0;
+      // Strongest just off the line, faintest at the outer edge, so drifting away reads as fading.
+      return Math.ceil((this.halfWidth + this.fade - d) / this.fade * this.steps);
     }
 
     nodeAt(p) {
@@ -142,7 +146,7 @@
       const prev = this.last;
       const prevLevel = this.level;
       const level = this.levelAt(p);
-      const node = level === 2 ? this.nodeAt(p) : null;
+      const node = level === this.top ? this.nodeAt(p) : null;
       const nodeChanged = node !== this.node;
       this.last = p;
       this.level = level;
@@ -159,7 +163,7 @@
       if (!this.last) return null;
       const prevLevel = this.level, prevNode = this.node;
       this.level = this.levelAt(this.last);
-      this.node = this.level === 2 ? this.nodeAt(this.last) : null;
+      this.node = this.level === this.top ? this.nodeAt(this.last) : null;
       if (this.node && this.node !== prevNode) return { type: 'node', kind: this.node.kind, level: this.level };
       return this.level !== prevLevel ? { type: 'level', level: this.level } : null;
     }

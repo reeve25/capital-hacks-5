@@ -257,3 +257,56 @@ test('feltFromConfig: half the phone core width, else keep the fallback (Codex #
   assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 'x' }), B.FELT_MM);
   assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 0 }), B.FELT_MM);
 });
+
+test('landmark haptic is a one-off cue with its name, and does not end a held line (#65)', () => {
+  // As feel.html sends it (#64): NODE.landmark = [120, 60, 40, 80], name added for the stage caption.
+  const ev = { type: 'haptic', kind: 'landmark', name: '  Main   library ', level: 0, top: 4, pattern: [120, 60, 40, 80], ok: true, t: 1 };
+  const h = B.parseHaptic(ev);
+  assert.equal(h.burst, true);
+  assert.equal(h.name, 'Main library');
+  assert.deepEqual(h.pulses, [0, 180], 'long-short: two rings');
+  const r = new B.HapticRings({ holdMs: 1000, periodTopMs: 450, periodLowMs: 900 });
+  r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true }), 0);
+  assert.equal(r.onHaptic(h, 100).length, 2);
+  assert.equal(r.state && r.state.level, 4, 'an off-line landmark (level 0) does not clear the held line');
+  assert.equal(B.parseHaptic({ ...ev, ok: false }), null, 'a refused buzz shows nothing');
+  assert.equal(B.parseHaptic({ ...ev, name: 42 }).name, '');
+});
+
+test('landmark helpers: upsert keeps order, lookup by name picks the nearest, clicks hit the zone', () => {
+  const a = { id: 'a', x: 5, y: 10, name: 'Library' }, b = { id: 'b', x: 40, y: 100, name: 'Library' }, c = { id: 'c', x: 30, y: 50, name: 'Gym' };
+  let list = B.upsertById([], a);
+  list = B.upsertById(list, b);
+  list = B.upsertById(list, { ...a, name: 'Main library' });
+  assert.deepEqual(list.map((l) => l.id + ':' + l.name), ['a:Main library', 'b:Library'], 'rename keeps its place');
+  list = B.upsertById(B.upsertById([], a), b).concat([c]);
+  assert.equal(B.landmarkFor(list, 'Library', { x: 38, y: 98 }).id, 'b');
+  assert.equal(B.landmarkFor(list, 'Library', { x: 6, y: 9 }).id, 'a');
+  assert.equal(B.landmarkFor(list, 'Pool', { x: 0, y: 0 }), null);
+  assert.equal(B.landmarkAt(list, { x: 31, y: 52 }).id, 'c');
+  assert.equal(B.landmarkAt(list, { x: 31, y: 56 }), null, 'outside the 4 mm zone');
+  assert.equal(B.validLandmark({ id: 'x', x: 1, y: 2 }), true);
+  assert.equal(B.validLandmark({ id: 'x', x: 'a', y: 2 }), false);
+  assert.equal(B.cleanName('x'.repeat(40)).length, B.NAME_MAX);
+});
+
+test('landmark label avoids the board edge and the ink; caption pops, holds and goes', () => {
+  const board = { w: 56, h: 120 };
+  const side = (...a) => B.labelPlace(...a).side;
+  assert.equal(side({ x: 10, y: 10 }, 20, board, 4.8), 'right');
+  assert.equal(side({ x: 45, y: 30 }, 20, board, 4.8), 'left', 'no room on the right');
+  assert.equal(side({ x: 20, y: 50 }, 12, board, 4.8, 3.6, []), 'right', 'right on a tie');
+  // A route leaving to the right pushes the label left, if it fits there.
+  const toRight = (x0) => Array.from({ length: 30 }, (_, i) => ({ x: x0 + i, y: 50 }));
+  assert.equal(side({ x: 20, y: 50 }, 12, board, 4.8, 3.6, toRight(20)), 'left');
+  // Near the left edge with the route going right and down (the Library case): above is clear.
+  const down = Array.from({ length: 30 }, (_, i) => ({ x: 12, y: 62 + i }));
+  assert.equal(side({ x: 12, y: 62 }, 13, board, 4.8, 3.6, toRight(12).map((p) => ({ x: p.x, y: 62 })).concat(down)), 'above');
+  const at = B.labelPlace({ x: 12, y: 62 }, 13, board, 4.8, 3.6, []);
+  assert.deepEqual([at.x, at.y, at.align], [16.8, 62, 'left']);
+  assert.equal(B.captionScale(-1), 0);
+  assert.ok(B.captionScale(0) >= 0.85 && B.captionScale(0) < 1);
+  assert.equal(B.captionScale(800), 1);
+  assert.ok(B.captionScale(B.CAPTION_MS - 10) < 1);
+  assert.equal(B.captionScale(B.CAPTION_MS), 0);
+});

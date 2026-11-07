@@ -31,7 +31,7 @@ fi
 
 bash tests/test_team_feed.sh
 bash tests/test_check.sh
-# Add the project's own tests here once the stack is chosen.
+node --test feelink/tactile.test.cjs >/dev/null
 
 [ "$fail" -eq 0 ] && echo "check: ok"
 exit "$fail"

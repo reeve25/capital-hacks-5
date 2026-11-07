@@ -1,90 +1,73 @@
-# FeelInk Sunday demo plan (Nathan's lane), Sat Nov 7 2026
+# FeelInk Sunday plan (Nathan's lane), Sat Nov 7 2026: 4-minute slide pitch with recorded GIFs
 
-Written by Claude on Nathan's laptop from Nathan's direction brief (pasted in chat, Sat afternoon). Labels: **Measured** = in STATUS.md from a real Pixel run. **Built** = code on main `7c3cee6`, not necessarily felt. **Planned** = not built. **Assumption** = a value nobody has measured yet.
+Rewritten Sat afternoon after the organizers changed the format (no live demo). Decisions below come from Nathan's interview on his laptop, Sat afternoon. Labels: **Measured** = from a real Pixel run (STATUS.md). **Built** = code on main, not necessarily felt. **Planned** = not built. **Assumption** = nobody has measured it.
 
-## Direction (Nathan's brief, summarized)
-- Product: a tutor draws on a browser whiteboard; a blind student feels the strokes live through the phone's own vibration motor. Proximity is pulse cadence and duty cycle, not amplitude (no amplitude control in the web API).
-- Main differentiator: the projector shows the audience what the student is doing: the drawing, the live fingertip, an exploration trail and a haptic indicator. Far / approaching / on the line must look different.
-- Truth rule: animate "the phone buzzed" only from real events sent by the phone. Anything the laptop computes is labelled as an estimate.
-- Not now: webcam whiteboard, draw-it-back, touch-to-hear. Keep the stroke format open for a webcam source later (`by: "webcam"`), build nothing for it.
-- One-second wow: the tutor draws a stroke and someone immediately feels it through plain glass. Full-shape recognition can take much longer; never promise it is instant.
-- Priorities: P0 real interaction, P1 projected UI, P2 demo polish, P3 extensions.
-- Ownership: Nathan owns plan, demo, laptop/projector UI, `feelink/draw.html` and new UI files. Reeve owns `feel.html`, `tactile.js` and Pixel tuning. `server.py` and its event format are shared: team-log note and Reeve's agreement first.
+## Format (Told by organizers, recorded by Reeve on main)
+Sunday is a **4-minute slide pitch, no live demo, GIFs and images allowed**. Unconfirmed: deadline (planning on 11 AM Sun), file format, template, video with sound, Q&A, public repo. Questions: `research/pitch-format-2026-11-07.md`; Nathan and Reeve are asking.
+
+## Product (unchanged)
+A tutor draws on a browser whiteboard; a blind student feels the strokes live through their phone's own vibration motor. Proximity is pulse cadence and duty cycle (the web vibration API has no amplitude control). The tutor-side **stage view** shows the student's fingertip, the exploration trail, a ring on each real buzz, and **found by touch** (parts the student has felt turn solid). Webcam whiteboard, draw-it-back and touch-to-hear are future work: roadmap slide only, never shown as working.
+
+## New goal
+Everything serves a 4-minute deck plus recorded GIFs (and a ~60 s MP4 from the same takes if video is allowed), done by Sunday morning. The room can't feel vibration and GIFs are silent, so the stage view is the only way judges see the haptics, and it is the centrepiece of every GIF. **A GIF must read in one second with no narration: a real hand on a dark phone, a line, a ring when the finger hits it.**
+
+Nothing has to survive a live room, only a take. We can retake.
+
+## Decisions (Nathan's interview, Sat afternoon)
+- **GIF framing: side by side.** Left: stage screen capture. Right: overhead iPhone video (Reeve's iPhone, propped, nothing built) of the real hand on the Pixel's dark screen. Two portrait panels fill 16:9.
+- **Stage style: dark stage, paper board.** Near-black surround, off-white board, dark ink, teal trail, amber rings, Atkinson Hyperlegible, as in Reeve's mockups (https://claude.ai/artifact/VQciFrAWL3nRz437mH57PL). Designed for GIFs: flat colours, thick strokes, big cursor and rings, readable at about 960 px wide, no soft glows (they band in a GIF palette).
+- **Stage design: B.** One board: student cursor, trail, rings, found by touch. Portrait 56 x 120 mm board as today. No rail, loupe or phone mirror.
+- **Tutor input: draw on the stage page itself** on Reeve's laptop (mouse or trackpad, light smoothing). One page, one capture, no network. Claim only devices actually tested. ("Projector" in older briefs now means the stage view captured for GIFs.)
+- **Ring truth: the hero take waits for #34's real phone buzz events.** Meanwhile build and test cursor, trail and found by touch. No laptop-estimated rings in any take.
+- **Captions: on the slide or in the GIF composition.** The stage shows only a small header: FeelInk plus phone and tutor status dots.
+- **Agentation: skipped.** UI stays plain HTML, no build step.
+- **Level 1 (decided by Claude, recorded as it goes):** cursor, trail, found-by-touch visuals and animation timings (`/animate` after the interaction works, `/better-ui` last), recording pipeline details.
+- **Level 3, later:** deck shape (lean: rubric order plus 2 GIFs) and deck tool (Google Slides or PowerPoint; a PDF freezes GIFs, so PDF only as fallback). Raised once organizers answer.
 
 ## What exists vs what is needed
 
 | Piece | State |
 |---|---|
-| Relay `server.py`: SSE fan-out, stroke store, undo, clear, sync on connect, `/log` | Built. Relays any event type unchanged, so new event types need no server change. Pages are a fixed route list, so a new file needs a new route. |
-| Board geometry: everything in mm on a 56 x 120 mm portrait board | Built. Phone and laptop both map to mm, so finger position on the laptop is exact by construction (phone screen width 64.6 mm is calculated from the spec, not measured). |
-| Phone haptics: core 6 mm, 3-step fade 6 mm each side, corner and end cues, swept-line tick, `vibrate(1)` stop | Built, unit-tested. `vibrate(0)` bug measured and fixed. Gradient not yet felt (Reeve's lane). |
-| Phone live mode: strokes arrive by SSE, finger sent back as `{type:"finger", x, y, down, pen}`, latest-only | Built. **The finger event carries no haptic state**, so the laptop cannot truthfully show buzzes yet. |
-| Tutor canvas `draw.html`: draws, partial strokes every 40 ms, undo, clear, red finger dot | Built, debug-looking. Mouse/touch/pen all come through pointer events; no smoothing, no presence, no examples. |
-| Projector view, trail, haptic indicator, loupe, presentation mode, reset, examples, device status | Planned. |
-| Phone presence (is the phone connected when no finger is down?) | Missing. SSE has no client identity. |
+| Relay `server.py`: SSE fan-out, stroke store, undo, clear, sync on connect, `/log` | Built. Relays any event type unchanged. Pages are a fixed route list, so `/stage` and `/board.js` need new routes. |
+| Board geometry in mm on a 56 x 120 mm portrait board | Built. Phone and laptop both map to mm, so finger position is exact by construction (phone width 64.6 mm calculated, not measured). |
+| Phone haptics: core 6 mm, 3-step fade, corner/end cues, tick, `vibrate(1)` stop | Built, unit-tested, `vibrate(0)` bug measured and fixed. Gradient being felt and tuned (Reeve, #33). |
+| Phone live mode: strokes by SSE, finger sent back latest-only | Built. Finger event carries no haptic state. |
+| Phone buzz events (`haptic`, `level` on finger, presence) | Proposed, Reeve decides (#34). **Required for rings.** |
+| Tutor canvas `draw.html` | Built, debug look. Stays as-is; the stage page replaces it for takes. |
+| Stage view B (`stage.html` + `board.js`) | Planned, issue below. |
+| Recording pipeline (capture, compose, export) | Planned. No ffmpeg on the host laptop yet. |
 
-## Hard constraints found
-1. **One host laptop.** Venue Wi-Fi and the Pixel hotspot both blocked device-to-device traffic (Measured, cause not found). The Pixel reaches the server only over USB `adb reverse`. So server, Pixel, tutor input and projector all hang off one laptop. A separate iPad as the tutor device needs a network path that has not worked yet; test an iPhone hotspot once, otherwise the tutor draws on the host laptop (touchscreen/stylus if it has one, else mouse).
-2. **The Pixel is on Reeve's laptop.** Nathan's laptop has no adb (checked). Real-system tests of Nathan's UI run on Reeve's laptop after merge, or adb gets installed here and the Pixel moves. Agents can test layout against a second browser tab, but that is a mock and must be reported as one.
-3. **Haptic settings live on the phone** (core and fade sliders in its localStorage). The laptop cannot reproduce the phone's levels without being told them.
-4. **Portrait board, landscape projector.** A 56 x 120 board fit to a 16:9 screen uses about a quarter of the width. The free space is where the explanation goes.
+## Priorities
+- **P0 (appears in the recording):** drawing reaches the phone; finger returns; haptics feel right (Reeve); real haptic events (#34); stage view B.
+- **P1:** recording pipeline; fact sheet; rehearsal; deck later.
+- **P2 only if time:** haptic strip (phone-buzz timeline) if it reads in a GIF; iPad only if a network path works.
+- **CUT:** judge onboarding, reconnect and latency chips, presentation-mode toggle, reset flows, examples library, the loupe, the iPad network chase.
 
-## Design options (Nathan and Reeve pick)
+## Stage view B: design notes (Level 1, may change after real takes)
+- One page `feelink/stage.html`, shared code in `feelink/board.js` (fit/letterbox with `scale = min(w/56, h/120)`, stroke rendering, smoothing, SSE client). Plain HTML and JS, no build step.
+- Tutor draws on the board with pointer events; light smoothing before sending, so phone and stage use the same geometry; partial strokes every 40 ms as `draw.html` does.
+- Student cursor interpolated toward the latest finger sample each frame. Trail: last ~3 s comet in teal (Assumption), under the ink. Found by touch: segments the finger has passed within the core band turn from grey to full ink; until #34 lands, "passed within the core" is computed on the laptop from finger position, which is honest because it shows where the finger went, not a buzz. Rings: amber, only on #34 `haptic` events; none otherwise.
+- Header: "FeelInk", phone dot (green while finger or presence events arrive), tutor dot.
 
-### A. Split stage (recommended)
-Landscape stage page. Left two-thirds: the board as a large phone-shaped whiteboard (Excalidraw / tldraw look: off-white paper, dark ink, rounded strokes). Right third, a rail with:
-- **Loupe**: 4x zoom around the fingertip, showing the nearest line, the core and fade bands drawn to the phone's real widths, and a distance readout labelled "distance (laptop estimate)".
-- **Haptic strip**: a scrolling timeline of the actual `navigator.vibrate` calls the phone made, drawn as on/off bars (like an oscilloscope or Apple's Core Haptics timeline). Corners and ends get their own glyph. Labelled "phone buzz".
-- Status chips: phone connected, tutor connected, latency.
-On the board: the student's cursor (labelled "Student", like a Figma multiplayer cursor), sonar rings that fire only on real buzz events and scale with the level, a fading comet trail, and **"found by touch"**: line segments the student has passed over at the top level turn from grey to full ink. The drawing visibly reveals itself as the student feels it.
-Why: uses the empty projector width, keeps the board as the centrepiece, and the strip is the truth layer judges can read without a word of explanation. Cost: the most work of the three.
+## Recording pipeline (Planned)
+ffmpeg on the host laptop (`winget install Gyan.FFmpeg`), stage screen capture (Game Bar or Snipping Tool), overhead iPhone video, sync on the first stroke, side-by-side compose, GIF and MP4 export at slide size. A test GIF from a real take must play in Google Slides or PowerPoint.
 
-### B. One canvas, sonar cursor
-Full-screen board only. Same cursor, rings, trail and "found by touch", plus a soft spotlight halo of the fade band near the finger. No rail. Status in a thin top bar.
-Why: cleanest and most cinematic; least to build. Risk: the empty sides of the projector, and less room to show the haptic truth explicitly.
+## Constraints
+- **One host laptop: Reeve's.** The Pixel reaches the server only over USB `adb reverse tcp:8765 tcp:8765` (Measured: venue Wi-Fi and the Pixel hotspot blocked device-to-device traffic). Nathan's laptop has no adb. Every real test and every take runs on Reeve's laptop; anything tested only in a second browser tab on Nathan's laptop is a mock and is reported as one. Session times are agreed with Reeve over the team log.
+- **Consent:** anyone who appears in footage (hands included, if identifiable) gives their own yes. Who appears is to be asked of Reeve and Nathan before the real session.
+- **Ownership:** Nathan's lane: plan, stage, recording, fact sheet, rehearsal. Reeve's lane (don't edit): `feel.html`, `tactile.js`, Pixel tuning, #33, #34, #37. `server.py` is shared: team-log note first, routes only, no event-format change.
 
-### C. Board plus live phone mirror
-Left: board. Right: a life-size phone frame showing the black screen and the fingertip as the student experiences it, with the haptic strip under it.
-Why: makes "she can't see it" obvious. Risk: two copies of the same geometry compete for attention, and the phone mirror says less than the loupe.
+## Work (issues filed by Nathan's session)
+1. Stage view v1 for recording: `feelink/stage.html`, `feelink/board.js`, `/stage` and `/board.js` routes in `server.py`. Accept: on Reeve's laptop with the real Pixel, cursor and trail follow the finger, drawing on the stage reaches the phone, rings only from #34 events.
+2. Recording pipeline: tools, recipe and a compose script. Accept: one test GIF from a real take plays in Google Slides or PowerPoint.
+3. Fact sheet: every number and claim for the slides with source and label (Measured / Read / Reasoned), then one Codex check.
+4. Rehearsal and Q&A prep (later, with the deck): why not a Monarch, why not iPhone, speed of recognition.
+Reeve's lane: #34 phone haptic events (now required for truthful rings), #33 blind shape run (record it: validation data and footage), #37 only needs to survive a recording session.
 
-**Recommendation: A, built in the order B-then-rail.** Everything in B is A's board, so the first shippable stage is B, and the rail is added after it works on the real Pixel. If time runs out, B is the demo.
-
-The signature moment both A and B add beyond "a vibrating whiteboard": **found by touch** (the shape fills in as the student feels it) is also the real product story: a tutor can see which part of the drawing the student hasn't found yet.
-
-## Answers to the design questions
-- **Drawing device + projector, no new architecture:** one new page `stage.html` served by the same server, opened full-screen on the projector. It also accepts drawing, so the host laptop can be tutor and stage at once. `draw.html` stays the tutor page for a second device if a network path exists. Shared drawing and mapping code goes in a new `board.js`.
-- **Coordinate mapping:** keep everything in board mm (already the protocol). Each page fits the 56 x 120 board into its own area with a uniform scale and letterbox (`scale = min(w/56, h/120)`), never stretching. Phone mm to stage mm is then identity. The finger cursor is interpolated toward the latest sample each frame so it moves smoothly between network updates.
-- **Trail:** a comet of the last ~3 s (Assumption) fading to zero, drawn under the ink so it never hides the shape, plus a very faint permanent "explored" layer. Trail points take their colour from the real level at that moment.
-- **Continuous proximity vs discrete levels:** continuous distance appears only in the loupe and is labelled as a laptop estimate. Discrete levels (0, fade 1-3, on-line, corner, end) come from the phone's own events and drive the rings, trail colour and strip.
-- **Truthful haptic activity:** needs one additive event from the phone (below). Without it, the stage shows the finger and trail only and labels any computed level "estimated", with no rings.
-- **Impressive yet usable:** one page with a presentation toggle (P key) that hides tools; the tutor tools are a small floating toolbar (pen, undo, clear, example, reset).
-- **Input and reliability:** pointer events cover mouse, touch and pen; light smoothing before sending so the phone and the screen use the same geometry; partial strokes keep streaming every 40 ms as now. SSE already reconnects and the server re-sends `sync`; the stage shows "reconnecting" and keeps the last drawing. Latency over USB is not measured; show it only once measured.
-- **Minimal compelling interaction:** found by touch, above.
-
-## Coordination needed with Reeve (before building the parts that depend on it)
-1. **New event `haptic`** sent by `feel.html` every time it calls `navigator.vibrate`, posted through the existing `/event` (server unchanged), latest-only like the finger:
-   `{type:"haptic", level, top, kind: "hold"|"fade"|"corner"|"end"|"tick"|"stop", pattern:[ms...], t}`.
-   Honest wording on stage: "phone requested a buzz". Reeve's `dumpsys` measurement showed Chrome plays these calls, but a call is not proof the motor ran.
-2. **Finger event gains `level`** (same value), so trail colour lines up with position without matching two streams.
-3. **Phone settings event** on connect and on slider change: `{type:"phoneconfig", coreMm, fadeMm, steps, screenWidthMm}`, so the loupe draws the real bands.
-4. **Presence**: the phone posts `{type:"hello", who:"phone"}` on connect and every 2 s (Assumption) so the stage can show "phone connected".
-5. **Server routes** for `/stage` and `/board.js` (and later static assets). This touches `server.py` but not the event format.
-6. Who owns the demo's host laptop and the USB Pixel during rehearsals.
-
-## Roadmap to Sunday (pitch about 11 AM Sun, Assumption from CLAUDE.md)
-| When | Work | Gate |
-|---|---|---|
-| Sat afternoon | Reeve: gradient felt and tuned, blind 5-shape run. Nathan: pick design; server routes; `board.js`; stage B on the board (cursor, trail, rings wired to events, found by touch) | Reeve agrees the event format |
-| Sat evening | Reeve adds the `haptic`/`hello`/`phoneconfig` events. Nathan: tutor toolbar and smoothing, presentation mode, reset, labelled examples. **First real run on Reeve's laptop with the Pixel.** | Stage follows the real Pixel; no stuck buzz |
-| Sat night | Rail (loupe + haptic strip), status chips, reconnect behaviour. Codex review of truthfulness and failure modes. | Codex review |
-| Sun morning | Rehearse the 6-step demo twice on the host laptop and projector resolution; preflight checklist; tag `demo-N`. | Two clean rehearsals |
-
-## Issues (Nathan's lane unless noted)
-1. Server routes for the stage page and shared JS (shared file; team-log note first).
-2. `board.js`: board fit/letterbox mapping, stroke rendering, smoothing, event client.
-3. `stage.html` v1 (design B): board, student cursor, trail, rings and found by touch from real events, labelled fallback without them.
-4. Tutor input upgrade in `draw.html` and the stage toolbar: smoothing, pen/touch/mouse, undo, clear, reset, labelled examples, presentation mode.
-5. Stage rail (design A): loupe and haptic strip, status chips.
-6. Demo runbook and preflight: host laptop setup, adb reverse, reset, fallback, judge onboarding script.
-7. (Reeve) Phone events: `haptic`, `level` on finger, `phoneconfig`, `hello`.
-8. Codex review of the stage once 3 and 7 are on main.
+## Timeline (assumed slide deadline 11 AM Sun; venue closes 10 PM Sat)
+| When | Work |
+|---|---|
+| Now to 5 PM | CLAUDE.md and plan shipped; stage v1 merged; first test take on Reeve's laptop; blind shape run recorded (Reeve) |
+| 5-8 PM | Real recording session, compose GIFs |
+| 8-10 PM | Fact sheet plus Codex check; deck draft once its Level 3 calls are made |
+| Sun 9-10:30 AM | Retakes only if needed, rehearsals, export. Submit only with both Nathan's and Reeve's yes |

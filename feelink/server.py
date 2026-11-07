@@ -19,6 +19,8 @@ PAGES = {
     "/feel": ("feel.html", "text/html"),
     "/draw": ("draw.html", "text/html"),
     "/tactile.js": ("tactile.js", "text/javascript"),
+    "/stage": ("stage.html", "text/html"),
+    "/board.js": ("board.js", "text/javascript"),
 }
 
 

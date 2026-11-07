@@ -68,9 +68,10 @@ const store = {
 };
 
 // Haptics. No amplitude control in the web API, so shorter, sparser pulses stand in for a weaker buzz.
-// Every buzz stays at or under 1 s: on the Pixel, Android played longer ones at the media intensity
-// (51% here) and shorter ones at the touch intensity (100%), measured with dumpsys vibrator_manager.
-const HOLD_MS = 800, TICK_MS = 25;
+// The line is one long hold: re-arming an 800 ms hold every 600 ms restarted the motor each time, which
+// Reeve felt as ringing (Nov 7). Android plays buzzes over 1 s at the Media vibration intensity, so keep it
+// at max: at 3 the 5 s hold played at 100%, at 1 a 2 s buzz played at 51% (dumpsys vibrator_manager).
+const HOLD_MS = 5000, TICK_MS = 25;
 const FADE = [[12, 60], [20, 35], [30, 15]] // [on, off] ms per fade step, faintest first
   .map(([on, off]) => Array.from({ length: 24 }, (_, i) => (i % 2 ? off : on)));
 const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30] };
@@ -91,7 +92,7 @@ function setBuzz(next) {
   if (!canVibrate) return;
   if (next === renderer.top) {
     vibrate('hold', HOLD_MS);
-    rearm = setTimeout(() => setBuzz(next), HOLD_MS * 0.75);
+    rearm = setTimeout(() => setBuzz(next), HOLD_MS * 0.9);
   } else if (next > 0) {
     const pattern = FADE[next - 1];
     vibrate('fade', pattern);

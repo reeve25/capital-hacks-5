@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FeelInk stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --surround: #0e1620; --text: #e8edf2; --muted: #8a96a3; --on: #4ade80; --off: #4b5563; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--surround); color: var(--text);
+    font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; display: block; }
+  header { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 18px;
+    padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 1; }
+  h1 { margin: 0 auto 0 0; font-size: 22px; font-weight: 700; letter-spacing: 0.01em; }
+  .dot { display: flex; align-items: center; gap: 7px; font-size: 15px; color: var(--muted); }
+  .dot i { width: 11px; height: 11px; border-radius: 50%; background: var(--off); }
+  .dot.on { color: var(--text); }
+  .dot.on i { background: var(--on); }
+</style>
+</head>
+<body>
+<header>
+  <h1>FeelInk</h1>
+  <span class="dot" id="phoneDot"><i></i>Phone</span>
+  <span class="dot" id="tutorDot"><i></i>Tutor</span>
+</header>
+<canvas id="c"></canvas>
+<script src="/tactile.js"></script>
+<script src="/board.js"></script>
+<script>
+const { BOARD } = Tactile;
+const B = Board;
+const HEADER_PX = 52, PAD_PX = 12;
+const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', unfelt: '#b3b9c1', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff' };
+// Sizes in board millimetres (about 8 px/mm when the page is 1000 px tall, about 4 px/mm in the GIF).
+const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 3.2, TRAIL_TAIL_MM = 0.8, TRAIL_MS = 3000;
+const CURSOR_MM = 3.4, CURSOR_BORDER_MM = 1.0, CURSOR_TAU_MS = 35;
+const BURST_GAP_MS = 110, PHONE_FRESH_MS = 3000;
+// Movement-only polish (touch-down pop, lift shrink, ink settle) is skipped under reduced motion.
+// Rings stay: they are the haptic signal itself. The capture browser does not set this preference.
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Felt arrays hold the time each ink sample was found (0 = not yet), so fresh ink can settle.
+const stamp = (now) => Math.max(1, now);
+
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let dpr = 1, view = { scale: 1, x: 0, y: 0, w: 0, h: 0 };
+const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+
+// Strokes plus their found-by-touch state: id -> {stroke, samples, felt}.
+let strokes = [];
+const feltById = new Map();
+function inkState(st) {
+  let s = feltById.get(st.id);
+  if (s && s.pts === st.pts) return s;
+  const samples = B.resample(st.pts);
+  const felt = new Float64Array(samples.length);
+  if (s) felt.set(s.felt.subarray(0, Math.min(s.felt.length, felt.length)));
+  s = { pts: st.pts, samples, felt };
+  feltById.set(st.id, s);
+  // Ink that appears under a resting finger is found straight away.
+  if (finger.down && finger.last) B.markFelt(samples, felt, finger.last, finger.last, B.FELT_MM, stamp(performance.now()));
+  return s;
+}
+function setStrokes(list) {
+  strokes = list.filter((s) => s && Array.isArray(s.pts));
+  const ids = new Set(strokes.map((s) => s.id));
+  for (const id of feltById.keys()) if (!ids.has(id)) feltById.delete(id);
+  strokes.forEach(inkState);
+}
+function upsert(st) {
+  const i = strokes.findIndex((s) => s.id === st.id);
+  if (i >= 0) strokes[i] = st; else strokes.push(st);
+  inkState(st);
+}
+
+// Student finger: `last` is the latest real sample, `cur` the drawn cursor that eases toward it.
+// downAt/upAt drive the touch-down pop and the lift shrink; upAt is null while the finger is down.
+const finger = { down: false, last: null, cur: null, downAt: -Infinity, upAt: -Infinity, lastAt: 0 };
+let trail = []; // {x, y, t} or {gap: true, t}
+let lastPhoneAt = -Infinity;
+function onFinger(ev) {
+  const now = performance.now();
+  if (!ev.down || !Number.isFinite(ev.x) || !Number.isFinite(ev.y)) {
+    if (finger.down) { trail.push({ gap: true, t: now }); finger.upAt = now; }
+    finger.down = false;
+    finger.last = null;
+    return;
+  }
+  const p = { x: ev.x, y: ev.y };
+  const from = finger.down && finger.last ? finger.last : p;
+  for (const st of strokes) { const s = inkState(st); B.markFelt(s.samples, s.felt, from, p, B.FELT_MM, stamp(now)); }
+  if (!finger.down) { finger.cur = { ...p }; finger.downAt = now; finger.upAt = null; }
+  finger.down = true;
+  finger.last = p;
+  finger.lastAt = now;
+}
+
+// Rings come only from real phone haptic events. No events, no rings.
+// They stay centred on the cursor, so each one reads as "the fingertip buzzed", even mid-swipe.
+const haptics = new B.HapticRings();
+let rings = []; // {t0, strength, burst}
+function spawnRings(list, now) {
+  if (!finger.cur) return;
+  for (const r of list) {
+    rings.push({ t0: now, strength: r.strength, burst: r.burst });
+    if (r.burst) rings.push({ t0: now + BURST_GAP_MS, strength: r.strength, burst: true });
+  }
+}
+
+// Relay.
+let tutorOnline = false, mine = null;
+const es = new EventSource('/events');
+es.onopen = () => { tutorOnline = true; };
+es.onerror = () => { tutorOnline = false; };
+es.onmessage = (m) => {
+  let ev;
+  try { ev = JSON.parse(m.data); } catch { return; }
+  const now = performance.now();
+  if (ev.type === 'finger' || ev.type === 'hello' || ev.type === 'haptic' || ev.type === 'presence') lastPhoneAt = now;
+  if (ev.type === 'sync') setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
+  else if (ev.type === 'stroke') { if (!mine || ev.id !== mine.id) upsert({ id: ev.id, by: ev.by, pts: ev.pts || [] }); }
+  else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); }
+  else if (ev.type === 'finger') onFinger(ev);
+  else if (ev.type === 'haptic') {
+    const h = B.parseHaptic(ev);
+    spawnRings(haptics.onHaptic(h, now), now);
+  }
+};
+
+// Tutor input: pointer on the board, smoothed before sending so phone and stage share one geometry.
+let raw = [], lastSend = 0;
+const boardPoint = (e) => B.clampToBoard(B.toMm(view, e.clientX, e.clientY), BOARD);
+function inBoard(e) {
+  const p = B.toMm(view, e.clientX, e.clientY);
+  return p.x >= -2 && p.y >= -2 && p.x <= BOARD.w + 2 && p.y <= BOARD.h + 2;
+}
+function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
+c.addEventListener('pointerdown', (e) => {
+  if (!inBoard(e) || mine) return;
+  c.setPointerCapture(e.pointerId);
+  raw = [boardPoint(e)];
+  mine = { id: 'tutor-' + Date.now(), by: 'tutor', pts: B.smooth(raw) };
+  upsert(mine);
+  sendMine();
+});
+c.addEventListener('pointermove', (e) => {
+  if (!mine) return;
+  const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ce of events.length ? events : [e]) raw.push(boardPoint(ce));
+  mine = { ...mine, pts: B.smooth(raw) };
+  upsert(mine);
+  if (performance.now() - lastSend > 40) sendMine();
+});
+const finish = () => {
+  if (!mine) return;
+  sendMine();
+  mine = null;
+  raw = [];
+};
+c.addEventListener('pointerup', finish);
+c.addEventListener('pointercancel', finish);
+addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const k = e.key.toLowerCase();
+  if (k === 'u') post({ type: 'undo' });
+  else if (k === 'c') post({ type: 'clear' });
+});
+
+// Layout.
+function layout() {
+  dpr = window.devicePixelRatio || 1;
+  const w = innerWidth, h = innerHeight;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  const f = B.fit(w, h - HEADER_PX, BOARD, PAD_PX);
+  view = { ...f, y: f.y + HEADER_PX - PAD_PX / 2 };
+}
+addEventListener('resize', layout);
+layout();
+
+// Drawing, in board millimetres after the transform.
+function polyline(pts, from = 0, to = pts.length - 1) {
+  ctx.beginPath();
+  ctx.moveTo(pts[from].x, pts[from].y);
+  if (from === to) ctx.lineTo(pts[from].x + 0.001, pts[from].y);
+  for (let i = from + 1; i <= to; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawTrail(now) {
+  while (trail.length && now - trail[0].t > TRAIL_MS) trail.shift();
+  for (let i = 1; i < trail.length; i++) {
+    const a = trail[i - 1], b = trail[i];
+    if (a.gap || b.gap) continue;
+    const age = Math.min(1, (now - b.t) / TRAIL_MS);
+    const step = B.trailStep(age);
+    ctx.strokeStyle = B.mixHex(COL.trail, COL.paper, step * step);
+    ctx.lineWidth = TRAIL_MM + (TRAIL_TAIL_MM - TRAIL_MM) * age;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+}
+function drawInk(now) {
+  ctx.lineWidth = INK_MM;
+  for (const st of strokes) {
+    if (!st.pts.length) continue;
+    const s = inkState(st);
+    ctx.strokeStyle = COL.unfelt;
+    polyline(s.samples);
+    ctx.strokeStyle = COL.ink;
+    for (const [a, b] of B.feltRuns(s.felt)) polyline(s.samples, a, b);
+    if (REDUCE) continue;
+    // Freshly found ink lands thick and settles to normal width: flat ink, no glow.
+    for (let i = 0; i < s.samples.length; i++) {
+      const k = B.settle(s.felt[i], now);
+      if (!k) continue;
+      ctx.lineWidth = INK_MM * (1 + SETTLE_GAIN * k);
+      polyline(s.samples, i > 0 && s.felt[i - 1] ? i - 1 : i, i);
+    }
+    ctx.lineWidth = INK_MM;
+  }
+}
+function drawRings(now) {
+  rings = rings.filter((r) => now - r.t0 < B.RING_MS);
+  if (!finger.cur) return;
+  const { x, y } = finger.cur;
+  ctx.strokeStyle = COL.amber;
+  for (const r of rings) {
+    const g = B.ringAt(now - r.t0, r.strength, r.burst, CURSOR_MM);
+    if (!g) continue;
+    ctx.lineWidth = g.w;
+    ctx.beginPath();
+    ctx.arc(x, y, g.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+function drawCursor(now) {
+  if (!finger.cur) return;
+  const k = REDUCE ? (finger.down ? 1 : 0) : B.cursorScale(now, finger.downAt, finger.upAt);
+  if (k <= 0) return;
+  const { x, y } = finger.cur;
+  ctx.beginPath();
+  ctx.arc(x, y, (CURSOR_MM + CURSOR_BORDER_MM + 0.35) * k, 0, Math.PI * 2);
+  ctx.fillStyle = COL.ink;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, (CURSOR_MM + CURSOR_BORDER_MM) * k, 0, Math.PI * 2);
+  ctx.fillStyle = COL.white;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, CURSOR_MM * k, 0, Math.PI * 2);
+  ctx.fillStyle = COL.amber;
+  ctx.fill();
+}
+function setDot(el, on) { if (el.classList.contains('on') !== on) el.classList.toggle('on', on); }
+const phoneDot = document.getElementById('phoneDot'), tutorDot = document.getElementById('tutorDot');
+
+let prevFrame = performance.now();
+function frame(now) {
+  const dt = Math.min(100, now - prevFrame);
+  prevFrame = now;
+  setDot(phoneDot, now - lastPhoneAt < PHONE_FRESH_MS);
+  setDot(tutorDot, tutorOnline && es.readyState === 1);
+
+  if (finger.down && finger.last && finger.cur) {
+    finger.cur.x = B.follow(finger.cur.x, finger.last.x, dt, CURSOR_TAU_MS);
+    finger.cur.y = B.follow(finger.cur.y, finger.last.y, dt, CURSOR_TAU_MS);
+    trail.push({ x: finger.cur.x, y: finger.cur.y, t: now });
+  }
+  spawnRings(haptics.tick(now), now);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = COL.surround;
+  ctx.fillRect(0, 0, c.width, c.height);
+  const s = view.scale * dpr;
+  ctx.setTransform(s, 0, 0, s, view.x * dpr, view.y * dpr);
+  roundRect(0, 0, BOARD.w, BOARD.h, 3);
+  ctx.fillStyle = COL.paper;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.lineCap = ctx.lineJoin = 'round';
+  drawTrail(now);
+  drawInk(now);
+  ctx.restore();
+  // Rings and cursor may spill past the paper edge onto the surround instead of being cut off.
+  drawRings(now);
+  drawCursor(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

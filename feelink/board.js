@@ -97,6 +97,29 @@
     for (const v of list) { const n = Number(v); if (Number.isFinite(n) && n > 0) total += n; }
     return total;
   }
+  // Start times (ms) of each on-step in a vibrate pattern, at most `max`: [25] -> [0],
+  // corner [30,40,30] -> [0,70], end [30,30,30,30,30] -> [0,60,120]. One ring per real pulse.
+  function pulseStarts(p, max = 3) {
+    const list = Array.isArray(p) ? p : [p];
+    const out = [];
+    let at = 0;
+    for (let i = 0; i < list.length && out.length < max; i++) {
+      const n = Math.max(0, Number(list[i]) || 0);
+      if (i % 2 === 0 && n > 0) out.push(at);
+      at += n;
+    }
+    return out.length ? out : [0];
+  }
+  // A new vibrate() call replaces whatever the motor was still playing, so rings scheduled for
+  // pulses that have not started yet are dropped when any accepted haptic event arrives.
+  const dropPending = (rings, now) => rings.filter((r) => r.t0 <= now);
+
+  // Found-by-touch radius from the phone's phoneconfig: half its core width, else the 3 mm default.
+  function feltFromConfig(ev, fallback = FELT_MM) {
+    const core = Number(ev && ev.coreMm);
+    return Number.isFinite(core) && core >= 1 && core <= 30 ? core / 2 : fallback;
+  }
+
   function parseHaptic(ev) {
     if (!ev || ev.type !== 'haptic' || ev.ok === false) return null;
     const kind = typeof ev.kind === 'string' ? ev.kind : '';
@@ -107,7 +130,8 @@
     level = Math.max(0, Math.min(top, level));
     const burst = !!BURSTS[kind];
     if (!burst && level === 0) return { burst: false, kind, level: 0, top, strength: 0, ms: 0 };
-    return { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern) };
+    return { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern),
+      pulses: burst ? pulseStarts(ev.pattern) : [0] };
   }
 
   // Turns parsed haptic events into ring spawns. A level is a state: the phone re-arms the same level
@@ -134,7 +158,7 @@
       if (!h) return [];
       if (h.burst) {
         if (this.state) this.state.next = now + this.period(this.state.level, this.state.top);
-        return [{ strength: 1, burst: true }];
+        return (h.pulses || [0]).map((delay) => ({ strength: 1, burst: true, delay }));
       }
       if (h.level === 0) { this.state = null; return []; }
       const life = Math.max(this.holdMs, (h.ms || 0) + this.marginMs);
@@ -221,7 +245,7 @@
   const trailStep = (age) => Math.min(TRAIL_STEPS, Math.floor(Math.max(0, age) * TRAIL_STEPS)) / TRAIL_STEPS;
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, resample, distPointSeg,
-    markFelt, feltRuns, parseHaptic, HapticRings, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
+    markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

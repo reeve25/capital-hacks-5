@@ -56,7 +56,7 @@
 
 <script src="/tactile.js"></script>
 <script>
-const { BOARD, SHAPES, Renderer, sendQueue } = Tactile;
+const { BOARD, SHAPES, Renderer, poster, sendQueue } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -74,15 +74,28 @@ const store = {
 const HOLD_MS = 5000, TICK_MS = 25;
 const FADE = [[12, 60], [20, 35], [30, 15]] // [on, off] ms per fade step, faintest first
   .map(([on, off]) => Array.from({ length: 24 }, (_, i) => (i % 2 ? off : on)));
-const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30] };
+// Landmark: long-short (DUMM-da) then a pause. Corner and end are even trains of 30 ms pulses that differ
+// only in count, so the landmark differs in rhythm instead and can't be miscounted as either. On the line
+// the hold resumes after the trailing 80 ms pause, so its gaps (60, 80 ms) are also longer than any corner
+// or end gap (30-40 ms). 300 ms total. Chosen by reasoning; not yet felt on the Pixel.
+const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30], landmark: [120, 60, 40, 80] };
 let level = 0, rearm = null, resume = null;
 const canVibrate = typeof navigator.vibrate === 'function';
 
+// Landmark names in the browser's own voice. Chrome speaks only after a user gesture on the page; the Live
+// tap is one. Without speechSynthesis, or if it throws, the buzz alone marks the landmark.
+const canSpeak = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance === 'function';
+function say(text) {
+  if (!canSpeak || !text) return;
+  try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); } catch {}
+}
+
 // In live mode every call is reported to the stage, re-arms included, so a take can be matched against
 // dumpsys vibrator_manager. Chrome plays a pattern as one platform vibration per on-step (measured Nov 7).
-function vibrate(kind, pattern) {
+// `extra` adds fields, such as a landmark's name for the stage caption.
+function vibrate(kind, pattern, extra) {
   const ok = navigator.vibrate(pattern);
-  if (mode === 'live') haptics.push({ type: 'haptic', kind, level, top: renderer.top, pattern: [].concat(pattern), ok, t: Date.now() });
+  if (mode === 'live') haptics.push({ type: 'haptic', kind, ...extra, level, top: renderer.top, pattern: [].concat(pattern), ok, t: Date.now() });
 }
 
 function setBuzz(next) {
@@ -113,8 +126,13 @@ function apply(cmd) {
     clearTimeout(rearm);
     clearTimeout(resume);
     level = cmd.level;
-    if (canVibrate) vibrate(cmd.kind, pattern);
-    resume = setTimeout(() => { if (renderer.level === renderer.top) setBuzz(renderer.top); }, pattern.reduce((a, b) => a + b, 0));
+    const landmark = cmd.kind === 'landmark';
+    if (canVibrate) vibrate(cmd.kind, pattern, landmark ? { name: cmd.name } : null);
+    if (landmark) say(cmd.name);
+    // When the cue ends, back to what the finger is on: the hold on the line, or the fade beside it, since a
+    // landmark can sit off the line. Corners and ends fire only on the line, so for them this is the hold.
+    // Any level change before then goes through setBuzz, which cancels this.
+    resume = setTimeout(() => { if (renderer.level > 0) setBuzz(renderer.level); }, pattern.reduce((a, b) => a + b, 0));
   }
 }
 
@@ -134,7 +152,7 @@ const toMm = (e) => ({ x: (e.clientX - originX) / pxPerMm, y: (e.clientY - origi
 const toPx = (p) => [originX + p.x * pxPerMm, originY + p.y * pxPerMm];
 
 // App state
-let mode = 'home', strokes = [], remote = [], path = [], showInk = false;
+let mode = 'home', strokes = [], remote = [], remoteMarks = [], path = [], showInk = false;
 let renderer = new Renderer({});
 let queueShapes = [], current = null, startedAt = null, results = [];
 let fingers = new Map(), primary = null, pen = null;
@@ -144,6 +162,7 @@ function fadeMm() { return Number($('fade').value); }
 function makeRenderer() {
   renderer = new Renderer({ halfWidth: widthMm() / 2, fade: fadeMm(), steps: FADE.length });
   renderer.setStrokes(strokes);
+  renderer.setLandmarks(mode === 'live' ? remoteMarks : []); // only the tutor's board has landmarks
 }
 
 function drawPoly(pts, style, width) {
@@ -170,10 +189,14 @@ function hint(text) { $('hint').hidden = !text; $('hint').textContent = text || 
 
 // Network: the finger position is latest-only, so a slow network drops samples rather than lagging.
 let es = null, pendingFinger = null, fingerBusy = false;
-const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) });
+// Every POST gives up after 3 s and counts an HTTP error as a failure, so a stalled relay frees the finger
+// sender for the newest sample and the queues retry.
+const post = poster('/event');
 // Haptic reports queue instead, so a quick tick or corner is never overwritten. 200 waiting is about a minute
 // at the 2-4 reports a second that buzzing makes, and a few seconds to flush once the link is back.
-const haptics = sendQueue(post, { cap: 200 });
+// Stamped: a unique t lets the stage skip a retried duplicate, age lets it skip a buzz that waited too long to
+// draw live, and dropped tells it reports were lost, so the take is incomplete.
+const haptics = sendQueue(post, { cap: 200, stamp: true });
 // Only the newest config matters: one in flight plus the latest waiting.
 const configs = sendQueue(post, { cap: 1 });
 const sendConfig = () => configs.push({ type: 'phoneconfig', coreMm: widthMm(), fadeMm: fadeMm(), steps: FADE.length, screenWidthMm: SCREEN_WIDTH_MM });
@@ -192,15 +215,19 @@ function connect() {
   es.onerror = () => { $('net').textContent = 'Laptop link: reconnecting'; };
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'sync') remote = ev.strokes;
+    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; }
     else if (ev.type === 'stroke') {
       const i = remote.findIndex((s) => s.id === ev.id);
       if (i >= 0) remote[i] = ev; else remote.push(ev);
-    } else if (ev.type === 'clear') remote = [];
+    } else if (ev.type === 'landmark') {
+      const i = remoteMarks.findIndex((l) => l.id === ev.id);
+      if (i >= 0) remoteMarks[i] = ev; else remoteMarks.push(ev);
+    } else if (ev.type === 'clear') { remote = []; remoteMarks = []; }
     else return;
     if (mode === 'live') {
       strokes = remote;
       renderer.setStrokes(strokes);
+      renderer.setLandmarks(remoteMarks);
       apply(renderer.refresh());
       draw();
     }
@@ -280,6 +307,10 @@ function goHome() {
 
 // Touch
 function feel(p) { apply(renderer.move(p)); }
+// Chrome's long-press fires a click about 0.5 s into a resting touch, and that click replaced the 5 s hold
+// (measured on the Pixel, Nov 7: 11 of 11 held touches lost the buzz after about 0.3 s). Cancelling touchstart
+// stops the click and the compatibility mouse events; pointer events still fire. touch-action alone did not.
+canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
@@ -358,11 +389,11 @@ $('wrong').onclick = () => mark(false);
 $('again').onclick = goHome;
 // A hidden page must not keep re-arming the hold. Chrome refuses vibrate() once the page is hidden
 // (Blink checks visibility before the visibilitychange event runs), so that stop may report ok: false.
-// Lifting the renderer makes the next touch buzz again.
-function stopForHide() { renderer.lift(); setBuzz(0); }
+// Lifting the renderer makes the next touch buzz again. A hidden page stops talking too.
+function stopForHide() { renderer.lift(); setBuzz(0); if (canSpeak) try { speechSynthesis.cancel(); } catch {} }
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); });
 addEventListener('pagehide', stopForHide);
-// The relay replays only strokes, so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.
+// The relay replays only the drawing (strokes and landmarks), so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.
 setInterval(() => { if (mode === 'live' && !document.hidden) sendConfig(); }, 2000);
 addEventListener('resize', layout);
 connect();

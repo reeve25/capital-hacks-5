@@ -22,9 +22,9 @@ How a person uses it:
 The audience can watch the hand swing, which a buzz band can't show.
 
 ## Decisions for Reeve and Nathan
-These change the product or the demo. Each has a lean, and none is decided.
+These change the product or the demo. Reeve decided D1 and D2 at about 19:23. D3 has a lean and stays open.
 
-**D1. Hand pose. Lean: handshake pose.**
+**D1. Hand pose. Decided: handshake pose.**
 
 | Pose | Left/right cue uses | Stiffness, Nm/rad (Read, Formica 2012, 10 people) | Line tension, Computed | Tilt limit | Fits |
 |---|---|---|---|---|---|
@@ -34,7 +34,7 @@ These change the product or the demo. Each has a lean, and none is decided.
 
 The same hardware serves handshake and hanging, so they can try both on Saturday.
 
-**D2. How many directions for Sunday. Lean: left/right must be perfect first; add up/down only after the noon test passes.**
+**D2. How many directions for Sunday. Decided: left/right first. Up/down comes only after the noon test passes.**
 Walking to a door needs left/right only. Reaching for a cup on a table needs up/down too. Up is the weak direction: the relaxed hand's weight adds about 0.26 Nm against it (Reasoned from a remembered 0.6% of body mass), which is more than half of the Computed peak on the left/right axis.
 
 **D3. Look. Lean: bright visible lines and a plain, honest bracer.** The visible hardware is what makes the demo legible. A cleaner shell is a Saturday afternoon job at most.
@@ -166,23 +166,24 @@ Prototype limits from my reasoning, not medical clearance. The body limits are f
 | StingerStudio, Sac State library | "Arduino kits available" (Read) | Hours not read | OneCard required; loan terms not stated. Ask an organizer or a Sac State student |
 | Best Buy, Target, Walmart electronics | Unknown | | Not checked, a search returned nothing useful |
 
-**What removes the time pressure: Amazon's windows moved (Live, about 19:00, for the account's default address).** Everything the noon test needs now shows 7-10 AM or earlier, with about 4 hours left to order. Check the checkout windows and that the address suits you. Nothing is ordered: order history shows none dated today on Reeve's account (Live, 19:05).
+**Ordered at about 19:23 with Reeve's yes: $110.24 with tax, from the gift card balance, to the account's default address.** Arrival times are Amazon's estimates; check Your Orders in the morning.
 
-| Part | ASIN | Price | Arrives (Live) | Needed by noon |
+| Part | ASIN | Price | Estimated arrival | Needed by noon |
 |---|---|---|---|---|
-| ELEGOO ESP32 3-pack, USB-C. **Replaces the ESP32-S3 pack** ("Saturday", no time). Listing images show header pins; cable not included | B0D8T53CQ5 | $19.99 | Overnight 3-6 AM, or 3-hour for $4.99 | Yes |
-| MG90S 2-pack x2 | B0CNL755KP | $17.98 | 7-10 AM | Yes |
-| Breadboard kit | B0GVD11LSS | $7.09 | 7-10 AM | Yes |
-| Power bank 2-pack | B0FT7S5W1L | $17.99 | 7-10 AM | Yes |
-| Servo extension leads. **New:** the servo's own lead is 175 mm (Read) | B09MNK7TFM | $6.59 | 7-10 AM | Yes |
-| USB pigtail 2-pack, 20 AWG, with spring connectors. **Replaces USB-Dupont** (thicker wire, has a window) | B09FF883CX | $7.89 | 7-10 AM | Yes |
-| MPU-6050 5-pack, pre-soldered | B0FDKQQJ7Z | $16.99 | Tomorrow, no time | No, for tilt numbers |
-| Vibration module 3-pack x2, buzz comparison | B0D42FXJJJ | $18.28 | Tomorrow, no time, 17 left | No |
+| Miuzei MG90S 5-pack. Replaced two Beffkkip 2-packs, which slipped to Sunday at quantity 2 | B0BWJ2CK9D | $15.99 | Sat 7-10 AM | Yes |
+| ELEGOO ESP32 3-pack, USB-C, no cable included. The 3-hour option was gone at checkout | B0D8T53CQ5 | $19.99 | Sat 7-10 AM | Yes |
+| Breadboard kit | B0GVD11LSS | $7.09 | Sat 7-10 AM | Yes |
+| Power bank 2-pack | B0FT7S5W1L | $17.99 | Sat 7-10 AM | Yes |
+| Servo extension leads, 15 cm per the checkout line; the servo's own lead is 175 mm (Read) | B09MNK7TFM | $6.59 | Sat 7-10 AM | Yes |
+| USB pigtail 2-pack, 20 AWG, with spring connectors | B09FF883CX | $7.89 | Sat 7-10 AM | Yes |
+| MPU-6050 5-pack, pre-soldered | B0FDKQQJ7Z | $16.99 | Sat, no time given | No, for tilt numbers |
+| Vibration module 3-pack x1. Two packs slipped to Sunday; three modules cover a left/right comparison | B0D42FXJJJ | $9.14 | Sat, no time given | No |
 
-Total **$112.80** before tax, or $117.79 with the ESP32 in 3 hours.
+Items total $101.67.
 
-- **3-hour ESP32, lean yes** if someone will be at that address tonight: for $4.99, firmware can start tonight.
-- **ELEGOO UNO kit (B01D8KOZF4, $42.99 + $4.99, 3-hour), lean skip.** It is the only servo I found that arrives tonight, but it is one weaker servo (from memory: SG90) and tonight's scale test answers most of what it would.
+The Miuzei listing claims 2.0 kg/cm at 6 V, against 2.2 on the datasheet used above. If that holds, the Computed stall margins drop about 9%: extension becomes about 2.3x average and 1.6x stiff.
+
+Lesson: quantity can change Amazon's window, and listing pages can disagree with checkout. Read the windows at checkout.
 
 **Tonight in person** (one stop, Reasoned: a Walmart Supercenter; 6051 Florin Rd lists 6 AM-11 PM, Excerpt; stock not confirmed, so call or swap for Big 5, Dick's or Home Depot):
 - Fishing aisle: 30 lb braid in hi-vis, **8 lb mono (new)**, small snap swivels, **small split rings (new)**, **fish or luggage scale (new, sets every number above)**.
@@ -193,13 +194,13 @@ Total **$112.80** before tax, or $117.79 with the ESP32 in 3 hours.
 - Cheap multimeter, **USB-A to USB-C data cable if you don't have one**, electrical tape.
 - **Small hip pack, sleep mask, antibacterial wipes, washable marker (new).**
 
-Budget: my guess for the in-person list is $80-130, no prices read. That puts the total around $195-245 against the $50-200 bar. To stay under, cut in this order: one glove size until you have a judge who needs the other, the archery guard, then the vibration modules. Holding or lifting the cap is Reeve's call.
+Budget: Amazon came to $110.24. My guess for the in-person list is $80-130, no prices read, so the total lands around $190-240 against the $50-200 bar. To stay under, buy one glove size first and skip the archery guard unless the shin guard fails. Holding or lifting the cap is Reeve's call.
 
 ## Timeline
 | When | What |
 |---|---|
-| Tonight, by about 22:45 | Reeve's yes on Amazon. Store run. Scale test. Build glove and base with no motor |
-| Sat 03:00-10:00 | Parts arrive. Flash firmware, sweep servos unloaded, soak test |
+| Tonight | Store run. Scale test. Build glove and base with no motor. Write firmware and its laptop test without a board |
+| Sat 07:00-10:00 | Parts arrive (Amazon's estimate). Flash firmware, sweep servos unloaded, soak test |
 | Sat 10:00 | Hobby shops open, only if a servo stalls or strips |
 | Sat by 11:00 | First servo pull on a hand, in this order: Reeve or Nathan, own consent |
 | **Sat 12:00** | **Blindfold test. Go or no-go is theirs** |
@@ -212,11 +213,11 @@ Proposed lanes, not agreed: Nathan takes the physical build, which needs little 
 
 | Issue | Task | Who | When |
 |---|---|---|---|
-| #13 | Buy the parts | Reeve pays, both shop | Tonight |
+| #13 | Store run; Amazon is done | Both | Tonight |
 | #14 | Measure the pull with a scale | Nathan, Reeve wearing | Tonight, first |
 | #15 | Glove and line sets | Nathan | Tonight |
 | #16 | Forearm base | Nathan | Tonight, servo seated Saturday |
-| #17 | Servo firmware with safety limits | Reeve | Tonight or early Saturday |
+| #17 | Servo firmware with safety limits | Reeve | Code tonight, flash Saturday |
 | #18 | Wiring and 30-minute soak test | Nathan, Reeve checks first power-on | Saturday morning |
 | #19 | Noon blindfold test | Both | Saturday by 12:00 |
 | #20 | Up and down | Nathan | After #19, if D2 says so |

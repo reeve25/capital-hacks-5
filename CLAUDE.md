@@ -21,17 +21,18 @@ Read STATUS.md at the start of every session and update it after every decision 
 - Check in with Reeve and Nathan before narrowing the idea direction, including before choosing which ideas get researched first.
 - Important decisions get thought through, not skipped. Don't drop an option because it is harder to clear. Read the primary sources first. If the available tools can't settle it, hand it to Reeve with a ready-to-paste question or Gemini prompt, and keep the option open until then.
 - Give the full findings and reasoning. Don't compress research to keep a message short.
-- Explain the problem first: who benefits and what their day looks like now, before any demo or tech.
-- The edge is maximizing AI-assisted development. Hardware is open (Reeve, Nov 6): they can buy equipment, assemble and build. Ideas must still be doable by them.
+- Explain the problem first: who benefits and what their day looks like now, before any demo or tech. Then say what the product physically is, what it looks like and how that person uses it, step by step (Reeve, Nov 6: a stage moment alone doesn't explain the product).
+- The edge is maximizing AI-assisted development: AI lets two people build what used to take a team. Hardware (interview, Nov 6): plug-together parts only, no soldering or fabrication, $50-200, arriving by Saturday morning. Full bar: `.plans/winning-idea-bar-spec.md`.
 
 ## What wins (Reeve, Nov 6)
 - The demo must be impressive. Choose by thinking backward: the coolest thing a judge could see, then check it can be built.
 - Reeve reports that judges emphasize User Identification: actively seek the user and make sure the product works for them, then show that in the presentation. Only present validation that happened, with consent for any name, quote or footage. Log it in `USERS.md`.
 - Reeve, Nov 6 about 14:50: Health + Accessibility track only (physical and mental well-being, patient access, care delivery, everyday accessibility). The demo must blow judges away and be a clear winning candidate if built.
 - The bar is what Silent Voice had (Reeve, Nov 6, after rejecting Still Here, Tongue X-Ray and Last Muscle): easily demonstrable, cool, innovative, an instant visible benefit to someone's life, and doable by us. The problem meets a clear solution in one step, on stage. Reject ideas that need a score, a study or an explanation before the benefit shows.
+- Reeve, Nov 6 evening: it's a prototype judged on its demo, not a real device. No clinical evidence is needed, no patient or volunteer is needed, and a healthy judge must see why it's cool and what it could become. See the top update in `.plans/winning-idea-bar-spec.md`.
 - Use `/interview` and the other project skills throughout the hackathon.
 - Test every idea: retell in one sentence; "that's real"; only possible now; a life visibly changes; survives the toughest question.
-- Judging criteria: innovation, applicability, technical proficiency, potential impact. No weights published.
+- Judging rubric (Reeve, Nov 6), 25 points total, per-criterion split not stated: Problem Definition & User Identification; Solution Approach & Feasibility; Technical Innovation & Originality (novel execution vs basic wrappers); Validation & Performance Metrics (how you know it works, did a customer or user try it); Potential Impact & Real-World Application.
 
 ## Event facts
 - Fri and Sat 9 AM-10 PM, Sun 9 AM-2 PM. Mentors Saturday, pitches Sunday. Planning on an 11 AM Sunday submission; deadline, pitch length and platform are unconfirmed.

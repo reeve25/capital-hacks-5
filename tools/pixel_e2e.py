@@ -274,12 +274,18 @@ def board_items(events):
     return items
 
 
-def _names(items):
-    return ", ".join(f"{kind} {item_id}" for kind, item_id in items)
+def board_now(relay):
+    """The board as the relay holds it now: a new /events subscriber starts with a sync of it. None if none came."""
+    fresh = Listener(relay)
+    fresh.start()
+    try:
+        return board_items(fresh.events[:1]) if fresh.wait_for(lambda ev: ev.get("type") == "sync", 0, 3) else None
+    finally:
+        fresh.close()
 
 
 def remove_stroke(relay, listener, sid):
-    """Undo the test stroke only while it is the newest item, then confirm from the relay's sync that Undo took it."""
+    """Undo the test stroke only while it is the newest item, then confirm from the relay that Undo took it."""
     mine = ("stroke", sid)
     listener.wait_for(lambda ev: ev.get("id") == sid, 0, 1)  # our own stroke event may still be on its way
     items = board_items(listener.events)
@@ -287,19 +293,18 @@ def remove_stroke(relay, listener, sid):
         return "test stroke already gone"
     newer = items[items.index(mine) + 1:]
     if newer:
-        return f"test stroke {sid} NOT removed: {_names(newer)} came after it, and Undo would remove the newest instead"
-    t = now()
+        names = ", ".join(f"{kind} {item_id}" for kind, item_id in newer)
+        return f"test stroke {sid} NOT removed: {names} came after it, and Undo would remove the newest instead"
     post(relay, {"type": "undo"})
-    if not listener.wait_for(lambda ev: ev.get("type") == "sync", t, 3):
+    # The relay applies an event before answering its POST, so a fresh sync shows what this Undo took. A sync on the
+    # old stream could still be an earlier Undo's, in flight.
+    left = board_now(relay)
+    if left is None:
         return "Undo sent, but the relay did not confirm it"
-    events = list(listener.events)
-    left = board_items(events)
     if mine not in left:
         return "test stroke removed with Undo"
-    # Something reached the relay between the check and the Undo, and the Undo took it: name it so it can be redrawn.
-    k = next((n for n, (ta, ev) in enumerate(events) if ta >= t and ev.get("type") == "undo"), len(events))
-    took = [i for i in board_items(events[:k]) if i not in left]
-    return f"test stroke {sid} NOT removed: Undo removed {_names(took) or 'a newer item'} that arrived just before it"
+    return (f"test stroke {sid} NOT removed: an item reached the relay just before the Undo, which removed that "
+            "instead; check the board")
 
 
 # ---- Phones: the real one over adb, and a stand-in for testing without it ----
@@ -737,9 +742,11 @@ def selftest():
             msg = remove_stroke(relay, listener, "t1")
             assert msg.startswith("test stroke t1 NOT removed: landmark door came after it") \
                 and list(board.strokes) == ["t1"] and list(board.landmarks) == ["door"], msg
-            post(relay, {"type": "undo"})
-            listener.wait_for(lambda e: e.get("type") == "sync" and not e["landmarks"], 0, 2)
-            # A landmark that reaches the relay just before the Undo: the sync shows the Undo took it, not the stroke.
+            synced = lambda after: listener.wait_for(lambda e: e.get("type") == "sync", after, 2)
+            t = now()
+            post(relay, {"type": "undo"})  # takes the landmark off
+            assert synced(t)
+            # A landmark that reaches the relay just before the Undo, so the Undo takes it and the stroke stays.
             publish = board.publish
 
             def landmark_first(event):
@@ -747,13 +754,15 @@ def selftest():
                     publish({**door, "id": "exit", "name": "Exit"})
                 publish(event)
             board.publish = landmark_first
+            t = now()
             try:
                 msg = remove_stroke(relay, listener, "t1")
             finally:
                 del board.publish
-            assert msg == "test stroke t1 NOT removed: Undo removed landmark exit that arrived just before it" \
+            assert msg.startswith("test stroke t1 NOT removed: an item reached the relay just before the Undo") \
                 and list(board.strokes) == ["t1"] and not board.landmarks, msg
-            msg = remove_stroke(relay, listener, "t1")
+            # Then a plain Undo, once this stream has caught up with the last one.
+            msg =remove_stroke(relay, listener, "t1") if synced(t) else "no sync"
             assert msg == "test stroke removed with Undo" and not board.strokes and not board.landmarks, msg
         finally:
             listener.close()

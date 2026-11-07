@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, sendQueue } = require('./tactile.js');
+const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -195,4 +195,96 @@ test('cap 1 sends the newest message once the one in flight lands', async () => 
   land();
   await pause(5);
   assert.deepEqual(sent, ['a', 'c']);
+});
+
+test('stamped reports get a strictly increasing t, even within one millisecond', async () => {
+  const sent = [];
+  const q = sendQueue(async (m) => { sent.push(m); }, { stamp: true });
+  [1000, 1000, 1000, 999, 2000].forEach((t, i) => q.push({ type: 'haptic', kind: 'tick', level: 0, t, i }));
+  await pause(20);
+  assert.deepEqual(sent.map((m) => m.t), [1000, 1001, 1002, 1003, 2000]);
+  assert.deepEqual(sent.map((m) => m.i), [0, 1, 2, 3, 4]);
+  assert.deepEqual(Object.keys(sent[0]), ['type', 'kind', 'level', 't', 'i', 'age', 'dropped']);
+});
+
+test('age is measured when each attempt goes out, and a retry keeps its t', async () => {
+  const tries = [];
+  let failures = 2;
+  const q = sendQueue(async (m) => { tries.push(m); if (failures-- > 0) throw new Error('link down'); }, { stamp: true, retryMs: 40 });
+  const t = Date.now();
+  q.push({ type: 'haptic', kind: 'corner', t });
+  await pause(150);
+  assert.equal(tries.length, 3);
+  assert.ok(tries.every((m) => m.t === t));
+  assert.ok(tries[0].age < 20, `first attempt age ${tries[0].age}`);
+  assert.ok(tries[1].age >= 35 && tries[2].age >= tries[1].age + 35, `ages ${tries.map((m) => m.age)}`);
+  assert.equal(q.failed, 2);
+});
+
+test('dropped rides on the next successful send and resets after it', async () => {
+  let up = false;
+  const sent = [];
+  const q = sendQueue(async (m) => { if (!up) throw new Error('link down'); sent.push(m); }, { cap: 2, retryMs: 1, stamp: true });
+  for (let i = 1; i <= 5; i++) q.push({ i, t: Date.now() });
+  await pause(20);
+  assert.equal(q.dropped, 3);
+  up = true;
+  await pause(50);
+  q.push({ i: 6, t: Date.now() });
+  await pause(20);
+  assert.deepEqual(sent.map((m) => [m.i, m.dropped]), [[4, 3], [5, 0], [6, 0]]);
+});
+
+test('a drop made while a report is in flight is reported on the next one, not lost', async () => {
+  const sent = [];
+  let land;
+  const q = sendQueue((m) => { sent.push(m); return m.i === 1 ? new Promise((r) => { land = r; }) : Promise.resolve(); }, { cap: 1, stamp: true });
+  [1, 2, 3].forEach((i) => q.push({ i, t: Date.now() }));
+  await pause(5);
+  land();
+  await pause(5);
+  q.push({ i: 4, t: Date.now() });
+  await pause(5);
+  assert.deepEqual(sent.map((m) => [m.i, m.dropped]), [[1, 0], [3, 1], [4, 0]]);
+});
+
+// A fake fetch: each call takes the next scripted reply; 'hang' never settles, a number is the HTTP status.
+function fakeFetch(script) {
+  const calls = [];
+  const fn = (url, init) => {
+    calls.push({ url, init, body: JSON.parse(init.body) });
+    const reply = script.length ? script.shift() : 200;
+    return reply === 'hang' ? new Promise(() => {}) : Promise.resolve({ ok: reply >= 200 && reply < 300, status: reply });
+  };
+  return { fn, calls };
+}
+
+test('a POST that never answers fails after the timeout, and the queue retries and carries on', async () => {
+  const f = fakeFetch(['hang']);
+  const q = sendQueue(poster('/event', { fetch: f.fn, timeoutMs: 30 }), { retryMs: 1, stamp: true });
+  q.push({ kind: 'tick', t: Date.now() });
+  q.push({ kind: 'corner', t: Date.now() });
+  await pause(15);
+  assert.equal(f.calls.length, 1, 'still waiting on the hung POST');
+  await pause(100);
+  assert.deepEqual(f.calls.map((c) => c.body.kind), ['tick', 'tick', 'corner']);
+  assert.equal(f.calls[0].url, '/event');
+  assert.equal(f.calls[0].init.method, 'POST');
+  assert.equal(f.calls[0].init.signal.aborted, true);
+  assert.equal(f.calls[1].init.signal.aborted, false);
+  assert.equal(f.calls[1].body.t, f.calls[0].body.t);
+  assert.equal(q.failed, 1);
+  assert.equal(q.waiting, 0);
+});
+
+test('an HTTP error counts as a failed send and is retried', async () => {
+  const f = fakeFetch([500, 503]);
+  const q = sendQueue(poster('/event', { fetch: f.fn, timeoutMs: 1000 }), { retryMs: 1, stamp: true });
+  q.push({ kind: 'tick', t: Date.now() });
+  q.push({ kind: 'end', t: Date.now() });
+  await pause(50);
+  assert.deepEqual(f.calls.map((c) => c.body.kind), ['tick', 'tick', 'tick', 'end']);
+  assert.equal(q.failed, 2);
+  assert.equal(q.waiting, 0);
+  await assert.rejects(poster('/x', { fetch: fakeFetch([404]).fn })({}), /HTTP 404/);
 });

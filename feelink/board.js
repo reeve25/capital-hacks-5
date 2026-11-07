@@ -85,11 +85,18 @@
     return runs;
   }
 
-  // The one place that reads phone haptic events (protocol still open in issue #34). Nathan's
-  // proposal: {type:'haptic', level, top, kind:'hold'|'fade'|'corner'|'end'|'tick'|'stop', pattern, t, ok?}.
-  // Returns null for anything that should not draw a ring, else {burst, level, top, strength 0..1}.
+  // The one place that reads phone haptic events (format decided by Reeve on issue #34, shipped in
+  // feel.html): {type:'haptic', kind:'hold'|'fade'|'corner'|'end'|'tick'|'stop', level, top, pattern, ok, t}.
+  // Returns null for anything that should not draw a ring, else {burst, level, top, strength 0..1, ms}.
   // burst: a one-off cue (corner, end, tick). Otherwise a held level state (0 means off).
+  // ms: how long the phone's vibration runs (pattern total), 0 when unknown.
   const BURSTS = { corner: 1, end: 1, tick: 1, node: 1 };
+  function patternMs(p) {
+    const list = Array.isArray(p) ? p : [p];
+    let total = 0;
+    for (const v of list) { const n = Number(v); if (Number.isFinite(n) && n > 0) total += n; }
+    return total;
+  }
   function parseHaptic(ev) {
     if (!ev || ev.type !== 'haptic' || ev.ok === false) return null;
     const kind = typeof ev.kind === 'string' ? ev.kind : '';
@@ -99,16 +106,18 @@
     if (!Number.isFinite(level)) level = BURSTS[kind] || kind === 'hold' ? top : 0;
     level = Math.max(0, Math.min(top, level));
     const burst = !!BURSTS[kind];
-    if (!burst && level === 0) return { burst: false, kind, level: 0, top, strength: 0 };
-    return { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top };
+    if (!burst && level === 0) return { burst: false, kind, level: 0, top, strength: 0, ms: 0 };
+    return { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern) };
   }
 
   // Turns parsed haptic events into ring spawns. A level is a state: the phone re-arms the same level
-  // every 0.4-0.65 s, so re-arms keep the state alive instead of each drawing a new burst. While a level
-  // is held, rings pulse at a cadence tied to the level. The state lapses if no re-arm comes in time.
+  // (fades every 0.4-0.65 s, the line's 5 s hold every 4.5 s), so re-arms keep the state alive instead of
+  // each drawing a new burst. While a level is held, rings pulse at a cadence tied to the level. The state
+  // lasts as long as the phone's own vibration (plus a margin), so it ends on 'stop' or when the buzz runs out.
   class HapticRings {
     constructor(opts = {}) {
-      this.holdMs = opts.holdMs ?? 1000;        // longer than the slowest re-arm, so a held line keeps pulsing
+      this.holdMs = opts.holdMs ?? 1000;        // minimum lifetime, longer than the slowest fade re-arm
+      this.marginMs = opts.marginMs ?? 250;     // added to the phone's own vibration length
       this.periodTopMs = opts.periodTopMs ?? 450;
       this.periodLowMs = opts.periodLowMs ?? 900;
       this.state = null; // {level, top, until, next}
@@ -128,9 +137,10 @@
         return [{ strength: 1, burst: true }];
       }
       if (h.level === 0) { this.state = null; return []; }
+      const life = Math.max(this.holdMs, (h.ms || 0) + this.marginMs);
       const same = this.state && this.state.level === h.level && now < this.state.until;
-      if (same) { this.state.until = now + this.holdMs; this.state.top = h.top; return []; }
-      this.state = { level: h.level, top: h.top, until: now + this.holdMs, next: now + this.period(h.level, h.top) };
+      if (same) { this.state.until = now + life; this.state.top = h.top; return []; }
+      this.state = { level: h.level, top: h.top, until: now + life, next: now + this.period(h.level, h.top) };
       return [{ strength: h.strength, burst: false }];
     }
 

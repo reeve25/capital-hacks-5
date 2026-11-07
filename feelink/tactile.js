@@ -225,26 +225,52 @@
     }
   }
 
+  // One JSON POST that always settles: it aborts after `timeoutMs` and rejects on a non-2xx reply, so a stalled
+  // or erroring relay fails the send (and a queue retries it) instead of holding its sender forever. A POST to the
+  // laptop normally lands in milliseconds (finger to stage median 14 ms on the Pixel, Nov 7), so 3 s trips only on
+  // a stall. Racing a timer also covers a fetch that ignores the abort.
+  function poster(url, opts = {}) {
+    const timeoutMs = opts.timeoutMs ?? 3000, fetchFn = opts.fetch || ((...a) => fetch(...a));
+    return (body) => {
+      const ctl = new AbortController();
+      let timer;
+      const timeout = new Promise((_, reject) => { timer = setTimeout(() => { ctl.abort(); reject(new Error('timeout')); }, timeoutMs); });
+      const reply = fetchFn(url, { method: 'POST', body: JSON.stringify(body), signal: ctl.signal })
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r; });
+      return Promise.race([reply, timeout]).finally(() => clearTimeout(timer));
+    };
+  }
+
   // First in, first out, one send in flight, so quick tick and corner reports all arrive, in order.
   // A failed send is retried before anything newer; past `cap` waiting messages the oldest is dropped,
   // so a dead link can't grow it forever. `send` returns a promise that rejects when the link is down.
+  // With `stamp`, messages are objects with a time `t` (ms). The queue keeps t strictly increasing, so a retry the
+  // relay already published can be recognised by (kind, t), and each attempt goes out with `age` (ms since t, at
+  // that attempt) and `dropped` (messages the cap discarded since the last successful send).
   function sendQueue(send, opts = {}) {
-    const cap = opts.cap ?? 200, retryMs = opts.retryMs ?? 1000;
+    const cap = opts.cap ?? 200, retryMs = opts.retryMs ?? 1000, stamp = !!opts.stamp;
     const waiting = [];
-    let busy = false, dropped = 0;
-    const trim = () => { while (waiting.length > cap) { waiting.shift(); dropped++; } };
+    let busy = false, dropped = 0, unreported = 0, failed = 0, lastT = -Infinity;
+    const trim = () => { while (waiting.length > cap) { waiting.shift(); dropped++; unreported++; } };
     function pump() {
       if (busy || !waiting.length) return;
       busy = true;
       const msg = waiting.shift();
-      Promise.resolve(msg).then(send).then(
-        () => { busy = false; pump(); },
-        () => { waiting.unshift(msg); trim(); setTimeout(() => { busy = false; pump(); }, retryMs); });
+      // Only the drops this message reports are cleared; any made while it is in flight go on the next one.
+      const gap = unreported;
+      const out = stamp ? { ...msg, age: Math.max(0, Date.now() - msg.t), dropped: gap } : msg;
+      Promise.resolve(out).then(send).then(
+        () => { unreported -= gap; busy = false; pump(); },
+        () => { failed++; waiting.unshift(msg); trim(); setTimeout(() => { busy = false; pump(); }, retryMs); });
     }
     return {
-      push(msg) { waiting.push(msg); trim(); pump(); },
+      push(msg) {
+        if (stamp) { lastT = msg.t > lastT ? msg.t : lastT + 1; msg = { ...msg, t: lastT }; }
+        waiting.push(msg); trim(); pump();
+      },
       get waiting() { return waiting.length; },
       get dropped() { return dropped; },
+      get failed() { return failed; },
     };
   }
 
@@ -267,7 +293,7 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, sendQueue };
+  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

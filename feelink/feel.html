@@ -56,7 +56,7 @@
 
 <script src="/tactile.js"></script>
 <script>
-const { BOARD, SHAPES, Renderer } = Tactile;
+const { BOARD, SHAPES, Renderer, sendQueue } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -78,35 +78,42 @@ const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30] };
 let level = 0, rearm = null, resume = null;
 const canVibrate = typeof navigator.vibrate === 'function';
 
+// In live mode every call is reported to the stage, re-arms included, so a take can be matched against
+// dumpsys vibrator_manager. Chrome plays a pattern as one platform vibration per on-step (measured Nov 7).
+function vibrate(kind, pattern) {
+  const ok = navigator.vibrate(pattern);
+  if (mode === 'live') haptics.push({ type: 'haptic', kind, level, top: renderer.top, pattern: [].concat(pattern), ok, t: Date.now() });
+}
+
 function setBuzz(next) {
   level = next;
   clearTimeout(rearm);
   clearTimeout(resume);
   if (!canVibrate) return;
   if (next === renderer.top) {
-    navigator.vibrate(HOLD_MS);
+    vibrate('hold', HOLD_MS);
     rearm = setTimeout(() => setBuzz(next), HOLD_MS * 0.9);
   } else if (next > 0) {
     const pattern = FADE[next - 1];
-    navigator.vibrate(pattern);
+    vibrate('fade', pattern);
     rearm = setTimeout(() => setBuzz(next), pattern.reduce((a, b) => a + b, 0) * 0.75);
   } else {
     // Chrome on the Pixel 8 ignores vibrate(0): a 2 s buzz ran to the end (dumpsys vibrator_manager, Nov 7).
     // A new call does replace the running one, so a 1 ms buzz is the stop.
-    navigator.vibrate(1);
+    vibrate('stop', 1);
   }
 }
 
 function apply(cmd) {
   if (!cmd) return;
   if (cmd.type === 'level') return setBuzz(cmd.level);
-  if (cmd.type === 'tick') { clearTimeout(rearm); if (canVibrate) navigator.vibrate(TICK_MS); return; }
+  if (cmd.type === 'tick') { clearTimeout(rearm); if (canVibrate) vibrate('tick', TICK_MS); return; }
   if (cmd.type === 'node') {
     const pattern = NODE[cmd.kind];
     clearTimeout(rearm);
     clearTimeout(resume);
     level = cmd.level;
-    if (canVibrate) navigator.vibrate(pattern);
+    if (canVibrate) vibrate(cmd.kind, pattern);
     resume = setTimeout(() => { if (renderer.level === renderer.top) setBuzz(renderer.top); }, pattern.reduce((a, b) => a + b, 0));
   }
 }
@@ -164,6 +171,12 @@ function hint(text) { $('hint').hidden = !text; $('hint').textContent = text || 
 // Network: the finger position is latest-only, so a slow network drops samples rather than lagging.
 let es = null, pendingFinger = null, fingerBusy = false;
 const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) });
+// Haptic reports queue instead, so a quick tick or corner is never overwritten. 200 waiting is about a minute
+// at the 2-4 reports a second that buzzing makes, and a few seconds to flush once the link is back.
+const haptics = sendQueue(post, { cap: 200 });
+// Only the newest config matters: one in flight plus the latest waiting.
+const configs = sendQueue(post, { cap: 1 });
+const sendConfig = () => configs.push({ type: 'phoneconfig', coreMm: widthMm(), fadeMm: fadeMm(), steps: FADE.length, screenWidthMm: SCREEN_WIDTH_MM });
 function sendFinger(msg) {
   pendingFinger = msg;
   if (fingerBusy) return;
@@ -256,11 +269,13 @@ function startLive() {
   connect();
   strokes = remote;
   makeRenderer();
+  sendConfig();
   hint('Live. One finger feels. Add a second finger to draw. Hold 3 fingers 1 s: back.');
   draw();
 }
 function goHome() {
-  mode = 'home'; hint(''); apply(renderer.lift()); setBuzz(0); showInk = false; strokes = []; show('home'); draw();
+  apply(renderer.lift()); setBuzz(0); // before leaving live mode, so the stage hears the stop
+  mode = 'home'; hint(''); showInk = false; strokes = []; show('home'); draw();
 }
 
 // Touch
@@ -275,7 +290,7 @@ canvas.addEventListener('pointerdown', (e) => {
     const p = toMm(e);
     if (mode === 'test') path.push(p);
     feel(p);
-    if (mode === 'live') sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: false });
+    if (mode === 'live') sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: false, level });
   } else if (mode === 'live' && !pen && fingers.size === 2) {
     pen = { id: 'phone-' + Date.now(), by: 'phone', pts: [] };
   }
@@ -293,7 +308,7 @@ canvas.addEventListener('pointermove', (e) => {
   }
   if (mode === 'live') {
     const p = toMm(e);
-    sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: !!pen });
+    sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: !!pen, level });
     if (pen && pen.pts.length) post({ type: 'stroke', ...pen, pts: pen.pts });
   }
 });
@@ -308,7 +323,7 @@ function release(e) {
   if (e.pointerId === primary) {
     primary = null;
     apply(renderer.lift());
-    if (mode === 'live') sendFinger({ type: 'finger', down: false });
+    if (mode === 'live') sendFinger({ type: 'finger', down: false, level });
   }
 }
 canvas.addEventListener('pointerup', release);
@@ -329,8 +344,8 @@ $('fade').value = store.get('fi.fade', '6');
 $('who').value = store.get('fi.who', '');
 const showWidth = () => { $('wval').textContent = $('width').value; $('fval').textContent = $('fade').value; };
 showWidth();
-$('width').oninput = () => { showWidth(); store.set('fi.core', $('width').value); };
-$('fade').oninput = () => { showWidth(); store.set('fi.fade', $('fade').value); };
+$('width').oninput = () => { showWidth(); store.set('fi.core', $('width').value); sendConfig(); };
+$('fade').oninput = () => { showWidth(); store.set('fi.fade', $('fade').value); sendConfig(); };
 $('who').oninput = () => store.set('fi.who', $('who').value);
 if (!canVibrate) $('warn').textContent = 'This browser cannot vibrate. Use Chrome on the Pixel. iPhone Safari has no vibration API.';
 const enterFullscreen = () => { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); };
@@ -341,8 +356,17 @@ $('live').onclick = () => { enterFullscreen(); startLive(); };
 $('right').onclick = () => mark(true);
 $('wrong').onclick = () => mark(false);
 $('again').onclick = goHome;
+// A hidden page must not keep re-arming the hold. Chrome refuses vibrate() once the page is hidden
+// (Blink checks visibility before the visibilitychange event runs), so that stop may report ok: false.
+// Lifting the renderer makes the next touch buzz again.
+function stopForHide() { renderer.lift(); setBuzz(0); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); });
+addEventListener('pagehide', stopForHide);
+// The relay replays only strokes, so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.
+setInterval(() => { if (mode === 'live' && !document.hidden) sendConfig(); }, 2000);
 addEventListener('resize', layout);
 connect();
+sendConfig();
 layout();
 </script>
 </body>

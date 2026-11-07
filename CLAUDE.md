@@ -36,7 +36,7 @@ Read STATUS.md at the start of every session and update it after every decision 
 - Judging rubric (Reeve, Nov 6), 25 points total, per-criterion split not stated: Problem Definition & User Identification; Solution Approach & Feasibility; Technical Innovation & Originality (novel execution vs basic wrappers); Validation & Performance Metrics (how you know it works, did a customer or user try it); Potential Impact & Real-World Application.
 
 ## Event facts
-- Fri and Sat 9 AM-10 PM, Sun 9 AM-2 PM. Mentors Saturday, pitches Sunday. Planning on an 11 AM Sunday submission; deadline, pitch length and platform are unconfirmed.
+- Fri and Sat 9 AM-10 PM, Sun 9 AM-2 PM. Mentors Saturday, pitches Sunday. Pitch: 4 minutes with slides, no live demo, GIFs and images allowed (told by organizers Sat Nov 7). Planning on an 11 AM Sunday slide deadline (last edition's); deadline, file format and template are unconfirmed, see `research/pitch-format-2026-11-07.md`.
 - Tracks: Construction + Sustainability, Health + Accessibility, Civic + GovTech, Open Tech. $500 per track, $1,500 grand. Stacking rule unpublished.
 - Past overall winners: Veridian (on-device tablet SOAP notes), Helping Hand (printed arm teaching ASL). Most listed winning teams have 5 or more people.
 - Organizer Umang: prior work is allowed if copied into a new git repo started on the day; disclose it. AI tools and open-source use must be disclosed in the presentation. Research-licensed weights are fine if we can explain the model and disclose the terms.

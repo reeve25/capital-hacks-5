@@ -82,7 +82,7 @@ test('parseHaptic: rings only for real, successful, non-stop buzzes', () => {
   assert.equal(B.parseHaptic(null), null);
   assert.equal(B.parseHaptic({ type: 'haptic', kind: 'stop' }).level, 0);
   assert.deepEqual(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: [40, 20], t: 1 }),
-    { burst: false, kind: 'hold', level: 4, top: 4, strength: 1, ms: 60 });
+    { burst: false, kind: 'hold', level: 4, top: 4, strength: 1, ms: 60, pulses: [0] });
   // feel.html sends the hold as a bare number and fades as on/off arrays.
   assert.equal(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true }).ms, 5000);
   assert.equal(B.parseHaptic({ type: 'haptic', kind: 'fade', level: 1, top: 4, pattern: [12, 60, 12, 60] }).ms, 144);
@@ -141,7 +141,7 @@ test('HapticRings: level change rings, bursts ring, stop and silence end the sta
   assert.equal(r.onHaptic(lv(1), 0)[0].strength, 0.25);
   assert.equal(r.onHaptic(lv(4), 100).length, 1, 'new level rings');
   const burst = r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'corner', level: 4, top: 4 }), 200);
-  assert.deepEqual(burst, [{ strength: 1, burst: true }]);
+  assert.deepEqual(burst, [{ strength: 1, burst: true, delay: 0 }]);
   assert.deepEqual(r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'stop' }), 300), []);
   assert.deepEqual(r.tick(1000), []);
   r.onHaptic(lv(4), 2000);
@@ -230,4 +230,30 @@ test('trailStep quantises the fade to a few flat colours', () => {
   assert.equal(B.trailStep(0), 0);
   assert.equal(B.trailStep(1), 1);
   assert.equal(B.trailStep(-0.2), 0);
+});
+
+test('bursts ring once per real pulse at the pattern timing (Codex #8 on #34)', () => {
+  assert.deepEqual(B.pulseStarts(25), [0], 'tick is one 25 ms pulse');
+  assert.deepEqual(B.pulseStarts([30, 40, 30]), [0, 70], 'corner');
+  assert.deepEqual(B.pulseStarts([30, 30, 30, 30, 30]), [0, 60, 120], 'end');
+  assert.deepEqual(B.pulseStarts([]), [0]);
+  assert.deepEqual(B.pulseStarts([0, 10, 20]), [10], 'zero-length on-steps are not pulses');
+  const r = new B.HapticRings();
+  const tick = r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'tick', level: 0, top: 4, pattern: 25, ok: true }), 0);
+  assert.equal(tick.length, 1);
+  const corner = r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'corner', level: 4, top: 4, pattern: [30, 40, 30], ok: true }), 0);
+  assert.deepEqual(corner.map((x) => x.delay), [0, 70]);
+});
+
+test('an accepted buzz drops rings whose pulse has not started', () => {
+  assert.deepEqual(B.dropPending([{ t0: 0 }, { t0: 100 }, { t0: 170 }], 120), [{ t0: 0 }, { t0: 100 }]);
+  assert.deepEqual(B.dropPending([], 5), []);
+});
+
+test('feltFromConfig: half the phone core width, else keep the fallback (Codex #7 on #34)', () => {
+  assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 6 }), 3);
+  assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 8 }), 4);
+  assert.equal(B.feltFromConfig({ type: 'phoneconfig' }, 3.5), 3.5);
+  assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 'x' }), B.FELT_MM);
+  assert.equal(B.feltFromConfig({ type: 'phoneconfig', coreMm: 0 }), B.FELT_MM);
 });

@@ -38,7 +38,9 @@ const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', unfelt: '#b
 // Sizes in board millimetres (about 8 px/mm when the page is 1000 px tall, about 4 px/mm in the GIF).
 const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 3.2, TRAIL_TAIL_MM = 0.8, TRAIL_MS = 3000;
 const CURSOR_MM = 3.4, CURSOR_BORDER_MM = 1.0, CURSOR_TAU_MS = 35;
-const BURST_GAP_MS = 110, PHONE_FRESH_MS = 3000;
+const PHONE_FRESH_MS = 3000;
+// Found-by-touch radius: half the phone's core width, updated from its phoneconfig (default 3 mm).
+let feltMm = Board.FELT_MM;
 // Movement-only polish (touch-down pop, lift shrink, ink settle) is skipped under reduced motion.
 // Rings stay: they are the haptic signal itself. The capture browser does not set this preference.
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -61,7 +63,7 @@ function inkState(st) {
   s = { pts: st.pts, samples, felt };
   feltById.set(st.id, s);
   // Ink that appears under a resting finger is found straight away.
-  if (finger.down && finger.last) B.markFelt(samples, felt, finger.last, finger.last, B.FELT_MM, stamp(performance.now()));
+  if (finger.down && finger.last) B.markFelt(samples, felt, finger.last, finger.last, feltMm, stamp(performance.now()));
   return s;
 }
 function setStrokes(list) {
@@ -91,7 +93,7 @@ function onFinger(ev) {
   }
   const p = { x: ev.x, y: ev.y };
   const from = finger.down && finger.last ? finger.last : p;
-  for (const st of strokes) { const s = inkState(st); B.markFelt(s.samples, s.felt, from, p, B.FELT_MM, stamp(now)); }
+  for (const st of strokes) { const s = inkState(st); B.markFelt(s.samples, s.felt, from, p, feltMm, stamp(now)); }
   if (!finger.down) { finger.cur = { ...p }; finger.downAt = now; finger.upAt = null; }
   finger.down = true;
   finger.last = p;
@@ -102,12 +104,10 @@ function onFinger(ev) {
 // They stay centred on the cursor, so each one reads as "the fingertip buzzed", even mid-swipe.
 const haptics = new B.HapticRings();
 let rings = []; // {t0, strength, burst}
+// One ring per real pulse, at the pattern's own timing. Rings are kept even before the first finger
+// sample arrives (the haptic POST can beat the finger POST); they draw once the cursor exists.
 function spawnRings(list, now) {
-  if (!finger.cur) return;
-  for (const r of list) {
-    rings.push({ t0: now, strength: r.strength, burst: r.burst });
-    if (r.burst) rings.push({ t0: now + BURST_GAP_MS, strength: r.strength, burst: true });
-  }
+  for (const r of list) rings.push({ t0: now + (r.delay || 0), strength: r.strength, burst: r.burst });
 }
 
 // Relay.
@@ -127,8 +127,11 @@ es.onmessage = (m) => {
   else if (ev.type === 'finger') onFinger(ev);
   else if (ev.type === 'haptic') {
     const h = B.parseHaptic(ev);
+    // An accepted vibrate() replaces the rest of the previous pattern, so its unstarted rings go too.
+    if (h) rings = B.dropPending(rings, now);
     spawnRings(haptics.onHaptic(h, now), now);
   }
+  else if (ev.type === 'phoneconfig') feltMm = B.feltFromConfig(ev, feltMm);
 };
 
 // Tutor input: pointer on the board, smoothed before sending so phone and stage share one geometry.

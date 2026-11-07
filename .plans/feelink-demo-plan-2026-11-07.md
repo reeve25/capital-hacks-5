@@ -50,7 +50,7 @@ Nothing has to survive a live room, only a take. We can retake.
 - Header: "FeelInk", phone dot (green while finger or presence events arrive), tutor dot.
 
 ## Recording pipeline (Planned)
-ffmpeg on the host laptop (`winget install Gyan.FFmpeg`), stage screen capture (Game Bar or Snipping Tool), overhead iPhone video, sync on the first stroke, side-by-side compose, GIF and MP4 export at slide size. A test GIF from a real take must play in Google Slides or PowerPoint.
+Built in `tools/record/` (runbook `README.md`, `compose.py`, `selftest.sh`), mock-tested on synthetic clips. Game Bar capture of the stage in F11 at 60 fps; iPhone overhead at 1080p60, Most Compatible, HDR off; USB transfer. **Sync on a single student tap on the Pixel at the start** (Level 1 change from "first stroke": the tutor's stroke is invisible on the dark phone, the tap shows on both clips). GIF 960x540 at 15 fps, aim under 10 MB (Google Slides allows up to 50 MB / 25 MP, read on the Slides API docs); real camera grain may need `--denoise` and 4-8 s takes. A test GIF from a real take must play in Google Slides or PowerPoint.
 
 ## Constraints
 - **One host laptop: Reeve's.** The Pixel reaches the server only over USB `adb reverse tcp:8765 tcp:8765` (Measured: venue Wi-Fi and the Pixel hotspot blocked device-to-device traffic). Nathan's laptop has no adb. Every real test and every take runs on Reeve's laptop; anything tested only in a second browser tab on Nathan's laptop is a mock and is reported as one. Session times are agreed with Reeve over the team log.

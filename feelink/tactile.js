@@ -177,6 +177,29 @@
     }
   }
 
+  // First in, first out, one send in flight, so quick tick and corner reports all arrive, in order.
+  // A failed send is retried before anything newer; past `cap` waiting messages the oldest is dropped,
+  // so a dead link can't grow it forever. `send` returns a promise that rejects when the link is down.
+  function sendQueue(send, opts = {}) {
+    const cap = opts.cap ?? 200, retryMs = opts.retryMs ?? 1000;
+    const waiting = [];
+    let busy = false, dropped = 0;
+    const trim = () => { while (waiting.length > cap) { waiting.shift(); dropped++; } };
+    function pump() {
+      if (busy || !waiting.length) return;
+      busy = true;
+      const msg = waiting.shift();
+      Promise.resolve(msg).then(send).then(
+        () => { busy = false; pump(); },
+        () => { waiting.unshift(msg); trim(); setTimeout(() => { busy = false; pump(); }, retryMs); });
+    }
+    return {
+      push(msg) { waiting.push(msg); trim(); pump(); },
+      get waiting() { return waiting.length; },
+      get dropped() { return dropped; },
+    };
+  }
+
   // Test shapes, 46 mm across, centred on the board.
   const C = { x: BOARD.w / 2, y: BOARD.h / 2 }, R = 23;
   const at = (u, v) => ({ x: C.x + u * R, y: C.y + v * R });
@@ -196,7 +219,7 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer };
+  const api = { BOARD, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, sendQueue };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

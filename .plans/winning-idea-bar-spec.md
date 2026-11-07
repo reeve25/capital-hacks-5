@@ -5,6 +5,11 @@ Interview Nov 6, 2026, about 15:15-15:35 PT. Reeve and Nathan answered together 
 ## The bar in one paragraph
 Use AI-assisted engineering to build something two people could not have built before, which fixes a problem that seems impressive to fix: one people assume is permanent, or one whose fix costs a fortune today. Anyone looking at the invention should see at once that it fixes the problem directly and practically. Judges should ask to try it. The thing speaks for itself.
 
+## Update, Nov 6 about 20:40 PT, after the cane round. This overrides everything below where they differ.
+Reeve: "a physical project is not going to work, it still needs to be a super impressive demo and idea, and win the rubric and everything". Earlier in the same chat, on steering the hand: "this is too physically complicated to build".
+- **No physical project.** Superseded: the Hardware and Budget rows and test 5 below. Advisor reading, not yet confirmed: nothing built or worn; ordinary phones, laptops, the RTX 4050, webcams and earbuds are fine.
+- **It has to win the rubric as well as the demo bar.** The rubric is in CLAUDE.md. Its Validation criterion asks whether a customer or user tried it, which the demo-first update below doesn't require, so each pitch says what honest validation it could show by Sunday.
+
 ## Update, Nov 6 evening, after the leap round. This overrides everything below where they differ.
 Reeve: "it doesnt need clinical evidence proving that the device is functional, it just needs to be a prototype and show promise to the judges and SEEM functional in the demo", "if further researched and develpoed judges should be able to see the potential and why its so cool innovative interesting", "right now you are trying to make A REAL device, thats great but unessseary and potentially limiting us", the leap-round ideas "would have subpar and uninterestiing demos and arent easily demonstrable to a healthy judge", "the 'demo' doesnt need a volunteer it just needs to be a good demo".
 - **Judge the idea by its demo.** Start from the demo. Clinical evidence is not a gate, and pitches do not lead with it. The idea only needs to make logical sense and show visible potential.

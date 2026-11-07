@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FeelInk canvas</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 15px/1.35 system-ui, sans-serif; }
+  #wrap { display: flex; height: 100%; gap: 16px; padding: 16px; box-sizing: border-box; }
+  canvas { background: #fff; border-radius: 6px; touch-action: none; cursor: crosshair; height: 100%; }
+  aside { max-width: 320px; }
+  button { padding: 10px 14px; margin: 4px 4px 4px 0; font: inherit; background: #2a2a2a; color: #fff; border: 1px solid #555; border-radius: 8px; }
+  #status { color: #aaa; }
+  .key span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <aside>
+    <h1>FeelInk canvas</h1>
+    <p>Draw here. The Pixel in Live mode feels each line as it arrives.</p>
+    <button id="undo">Undo</button><button id="clear">Clear</button>
+    <p id="status">Waiting for events</p>
+    <p class="key"><span style="background:#111"></span>Your strokes</p>
+    <p class="key"><span style="background:#2563eb"></span>Strokes drawn on the phone</p>
+    <p class="key"><span style="background:#ef4444"></span>Finger on the phone</p>
+  </aside>
+</div>
+<script src="/tactile.js"></script>
+<script>
+const { BOARD } = Tactile;
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let strokes = [], finger = null, current = null, lastSend = 0;
+const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) });
+
+function layout() {
+  const h = c.parentElement.clientHeight - 32;
+  const w = h * BOARD.w / BOARD.h;
+  const dpr = window.devicePixelRatio || 1;
+  c.style.width = w + 'px';
+  c.style.height = h + 'px';
+  c.width = w * dpr;
+  c.height = h * dpr;
+  render();
+}
+const scale = () => c.width / BOARD.w;
+function toMm(e) {
+  const r = c.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * BOARD.w, y: (e.clientY - r.top) / r.height * BOARD.h };
+}
+function render() {
+  const s = scale();
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.lineCap = ctx.lineJoin = 'round';
+  for (const st of strokes) {
+    ctx.strokeStyle = st.by === 'phone' ? '#2563eb' : '#111';
+    ctx.lineWidth = 2.5 * s;
+    ctx.beginPath();
+    st.pts.forEach((p, i) => (i ? ctx.lineTo(p.x * s, p.y * s) : ctx.moveTo(p.x * s, p.y * s)));
+    ctx.stroke();
+  }
+  if (finger) {
+    ctx.fillStyle = finger.pen ? '#2563eb' : '#ef4444';
+    ctx.beginPath();
+    ctx.arc(finger.x * s, finger.y * s, 2.2 * s, 0, 7);
+    ctx.fill();
+  }
+}
+function upsert(ev) {
+  const i = strokes.findIndex((s) => s.id === ev.id);
+  if (i >= 0) strokes[i] = ev; else strokes.push(ev);
+}
+
+const es = new EventSource('/events');
+es.onopen = () => { document.getElementById('status').textContent = 'Relay connected'; };
+es.onerror = () => { document.getElementById('status').textContent = 'Relay reconnecting'; };
+es.onmessage = (m) => {
+  const ev = JSON.parse(m.data);
+  if (ev.type === 'sync') strokes = ev.strokes;
+  else if (ev.type === 'stroke') { if (!current || ev.id !== current.id) upsert(ev); }
+  else if (ev.type === 'clear') strokes = [];
+  else if (ev.type === 'finger') finger = ev.down ? ev : null;
+  render();
+};
+
+// Partial strokes go out as they grow, so the phone feels the line while it's being drawn.
+c.addEventListener('pointerdown', (e) => {
+  c.setPointerCapture(e.pointerId);
+  current = { id: 'laptop-' + Date.now(), by: 'laptop', pts: [toMm(e)] };
+  upsert(current);
+  render();
+});
+c.addEventListener('pointermove', (e) => {
+  if (!current) return;
+  current.pts.push(toMm(e));
+  render();
+  const now = performance.now();
+  if (now - lastSend > 40) { lastSend = now; post({ type: 'stroke', ...current }); }
+});
+const finish = () => {
+  if (!current) return;
+  post({ type: 'stroke', ...current });
+  current = null;
+};
+c.addEventListener('pointerup', finish);
+c.addEventListener('pointercancel', finish);
+document.getElementById('clear').onclick = () => post({ type: 'clear' });
+document.getElementById('undo').onclick = () => post({ type: 'undo' });
+addEventListener('resize', layout);
+layout();
+</script>
+</body>
+</html>

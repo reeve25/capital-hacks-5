@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>FeelInk</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #eee; font: 16px/1.35 system-ui, sans-serif; overscroll-behavior: none; }
+  #board { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+  .panel { position: fixed; inset: 0; overflow: auto; padding: 16px; background: #000; touch-action: auto; }
+  .panel[hidden], #hint[hidden] { display: none; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { margin: 6px 0; color: #bbb; }
+  button { display: block; width: 100%; margin: 8px 0; padding: 14px; font: inherit; color: #fff; background: #2a2a2a; border: 1px solid #555; border-radius: 8px; }
+  button.go { background: #14532d; border-color: #22c55e; }
+  button.no { background: #5f1d1d; border-color: #ef4444; }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; }
+  label { display: block; margin: 10px 0; }
+  input[type=range] { width: 100%; }
+  input[type=text] { width: 100%; padding: 10px; box-sizing: border-box; font: inherit; }
+  #hint { position: fixed; top: 10px; left: 0; right: 0; text-align: center; color: #666; font-size: 13px; pointer-events: none; }
+  #warn { color: #fca5a5; }
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<div id="hint" hidden></div>
+
+<div class="panel" id="home">
+  <h1>FeelInk kill test</h1>
+  <p id="warn"></p>
+  <button id="buzz">Buzz check</button>
+  <p>No buzz? Turn off Silent and Do Not Disturb, then check that vibration is on in Android settings.</p>
+  <label>Who is testing (initials)<input id="who" type="text" maxlength="8"></label>
+  <label>Strong core width: <span id="wval"></span> mm<input id="width" type="range" min="2" max="14" step="1"></label>
+  <label>Fade beside the line: <span id="fval"></span> mm each side (0 = off)<input id="fade" type="range" min="0" max="10" step="1"></label>
+  <button id="practice">Practice (shapes visible)</button>
+  <button class="go" id="test">Start blind test (5 shapes)</button>
+  <button id="live">Live with laptop canvas</button>
+  <p id="net"></p>
+</div>
+
+<div class="panel" id="reveal" hidden>
+  <h1 id="rtitle"></h1>
+  <p id="rtime"></p>
+  <p>Did they name it correctly? For an open square, include which side is open.</p>
+  <div class="row"><button class="go" id="right">Right</button><button class="no" id="wrong">Wrong</button></div>
+</div>
+
+<div class="panel" id="done" hidden>
+  <h1>Done</h1>
+  <p id="summary"></p>
+  <button id="again">Back</button>
+</div>
+
+<script src="/tactile.js"></script>
+<script>
+const { BOARD, SHAPES, Renderer } = Tactile;
+const $ = (id) => document.getElementById(id);
+const canvas = $('board'), ctx = canvas.getContext('2d');
+const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
+const TRIALS = 5;
+
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// Haptics. No amplitude control in the web API, so shorter, sparser pulses stand in for a weaker buzz.
+// Every buzz stays at or under 1 s: on the Pixel, Android played longer ones at the media intensity
+// (51% here) and shorter ones at the touch intensity (100%), measured with dumpsys vibrator_manager.
+const HOLD_MS = 800, TICK_MS = 25;
+const FADE = [[12, 60], [20, 35], [30, 15]] // [on, off] ms per fade step, faintest first
+  .map(([on, off]) => Array.from({ length: 24 }, (_, i) => (i % 2 ? off : on)));
+const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30] };
+let level = 0, rearm = null, resume = null;
+const canVibrate = typeof navigator.vibrate === 'function';
+
+function setBuzz(next) {
+  level = next;
+  clearTimeout(rearm);
+  clearTimeout(resume);
+  if (!canVibrate) return;
+  if (next === renderer.top) {
+    navigator.vibrate(HOLD_MS);
+    rearm = setTimeout(() => setBuzz(next), HOLD_MS * 0.75);
+  } else if (next > 0) {
+    const pattern = FADE[next - 1];
+    navigator.vibrate(pattern);
+    rearm = setTimeout(() => setBuzz(next), pattern.reduce((a, b) => a + b, 0) * 0.75);
+  } else {
+    // Chrome on the Pixel 8 ignores vibrate(0): a 2 s buzz ran to the end (dumpsys vibrator_manager, Nov 7).
+    // A new call does replace the running one, so a 1 ms buzz is the stop.
+    navigator.vibrate(1);
+  }
+}
+
+function apply(cmd) {
+  if (!cmd) return;
+  if (cmd.type === 'level') return setBuzz(cmd.level);
+  if (cmd.type === 'tick') { clearTimeout(rearm); if (canVibrate) navigator.vibrate(TICK_MS); return; }
+  if (cmd.type === 'node') {
+    const pattern = NODE[cmd.kind];
+    clearTimeout(rearm);
+    clearTimeout(resume);
+    level = cmd.level;
+    if (canVibrate) navigator.vibrate(pattern);
+    resume = setTimeout(() => { if (renderer.level === renderer.top) setBuzz(renderer.top); }, pattern.reduce((a, b) => a + b, 0));
+  }
+}
+
+// Board placement: same millimetre scale as the screen, centred.
+let pxPerMm = 6.4, originX = 0, originY = 0;
+function layout() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  pxPerMm = innerWidth / SCREEN_WIDTH_MM;
+  originX = (innerWidth - BOARD.w * pxPerMm) / 2;
+  originY = (innerHeight - BOARD.h * pxPerMm) / 2;
+  draw();
+}
+const toMm = (e) => ({ x: (e.clientX - originX) / pxPerMm, y: (e.clientY - originY) / pxPerMm });
+const toPx = (p) => [originX + p.x * pxPerMm, originY + p.y * pxPerMm];
+
+// App state
+let mode = 'home', strokes = [], remote = [], path = [], showInk = false;
+let renderer = new Renderer({});
+let queueShapes = [], current = null, startedAt = null, results = [];
+let fingers = new Map(), primary = null, pen = null;
+
+function widthMm() { return Number($('width').value); }
+function fadeMm() { return Number($('fade').value); }
+function makeRenderer() {
+  renderer = new Renderer({ halfWidth: widthMm() / 2, fade: fadeMm(), steps: FADE.length });
+  renderer.setStrokes(strokes);
+}
+
+function drawPoly(pts, style, width) {
+  if (!pts.length) return;
+  ctx.strokeStyle = style;
+  ctx.lineWidth = width;
+  ctx.lineCap = ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => { const [x, y] = toPx(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  if (showInk) strokes.forEach((s) => drawPoly(s.pts, 'rgba(34, 197, 94, 0.25)', (widthMm() + 2 * fadeMm()) * pxPerMm));
+  if (showInk) strokes.forEach((s) => drawPoly(s.pts, '#22c55e', widthMm() * pxPerMm));
+  if (mode === 'reveal') drawPoly(path, '#f59e0b', 2);
+}
+
+function show(panel) {
+  ['home', 'reveal', 'done'].forEach((id) => { $(id).hidden = id !== panel; });
+}
+function hint(text) { $('hint').hidden = !text; $('hint').textContent = text || ''; }
+
+// Network: the finger position is latest-only, so a slow network drops samples rather than lagging.
+let es = null, pendingFinger = null, fingerBusy = false;
+const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) });
+function sendFinger(msg) {
+  pendingFinger = msg;
+  if (fingerBusy) return;
+  fingerBusy = true;
+  const m = pendingFinger;
+  pendingFinger = null;
+  post(m).catch(() => {}).finally(() => { fingerBusy = false; if (pendingFinger) sendFinger(pendingFinger); });
+}
+function connect() {
+  if (es) return;
+  es = new EventSource('/events');
+  es.onopen = () => { $('net').textContent = 'Laptop link: connected'; };
+  es.onerror = () => { $('net').textContent = 'Laptop link: reconnecting'; };
+  es.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    if (ev.type === 'sync') remote = ev.strokes;
+    else if (ev.type === 'stroke') {
+      const i = remote.findIndex((s) => s.id === ev.id);
+      if (i >= 0) remote[i] = ev; else remote.push(ev);
+    } else if (ev.type === 'clear') remote = [];
+    else return;
+    if (mode === 'live') {
+      strokes = remote;
+      renderer.setStrokes(strokes);
+      apply(renderer.refresh());
+      draw();
+    }
+  };
+}
+
+// Modes
+function startPractice() {
+  mode = 'practice'; showInk = true; show(null);
+  const names = Object.keys(SHAPES);
+  let i = 0;
+  const next = () => { strokes = SHAPES[names[i++ % names.length]]; makeRenderer(); hint('Eyes open. Two-finger tap: next shape. Hold 2 fingers 1 s: back.'); draw(); };
+  practiceNext = next;
+  next();
+}
+let practiceNext = null;
+
+function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function startTest() {
+  mode = 'test'; showInk = false; results = []; show(null);
+  // One open square at most, with a random open side, so the test includes the missing-connection task.
+  const closed = ['square', 'triangle', 'circle', 'plus', 'T', 'L', 'Z'];
+  const open = shuffled(['open at top', 'open at right', 'open at bottom', 'open at left'])[0];
+  queueShapes = shuffled(shuffled(closed).slice(0, TRIALS - 1).concat(open));
+  nextTrial();
+}
+function nextTrial() {
+  if (!queueShapes.length) return finishTest();
+  current = queueShapes.pop();
+  strokes = SHAPES[current];
+  makeRenderer();
+  path = []; startedAt = null; mode = 'test';
+  show(null);
+  hint(`Shape ${results.length + 1} of ${TRIALS}. Eyes closed. Explore, say the shape, then two-finger tap.`);
+  draw();
+}
+function endTrial() {
+  apply(renderer.lift());
+  setBuzz(0);
+  const ms = startedAt ? Math.round(performance.now() - startedAt) : 0;
+  current = { name: current, ms };
+  mode = 'reveal'; showInk = true; hint(''); show('reveal');
+  $('reveal').style.background = 'transparent';
+  $('rtitle').textContent = current.name;
+  $('rtime').textContent = `${(ms / 1000).toFixed(1)} s from first touch`;
+  draw();
+}
+function mark(correct) {
+  const rec = { who: $('who').value, shape: current.name, ms: current.ms, correct, widthMm: widthMm(), fadeMm: fadeMm(), pathMm: Math.round(pathLen()) };
+  results.push(rec);
+  fetch('/log', { method: 'POST', body: JSON.stringify(rec) }).catch(() => {});
+  showInk = false;
+  nextTrial();
+}
+function pathLen() { let d = 0; for (let i = 1; i < path.length; i++) d += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y); return d; }
+function finishTest() {
+  mode = 'done'; hint(''); show('done'); draw();
+  const right = results.filter((r) => r.correct).length;
+  const times = results.map((r) => r.ms).sort((a, b) => a - b);
+  const median = times[Math.floor(times.length / 2)] / 1000;
+  $('summary').innerHTML = `${right} of ${results.length} right. Median ${median.toFixed(1)} s.<br>` + results.map((r) => `${r.correct ? 'Right' : 'Wrong'}: ${r.shape}, ${(r.ms / 1000).toFixed(1)} s`).join('<br>');
+}
+function startLive() {
+  mode = 'live'; showInk = false; show(null);
+  connect();
+  strokes = remote;
+  makeRenderer();
+  hint('Live. One finger feels. Add a second finger to draw. Hold 3 fingers 1 s: back.');
+  draw();
+}
+function goHome() {
+  mode = 'home'; hint(''); apply(renderer.lift()); setBuzz(0); showInk = false; strokes = []; show('home'); draw();
+}
+
+// Touch
+function feel(p) { apply(renderer.move(p)); }
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  fingers.set(e.pointerId, performance.now());
+  if (primary === null) {
+    primary = e.pointerId;
+    if (mode === 'test' && startedAt === null) startedAt = performance.now();
+    const p = toMm(e);
+    if (mode === 'test') path.push(p);
+    feel(p);
+    if (mode === 'live') sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: false });
+  } else if (mode === 'live' && !pen && fingers.size === 2) {
+    pen = { id: 'phone-' + Date.now(), by: 'phone', pts: [] };
+  }
+  checkGestures();
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== primary) return;
+  e.preventDefault();
+  const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ev of events.length ? events : [e]) {
+    const p = toMm(ev);
+    if (mode === 'test') path.push(p);
+    feel(p);
+    if (pen) pen.pts.push(p);
+  }
+  if (mode === 'live') {
+    const p = toMm(e);
+    sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: !!pen });
+    if (pen && pen.pts.length) post({ type: 'stroke', ...pen, pts: pen.pts });
+  }
+});
+function release(e) {
+  const heldFor = performance.now() - (fingers.get(e.pointerId) ?? 0);
+  const countBefore = fingers.size;
+  fingers.delete(e.pointerId);
+  clearTimeout(backTimer);
+  if (mode === 'test' && countBefore >= 2 && heldFor < 700) { primary = null; fingers.clear(); return endTrial(); }
+  if (mode === 'practice' && countBefore >= 2 && heldFor < 700) { fingers.clear(); primary = null; apply(renderer.lift()); return practiceNext(); }
+  if (pen && fingers.size < 2) { pen = null; }
+  if (e.pointerId === primary) {
+    primary = null;
+    apply(renderer.lift());
+    if (mode === 'live') sendFinger({ type: 'finger', down: false });
+  }
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+
+let backTimer = null;
+function checkGestures() {
+  clearTimeout(backTimer);
+  if ((mode === 'practice' && fingers.size === 2) || (mode === 'live' && fingers.size === 3)) {
+    backTimer = setTimeout(() => { fingers.clear(); primary = null; pen = null; goHome(); }, 1000);
+  }
+}
+
+// Setup
+// New keys, so the narrower core and the fade start at their defaults instead of the old line width.
+$('width').value = store.get('fi.core', '6');
+$('fade').value = store.get('fi.fade', '6');
+$('who').value = store.get('fi.who', '');
+const showWidth = () => { $('wval').textContent = $('width').value; $('fval').textContent = $('fade').value; };
+showWidth();
+$('width').oninput = () => { showWidth(); store.set('fi.core', $('width').value); };
+$('fade').oninput = () => { showWidth(); store.set('fi.fade', $('fade').value); };
+$('who').oninput = () => store.set('fi.who', $('who').value);
+if (!canVibrate) $('warn').textContent = 'This browser cannot vibrate. Use Chrome on the Pixel. iPhone Safari has no vibration API.';
+const enterFullscreen = () => { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); };
+$('buzz').onclick = () => { if (canVibrate) navigator.vibrate(300); };
+$('practice').onclick = () => { enterFullscreen(); startPractice(); };
+$('test').onclick = () => { enterFullscreen(); startTest(); };
+$('live').onclick = () => { enterFullscreen(); startLive(); };
+$('right').onclick = () => mark(true);
+$('wrong').onclick = () => mark(false);
+$('again').onclick = goHome;
+addEventListener('resize', layout);
+connect();
+layout();
+</script>
+</body>
+</html>

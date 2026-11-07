@@ -78,7 +78,10 @@ const FADE = [[12, 60], [20, 35], [30, 15]] // [on, off] ms per fade step, faint
 // only in count, so the landmark differs in rhythm instead and can't be miscounted as either. On the line
 // the hold resumes after the trailing 80 ms pause, so its gaps (60, 80 ms) are also longer than any corner
 // or end gap (30-40 ms). 300 ms total. Chosen by reasoning; not yet felt on the Pixel.
-const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30], landmark: [120, 60, 40, 80] };
+// Reeve, Nov 7 15:33, on the Pixel: the long-short landmark cue blended into the line hold. The hold and the cue
+// both play at full strength, so only silence separates them: a 1 ms step replaces the running hold (Chrome
+// ignores 0), 150 ms of silence, then two long buzzes. 651 ms total, then the hold resumes as before.
+const NODE = { corner: [30, 40, 30], end: [30, 30, 30, 30, 30], landmark: [1, 150, 200, 100, 200] };
 let level = 0, rearm = null, resume = null;
 const canVibrate = typeof navigator.vibrate === 'function';
 

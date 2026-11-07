@@ -32,6 +32,7 @@ fi
 bash tests/test_team_feed.sh
 bash tests/test_check.sh
 node --test feelink/tactile.test.cjs >/dev/null
+node --test feelink/board.test.cjs >/dev/null
 
 [ "$fail" -eq 0 ] && echo "check: ok"
 exit "$fail"

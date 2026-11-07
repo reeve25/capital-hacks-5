@@ -200,6 +200,9 @@ const haptics = sendQueue(post, { cap: 200, stamp: true });
 // Only the newest config matters: one in flight plus the latest waiting.
 const configs = sendQueue(post, { cap: 1 });
 const sendConfig = () => configs.push({ type: 'phoneconfig', coreMm: widthMm(), fadeMm: fadeMm(), steps: FADE.length, screenWidthMm: SCREEN_WIDTH_MM });
+// A phone stroke is re-posted whole on every move, so a failed post is caught and counted like the queues'
+// `failed`, not retried: the next move resends it, and only a failed last post loses the stroke's tail.
+let strokeFailed = 0;
 function sendFinger(msg) {
   pendingFinger = msg;
   if (fingerBusy) return;
@@ -340,7 +343,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (mode === 'live') {
     const p = toMm(e);
     sendFinger({ type: 'finger', x: p.x, y: p.y, down: true, pen: !!pen, level });
-    if (pen && pen.pts.length) post({ type: 'stroke', ...pen, pts: pen.pts });
+    if (pen && pen.pts.length) post({ type: 'stroke', ...pen, pts: pen.pts }).catch(() => { strokeFailed++; });
   }
 });
 function release(e) {

@@ -307,6 +307,10 @@ function goHome() {
 
 // Touch
 function feel(p) { apply(renderer.move(p)); }
+// Chrome's long-press fires a click about 0.5 s into a resting touch, and that click replaced the 5 s hold
+// (measured on the Pixel, Nov 7: 11 of 11 held touches lost the buzz after about 0.3 s). Cancelling touchstart
+// stops the click and the compatibility mouse events; pointer events still fire. touch-action alone did not.
+canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);

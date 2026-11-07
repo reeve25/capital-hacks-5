@@ -87,7 +87,9 @@ function setBuzz(next) {
     navigator.vibrate(SOFT);
     rearm = setTimeout(() => setBuzz(1), total * 0.75);
   } else {
-    navigator.vibrate(0);
+    // Chrome on the Pixel 8 ignores vibrate(0): a 2 s buzz ran to the end (dumpsys vibrator_manager, Nov 7).
+    // A new call does replace the running one, so a 1 ms buzz is the stop.
+    navigator.vibrate(1);
   }
 }
 

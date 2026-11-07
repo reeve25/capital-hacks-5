@@ -90,7 +90,8 @@
   // Returns null for anything that should not draw a ring, else {burst, level, top, strength 0..1, ms}.
   // burst: a one-off cue (corner, end, tick). Otherwise a held level state (0 means off).
   // ms: how long the phone's vibration runs (pattern total), 0 when unknown.
-  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1 };
+  // landmark: the phone's long-short cue [120,60,40,80] plus the spoken name (#64); the event carries `name`.
+  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1, landmark: 1 };
   function patternMs(p) {
     const list = Array.isArray(p) ? p : [p];
     let total = 0;
@@ -130,8 +131,77 @@
     level = Math.max(0, Math.min(top, level));
     const burst = !!BURSTS[kind];
     if (!burst && level === 0) return { burst: false, kind, level: 0, top, strength: 0, ms: 0 };
-    return { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern),
+    const out = { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern),
       pulses: burst ? pulseStarts(ev.pattern) : [0] };
+    if (kind === 'landmark') out.name = cleanName(ev.name);
+    return out;
+  }
+
+  // Landmarks: named points the tutor places, {id, x, y, name, by} in board mm (#64, #65).
+  const LANDMARK_MM = 4;          // the phone's landmark radius (tactile.js LANDMARK_MM)
+  const NAME_MAX = 24;
+  const cleanName = (s) => (typeof s === 'string' ? s.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) : '');
+  const validLandmark = (l) => !!l && typeof l.id === 'string' && Number.isFinite(l.x) && Number.isFinite(l.y);
+
+  // Insert or replace by id, keeping first-arrival order (as the relay does).
+  function upsertById(list, item) {
+    const i = list.findIndex((x) => x.id === item.id);
+    if (i < 0) return list.concat([item]);
+    const out = list.slice();
+    out[i] = item;
+    return out;
+  }
+
+  // The landmark a spoken name refers to: same name, nearest to the finger (names can repeat).
+  function landmarkFor(list, name, p) {
+    let best = null, bestD = Infinity;
+    for (const l of list) {
+      if (cleanName(l.name) !== name) continue;
+      const d = p ? Math.hypot(l.x - p.x, l.y - p.y) : 0;
+      if (d < bestD) { best = l; bestD = d; }
+    }
+    return best;
+  }
+
+  // An existing landmark under a click, within its zone, else null.
+  function landmarkAt(list, p, radius = LANDMARK_MM) {
+    let best = null, bestD = radius;
+    for (const l of list) { const d = Math.hypot(l.x - p.x, l.y - p.y); if (d <= bestD) { best = l; bestD = d; } }
+    return best;
+  }
+
+  // Where a landmark's label goes: right, left, above or below the dot. Spots that run off the board are
+  // out; of the rest, the one crossing the fewest ink samples wins (so the route leaving a landmark doesn't
+  // sit under its name), in that preference order on a tie. Returns {side, x, y, align} with (x, y) the
+  // text anchor for textBaseline 'middle'. widthMm is the measured text width; inkSamples are mm points.
+  function labelPlace(l, widthMm, board, gapMm, heightMm = 4, inkSamples = []) {
+    const vGap = gapMm - 0.6 + heightMm / 2;
+    const spots = [
+      { side: 'right', x: l.x + gapMm, y: l.y, align: 'left', x0: l.x + gapMm },
+      { side: 'left', x: l.x - gapMm, y: l.y, align: 'right', x0: l.x - gapMm - widthMm },
+      { side: 'above', x: l.x, y: l.y - vGap, align: 'center', x0: l.x - widthMm / 2 },
+      { side: 'below', x: l.x, y: l.y + vGap, align: 'center', x0: l.x - widthMm / 2 },
+    ];
+    let best = null, bestHits = Infinity;
+    for (const s of spots) {
+      const x0 = s.x0 - 0.5, x1 = s.x0 + widthMm + 0.5, y0 = s.y - heightMm / 2 - 0.5, y1 = s.y + heightMm / 2 + 0.5;
+      if (x0 < 0.5 || x1 > board.w - 0.5 || y0 < 0.5 || y1 > board.h - 0.5) continue;
+      let n = 0;
+      for (const p of inkSamples) if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) n++;
+      if (n < bestHits) { best = s; bestHits = n; }
+    }
+    const { side, x, y, align } = best || spots[0];
+    return { side, x, y, align };
+  }
+
+  // Caption bubble scale over its life: pops in, holds, shrinks away. 0 means hidden.
+  const CAPTION_MS = 1600, CAPTION_IN_MS = 160, CAPTION_OUT_MS = 140;
+  function captionScale(ageMs) {
+    if (ageMs < 0 || ageMs >= CAPTION_MS) return 0;
+    if (ageMs < CAPTION_IN_MS) return 0.85 + 0.15 * easeOut(ageMs / CAPTION_IN_MS);
+    const out = CAPTION_MS - ageMs;
+    if (out < CAPTION_OUT_MS) return 0.6 + 0.4 * easeOut(out / CAPTION_OUT_MS);
+    return 1;
   }
 
   // Turns parsed haptic events into ring spawns. A level is a state: the phone re-arms the same level
@@ -245,7 +315,8 @@
   const trailStep = (age) => Math.min(TRAIL_STEPS, Math.floor(Math.max(0, age) * TRAIL_STEPS)) / TRAIL_STEPS;
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, resample, distPointSeg,
-    markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
+    markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
+    LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

@@ -19,15 +19,25 @@
   .dot i { width: 11px; height: 11px; border-radius: 50%; background: var(--off); }
   .dot.on { color: var(--text); }
   .dot.on i { background: var(--on); }
+  .hint { font-size: 15px; color: var(--muted); }
+  .hint b { color: var(--text); }
+  body.placing canvas { cursor: copy; }
+  /* Name box for a new landmark, opened on the board where the tutor clicked. Paper-board style. */
+  #name { position: fixed; z-index: 2; display: none; width: 220px; padding: 8px 10px; box-sizing: border-box;
+    font: 700 18px 'Atkinson Hyperlegible', system-ui, sans-serif; color: #1b222b; background: #fbfaf6;
+    border: 2px solid #1b222b; border-radius: 6px; outline: none; }
+  #name:focus-visible { box-shadow: 0 0 0 3px #ffb020; }
 </style>
 </head>
 <body>
 <header>
   <h1>FeelInk</h1>
+  <span class="hint" id="hint"><b>L</b> landmark</span>
   <span class="dot" id="phoneDot"><i></i>Phone</span>
   <span class="dot" id="tutorDot"><i></i>Tutor</span>
 </header>
 <canvas id="c"></canvas>
+<input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Landmark name" placeholder="Landmark name">
 <script src="/tactile.js"></script>
 <script src="/board.js"></script>
 <script>
@@ -110,6 +120,22 @@ function spawnRings(list, now) {
   for (const r of list) rings.push({ t0: now + (r.delay || 0), strength: r.strength, burst: r.burst });
 }
 
+// Landmarks (#64, #65): named points, kept in relay order. `found` holds ids the phone has announced.
+let landmarks = [];
+const foundMarks = new Set();
+let caption = null; // {name, t0}: what the phone just spoke, shown by the cursor for the silent GIF
+function setLandmarks(list) {
+  landmarks = (list || []).filter(B.validLandmark);
+  const ids = new Set(landmarks.map((l) => l.id));
+  for (const id of foundMarks) if (!ids.has(id)) foundMarks.delete(id);
+}
+function onLandmarkCue(h, now) {
+  if (!h.name) return;
+  caption = { name: h.name, t0: now };
+  const l = B.landmarkFor(landmarks, h.name, finger.last || finger.cur);
+  if (l) foundMarks.add(l.id);
+}
+
 // Relay.
 let tutorOnline = false, mine = null;
 const es = new EventSource('/events');
@@ -121,14 +147,19 @@ es.onmessage = (m) => {
   const now = performance.now();
   // phoneconfig repeats every 2 s while the phone is live and is its presence signal (#34).
   if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'hello' || ev.type === 'presence') lastPhoneAt = now;
-  if (ev.type === 'sync') setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
+  if (ev.type === 'sync') {
+    setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
+    setLandmarks(ev.landmarks);
+  }
   else if (ev.type === 'stroke') { if (!mine || ev.id !== mine.id) upsert({ id: ev.id, by: ev.by, pts: ev.pts || [] }); }
-  else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); }
+  else if (ev.type === 'landmark') { if (B.validLandmark(ev)) setLandmarks(B.upsertById(landmarks, { id: ev.id, x: ev.x, y: ev.y, name: ev.name, by: ev.by })); }
+  else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); setLandmarks([]); caption = null; }
   else if (ev.type === 'finger') onFinger(ev);
   else if (ev.type === 'haptic') {
     const h = B.parseHaptic(ev);
     // An accepted vibrate() replaces the rest of the previous pattern, so its unstarted rings go too.
     if (h) rings = B.dropPending(rings, now);
+    if (h && h.kind === 'landmark') onLandmarkCue(h, now);
     spawnRings(haptics.onHaptic(h, now), now);
   }
   else if (ev.type === 'phoneconfig') feltMm = B.feltFromConfig(ev, feltMm);
@@ -142,7 +173,55 @@ function inBoard(e) {
   return p.x >= -2 && p.y >= -2 && p.x <= BOARD.w + 2 && p.y <= BOARD.h + 2;
 }
 function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
+// Placing a landmark: L arms it, the next click on the board opens the name box there (or on the landmark
+// clicked, to rename it). Enter posts it, Escape or clicking away cancels.
+const nameBox = document.getElementById('name');
+let placing = false, pending = null; // pending: {id, x, y} while the name box is open
+const hint = document.getElementById('hint');
+function setPlacing(on) {
+  placing = on;
+  document.body.classList.toggle('placing', on);
+  hint.innerHTML = on ? 'Click the board to place a landmark, <b>Esc</b> cancels' : '<b>L</b> landmark';
+}
+function openName(p, existing) {
+  pending = existing ? { id: existing.id, x: existing.x, y: existing.y } : { id: 'mark-' + Date.now(), x: p.x, y: p.y };
+  const px = view.x + pending.x * view.scale, py = view.y + pending.y * view.scale;
+  nameBox.style.left = Math.max(8, Math.min(innerWidth - 228, px + 14)) + 'px';
+  nameBox.style.top = Math.max(8, Math.min(innerHeight - 50, py - 22)) + 'px';
+  nameBox.value = existing ? existing.name || '' : '';
+  nameBox.style.display = 'block';
+  // After the click finishes, so the click's own focus change cannot pull focus back off the box.
+  setTimeout(() => { if (pending) { nameBox.focus(); nameBox.select(); } }, 0);
+}
+function closeName(save) {
+  if (!pending) return;
+  const name = B.cleanName(nameBox.value);
+  if (save && name) {
+    const mark = { type: 'landmark', id: pending.id, x: +pending.x.toFixed(2), y: +pending.y.toFixed(2), name, by: 'tutor' };
+    setLandmarks(B.upsertById(landmarks, mark));
+    post(mark);
+  }
+  pending = null;
+  nameBox.style.display = 'none';
+  nameBox.blur();
+}
+nameBox.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') closeName(true);
+  else if (e.key === 'Escape') closeName(false);
+});
+nameBox.addEventListener('blur', () => closeName(true));
+
 c.addEventListener('pointerdown', (e) => {
+  if (pending) { closeName(true); return; }
+  if (placing) {
+    setPlacing(false);
+    if (!inBoard(e)) return;
+    const p = boardPoint(e);
+    openName(p, B.landmarkAt(landmarks, p));
+    e.preventDefault(); // keep focus in the name box
+    return;
+  }
   if (!inBoard(e) || mine) return;
   c.setPointerCapture(e.pointerId);
   raw = [boardPoint(e)];
@@ -167,10 +246,12 @@ const finish = () => {
 c.addEventListener('pointerup', finish);
 c.addEventListener('pointercancel', finish);
 addEventListener('keydown', (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || pending) return;
   const k = e.key.toLowerCase();
   if (k === 'u') post({ type: 'undo' });
   else if (k === 'c') post({ type: 'clear' });
+  else if (k === 'l') setPlacing(!placing);
+  else if (k === 'escape') setPlacing(false);
 });
 
 // Layout.
@@ -269,6 +350,79 @@ function drawCursor(now) {
   ctx.fillStyle = COL.amber;
   ctx.fill();
 }
+// Landmarks: a faint ring for the phone's 4 mm zone, a dot (hollow until the phone has announced it,
+// then filled), and the name beside it with a paper halo so it stays readable over ink. Flat colours only.
+const LM_DOT_MM = 1.9, LM_FONT_MM = 3.6, CAP_FONT_MM = 4.4;
+const FONT = (mm) => `700 ${mm}px 'Atkinson Hyperlegible', system-ui, sans-serif`;
+function drawLandmarks() {
+  if (!landmarks.length) return;
+  ctx.textBaseline = 'middle';
+  ctx.font = FONT(LM_FONT_MM);
+  const ink = [];
+  for (const st of strokes) if (st.pts.length) for (const p of inkState(st).samples) ink.push(p);
+  for (const l of landmarks) {
+    ctx.lineWidth = 0.35;
+    ctx.strokeStyle = COL.unfelt;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, B.LANDMARK_MM, 0, Math.PI * 2);
+    ctx.stroke();
+    const found = foundMarks.has(l.id);
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, LM_DOT_MM, 0, Math.PI * 2);
+    ctx.fillStyle = found ? COL.ink : COL.paper;
+    ctx.fill();
+    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = COL.ink;
+    ctx.stroke();
+    if (found) {
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 0.7, 0, Math.PI * 2);
+      ctx.fillStyle = COL.paper;
+      ctx.fill();
+    }
+    const name = B.cleanName(l.name);
+    if (!name) continue;
+    const w = ctx.measureText(name).width, gap = B.LANDMARK_MM + 0.8;
+    const at = B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, ink);
+    ctx.textAlign = at.align;
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = COL.paper;
+    ctx.strokeText(name, at.x, at.y);
+    ctx.fillStyle = COL.ink;
+    ctx.fillText(name, at.x, at.y);
+  }
+}
+// Caption: what the phone just said, in a bubble beside the cursor, for the silent GIF.
+function drawCaption(now) {
+  if (!caption || !finger.cur) return;
+  const age = now - caption.t0;
+  const k = REDUCE ? (age >= 0 && age < B.CAPTION_MS ? 1 : 0) : B.captionScale(age);
+  if (k <= 0) { if (age >= B.CAPTION_MS) caption = null; return; }
+  ctx.font = FONT(CAP_FONT_MM);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  const text = '“' + caption.name + '”';
+  const pad = 2, w = ctx.measureText(text).width + pad * 2, h = CAP_FONT_MM + pad * 1.6;
+  const off = CURSOR_MM + CURSOR_BORDER_MM + 2.5;
+  const right = finger.cur.x + off + w <= BOARD.w + 6;
+  const ax = finger.cur.x + (right ? off : -off), ay = finger.cur.y - off;
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.scale(k, k);
+  const x0 = right ? 0 : -w;
+  roundRect(x0, -h, w, h, 1.6);
+  ctx.fillStyle = COL.ink;
+  ctx.fill();
+  ctx.beginPath(); // tail toward the fingertip
+  ctx.moveTo(right ? 1.2 : -1.2, -0.2);
+  ctx.lineTo(right ? -1.4 : 1.4, 1.6);
+  ctx.lineTo(right ? 4.2 : -4.2, -0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = COL.white;
+  ctx.fillText(text, x0 + pad, -h / 2);
+  ctx.restore();
+}
 function setDot(el, on) { if (el.classList.contains('on') !== on) el.classList.toggle('on', on); }
 const phoneDot = document.getElementById('phoneDot'), tutorDot = document.getElementById('tutorDot');
 
@@ -300,9 +454,11 @@ function frame(now) {
   drawTrail(now);
   drawInk(now);
   ctx.restore();
-  // Rings and cursor may spill past the paper edge onto the surround instead of being cut off.
+  drawLandmarks();
+  // Rings, cursor and caption may spill past the paper edge onto the surround instead of being cut off.
   drawRings(now);
   drawCursor(now);
+  drawCaption(now);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

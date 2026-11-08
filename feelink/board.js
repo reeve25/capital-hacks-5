@@ -151,13 +151,72 @@
     return out;
   }
 
-  // What the phone actually said aloud (#90): {type:'spoken', text, kind:'landmark'|'status', t}. The stage's
-  // "Student heard" log shows only these, never a guess from a haptic event. Returns {text, kind} or null.
+  // What the phone actually said aloud (#90): {type:'spoken', text, kind:'landmark'|'status'|'instruction', t}, plus
+  // the instruction's id for kind 'instruction' (#107). The stage's "Student heard" log confirms only from these,
+  // never from a haptic event. Returns {text, kind} (and id when given) or null.
   const SPOKEN_MAX = 80;
+  // The tutor's instruction box takes this many characters; a replay adds "Start: <name>. " in front.
+  const INSTRUCTION_MAX = 120, SPOKEN_INSTRUCTION_MAX = 160;
+  const KINDS = { landmark: 1, instruction: 1 };
   function parseSpoken(ev) {
     if (!ev || ev.type !== 'spoken' || typeof ev.text !== 'string') return null;
-    const text = ev.text.replace(/\s+/g, ' ').trim().slice(0, SPOKEN_MAX);
-    return text ? { text, kind: ev.kind === 'landmark' ? 'landmark' : 'status' } : null;
+    const kind = KINDS[ev.kind] ? ev.kind : 'status';
+    const text = ev.text.replace(/\s+/g, ' ').trim().slice(0, kind === 'instruction' ? SPOKEN_INSTRUCTION_MAX : SPOKEN_MAX);
+    if (!text) return null;
+    return kind === 'instruction' && typeof ev.id === 'string' ? { text, kind, id: ev.id } : { text, kind };
+  }
+  const cleanInstruction = (s) => (typeof s === 'string' ? s.replace(/\s+/g, ' ').trim().slice(0, INSTRUCTION_MAX) : '');
+  // The landmark a spoken line names: the phone says "Start: School" on the start point (tactile.js landmarkLine).
+  const markName = (text) => cleanName(String(text || '').replace(/^Start:\s*/, ''));
+
+  // "Student heard" (#107), newest first. A line the phone says again within mergeMs of the same line (a landmark
+  // the finger keeps finding, a repeated status) bumps that entry to the top and counts it, instead of adding one.
+  // Instructions are the tutor's: 'sent' when posted, 'heard' once the phone reports it finished saying it (by id),
+  // and a replay counts on the same entry. A newer instruction leaves an unheard one 'replaced': the relay keeps only
+  // the latest, so the phone will never say the old one. Entries: {kind, key, id, text, state, at, n} (n = times heard).
+  const HEARD_MERGE_MS = 10000;
+  class HeardLog {
+    constructor(opts = {}) {
+      this.mergeMs = opts.mergeMs ?? HEARD_MERGE_MS;
+      this.max = opts.max ?? 30;
+      this.items = [];
+    }
+
+    top(item) {
+      this.items = [item].concat(this.items.filter((x) => x !== item)).slice(0, this.max);
+      return item;
+    }
+
+    // An instruction the tutor posted (or the relay's sync holds): {id, text, heard?}. Returns its entry or null.
+    sent(ins, at) {
+      const text = cleanInstruction(ins && ins.text);
+      if (!text || typeof ins.id !== 'string') return null;
+      const had = this.items.find((x) => x.kind === 'instruction' && x.id === ins.id);
+      if (had) {
+        // The relay marks it heard once the phone confirms, so a stage that joined late still shows Heard.
+        if (ins.heard && had.state !== 'heard') { had.state = 'heard'; had.n = Math.max(1, had.n); }
+        return had;
+      }
+      for (const x of this.items) if (x.kind === 'instruction' && x.state === 'sent') x.state = 'replaced';
+      return this.top({ kind: 'instruction', key: ins.id, id: ins.id, text, state: ins.heard ? 'heard' : 'sent', at, n: ins.heard ? 1 : 0 });
+    }
+
+    // A line the phone said, as parseSpoken returns it. Returns the entry it made or bumped, or null.
+    heard(s, at) {
+      if (!s) return null;
+      if (s.kind === 'instruction') {
+        const had = this.items.find((x) => x.kind === 'instruction' && (s.id ? x.id === s.id : x.text === s.text || s.text.endsWith('. ' + x.text)));
+        if (had) { had.state = 'heard'; had.n++; had.at = at; return this.top(had); }
+        return this.top({ kind: 'instruction', key: s.id || s.text, id: s.id || null, text: s.text, state: 'heard', at, n: 1 });
+      }
+      const key = s.kind === 'landmark' ? markName(s.text) : s.text;
+      const had = this.items.find((x) => x.kind === s.kind && x.key === key && at - x.at <= this.mergeMs);
+      if (had) { had.n++; had.at = at; had.text = s.text; return this.top(had); }
+      return this.top({ kind: s.kind, key, id: null, text: s.text, state: 'heard', at, n: 1 });
+    }
+
+    get latest() { return this.items[0] || null; }
+    get earlier() { return this.items.slice(1); }
   }
 
   // Phone reports (#71) carry t (ms on the phone's clock, strictly increasing) and age (ms the report waited
@@ -378,17 +437,35 @@
   const TRAIL_STEPS = 4;
   const trailStep = (age) => Math.min(TRAIL_STEPS, Math.floor(Math.max(0, age) * TRAIL_STEPS)) / TRAIL_STEPS;
 
-  // The tutor's connection line, in words (#92). The board's own link comes first: without it nothing the
-  // tutor draws reaches the phone. phoneLive means a phone report arrived recently; touching is its finger.
-  function connectionStatus(relayUp, phoneLive, touching) {
-    if (!relayUp) return { tone: 'off', text: 'Board offline', sub: 'Reconnecting…' };
-    if (!phoneLive) return { tone: 'wait', text: "Waiting for the student's phone", sub: '' };
-    return { tone: 'on', text: "Student's phone connected", sub: touching ? 'Touching the board' : 'Not touching the board' };
+  // The student's link (#107), from how long ago the phone last reported while in Live: it posts phoneconfig every
+  // 2 s there, so 5 s is two missed beats (reconnecting) and 15 s means it is gone (disconnected). `left` is the phone
+  // saying it went back to its menu, where it feels nothing. Never heard from: waiting.
+  const LINK_RECONNECTING_MS = 5000, LINK_DISCONNECTED_MS = 15000;
+  function phoneLink(ageMs, left = false) {
+    if (left) return 'disconnected';
+    if (!(ageMs >= 0) || !Number.isFinite(ageMs)) return 'waiting';
+    if (ageMs < LINK_RECONNECTING_MS) return 'connected';
+    return ageMs < LINK_DISCONNECTED_MS ? 'reconnecting' : 'disconnected';
+  }
+
+  // The tutor's connection line, in words (#92, #107). The board's own link comes first: without it nothing the
+  // tutor draws reaches the phone. `link` is phoneLink's answer; touching is the student's finger. `receiving` (the
+  // student can feel what is drawn right now) is true only when both links are up.
+  const LINKS = {
+    waiting: { tone: 'wait', text: "Waiting for the student's phone", sub: '' },
+    reconnecting: { tone: 'warn', text: "Student's phone reconnecting…", sub: 'Not receiving drawings' },
+    disconnected: { tone: 'off', text: "Student's phone disconnected", sub: 'Not receiving drawings' },
+  };
+  function connectionStatus(relayUp, link, touching) {
+    if (!relayUp) return { tone: 'off', text: 'Board offline', sub: 'Reconnecting…', receiving: false };
+    if (link !== 'connected') return { ...(LINKS[link] || LINKS.waiting), receiving: false };
+    return { tone: 'on', text: "Student's phone connected", sub: touching ? 'Touching the board' : 'Not touching the board', receiving: true };
   }
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
+    INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;

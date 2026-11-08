@@ -33,11 +33,17 @@ class Relay:
         self.landmarks = {}  # id -> landmark (a named point), kept like strokes
         self.order = {}  # (type, id) in first-arrival order, so undo pops the newest stroke or landmark
         self.cleared = None  # the board as it was before the last clear, so one undo brings it back (Reeve, Nov 7)
+        # The tutor's latest spoken instruction (#107), {id, text, by, heard?}. Only the newest is kept: it is what the
+        # student should do now, and what a phone that joins late or reconnects is told.
+        self.instruction = None
         self.clients = []
 
     def sync(self):
         """The whole board, for a client that just joined or after an undo. Call with the lock held."""
-        return {"type": "sync", "strokes": list(self.strokes.values()), "landmarks": list(self.landmarks.values())}
+        out = {"type": "sync", "strokes": list(self.strokes.values()), "landmarks": list(self.landmarks.values())}
+        if self.instruction:
+            out["instruction"] = self.instruction  # absent when none, so older clients see the same sync as before
+        return out
 
     def subscribe(self):
         q = queue.Queue()
@@ -57,10 +63,21 @@ class Relay:
                 self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"]}
                 self.order.setdefault(("stroke", event["id"]))
             elif kind == "landmark":
-                self.landmarks[event["id"]] = {"id": event["id"], "x": event["x"], "y": event["y"],
-                                               "name": event.get("name", ""), "by": event.get("by")}
+                mark = {"id": event["id"], "x": event["x"], "y": event["y"], "name": event.get("name", ""), "by": event.get("by")}
+                if event.get("start"):
+                    mark["start"] = True  # the tutor's start point (#107); re-posting the landmark without it unmarks it
+                self.landmarks[event["id"]] = mark
                 self.order.setdefault(("landmark", event["id"]))
+            elif kind == "instruction":
+                self.instruction = {"id": event.get("id"), "text": event.get("text", ""), "by": event.get("by")}
+            elif kind == "spoken" and event.get("kind") == "instruction" and self.instruction \
+                    and event.get("id") == self.instruction["id"]:
+                # The phone finished saying it, so a stage that joins later shows it heard, not merely sent.
+                # A new dict: a sync already queued for a client keeps the state it was built with.
+                self.instruction = {**self.instruction, "heard": True}
             elif kind == "clear":
+                # Clear empties the board, not the instruction (#107): what the student was asked to do still stands,
+                # and the tutor often clears to redraw for that same instruction. Undo leaves it alone too.
                 if self.order:
                     self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order))
                 self.strokes.clear()
@@ -206,6 +223,39 @@ def selftest():
     assert ids() == (["s2"], [])
     relay.publish({"type": "undo"})
     assert ids() == ([], []) and not relay.order
+    drain()
+
+    # Instructions (#107): relayed as sent, only the latest kept and in sync, untouched by clear and undo.
+    say1 = {"type": "instruction", "id": "i1", "text": "Find the school.", "by": "tutor"}
+    say2 = {"type": "instruction", "id": "i2", "text": "Follow the line from the school to the library.", "by": "tutor"}
+    relay.publish(say1)
+    relay.publish(say2)
+    assert drain() == [say1, say2]
+    latest = {"id": "i2", "text": say2["text"], "by": "tutor"}
+    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [], "landmarks": [], "instruction": latest}
+    for ev in (s1, {"type": "clear"}, {"type": "undo"}, {"type": "undo"}):
+        relay.publish(ev)
+    assert relay.instruction == latest and relay.sync()["instruction"] == latest
+    # Heard once the phone reports saying the latest one; a line about an older one, or another kind, changes nothing.
+    relay.publish({"type": "spoken", "kind": "instruction", "id": "i1", "text": say1["text"], "t": 1})
+    relay.publish({"type": "spoken", "kind": "status", "id": "i2", "text": "Drawing changed.", "t": 2})
+    assert "heard" not in relay.instruction
+    relay.publish({"type": "spoken", "kind": "instruction", "id": "i2", "text": say2["text"], "t": 3})
+    assert relay.sync()["instruction"] == {**latest, "heard": True}
+    relay.publish({**say1, "id": "i3"})
+    assert relay.instruction == {"id": "i3", "text": say1["text"], "by": "tutor"}, "a new instruction starts unheard"
+    drain()
+
+    # A start point (#107) is a flag on the landmark: stored only when set, cleared by re-posting without it,
+    # and the landmark keeps its place in the undo order either way.
+    relay.publish({"type": "clear"})
+    relay.publish(lib)
+    relay.publish(s2)
+    relay.publish({**lib, "start": True})
+    assert relay.landmarks["m1"] == {**stored(lib), "start": True} and list(relay.order) == [("landmark", "m1"), ("stroke", "s2")]
+    assert relay.sync()["landmarks"] == [{**stored(lib), "start": True}]
+    relay.publish({**lib, "start": False})
+    assert relay.landmarks["m1"] == stored(lib)
     print("server selftest: ok")
 
 

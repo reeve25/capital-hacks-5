@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue, drawingKey, doubleTapper } = require('./tactile.js');
+const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue, drawingKey, doubleTapper,
+  landmarkLine, startMark, replayLine, landmarkVoice, speechCut } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -330,4 +331,70 @@ test('doubleTapper: two quick still two-finger taps repeat; drawing, a third fin
   d = doubleTapper();
   d(tap(0, 150, { fingers: 1 }));
   assert.equal(d(tap(300, 450)), false, 'one finger then two is not a double tap');
+});
+
+test('the start point is announced as "Start: <name>", and a replay of the instruction leads with it (#107)', () => {
+  const r = rendererWith([hline]);
+  r.setLandmarks([{ id: 'm', x: 20, y: 50, name: 'School', start: true }, { id: 'n', x: 40, y: 50, name: 'Library' }]);
+  r.move({ x: 20, y: 30 });
+  const school = r.move({ x: 20, y: 50 });
+  assert.deepEqual(school, { type: 'node', kind: 'landmark', level: r.top, name: 'School', start: true });
+  assert.equal(landmarkLine(school.name, school.start), 'Start: School');
+  const library = r.move({ x: 40, y: 50 });
+  assert.deepEqual(library, { type: 'node', kind: 'landmark', level: r.top, name: 'Library' }, 'other landmarks as before');
+  assert.equal(landmarkLine(library.name, library.start), 'Library');
+  // Marking the start under a resting finger is not a new arrival, so nothing is announced.
+  const moved = [{ id: 'm', x: 20, y: 50, name: 'School' }, { id: 'n', x: 40, y: 50, name: 'Library', start: true }];
+  r.setLandmarks(moved);
+  assert.equal(r.refresh(), null);
+  assert.equal(startMark(moved).id, 'n');
+  assert.equal(startMark([{ id: 'x', name: '  ', start: true }]), null, 'an unnamed point cannot be announced');
+  assert.equal(startMark([]), null);
+  const ins = { id: 'i1', text: 'Follow the line to the library.' };
+  assert.deepEqual(replayLine(ins, startMark(moved), { text: 'School', kind: 'landmark' }),
+    { text: 'Start: Library. Follow the line to the library.', kind: 'instruction', id: 'i1' }, 'the instruction wins over the last line');
+  assert.deepEqual(replayLine(ins, null, null), { text: ins.text, kind: 'instruction', id: 'i1' });
+  assert.deepEqual(replayLine(null, startMark(moved), { text: 'Drawing changed.', kind: 'status' }), { text: 'Drawing changed.', kind: 'status' });
+  assert.equal(replayLine(null, null, null), null);
+});
+
+test('a landmark is not re-announced when the finger comes back within 3 s of leaving it (#107)', () => {
+  const v = landmarkVoice({ reMs: 3000 });
+  assert.equal(v.enter('m|School', 0), true, 'first arrival speaks');
+  v.leave('m|School', 1000);
+  assert.equal(v.enter('m|School', 3999), false, 'back 2.999 s after leaving: buzz only');
+  v.leave('m|School', 4500);
+  assert.equal(v.enter('n|Library', 5000), true, 'another landmark speaks');
+  v.leave('n|Library', 5200);
+  assert.equal(v.enter('m|School', 7500), true, 'back 3 s after leaving: said again');
+  v.leave('m|School', 8000);
+  assert.equal(v.enter('m|Main school', 8100), true, 'renamed: said');
+  // As feel.html runs it: a finger wobbling across the 5 mm leave edge arrives three times.
+  const r = rendererWith([hline]);
+  r.setLandmarks([{ id: 'm', x: 28, y: 50, name: 'School' }]);
+  const voice = landmarkVoice();
+  let at = null, t = 0;
+  const said = [], arrived = [];
+  for (const x of [10, 26, 22.8, 25, 22.8, 25.5]) {
+    t += 400;
+    const cmd = r.move({ x, y: 50 });
+    if (at && r.node !== at) { voice.leave('m|School', t); at = null; }
+    if (cmd && cmd.type === 'node' && cmd.kind === 'landmark') { at = r.node; arrived.push(t); if (voice.enter('m|School', t)) said.push(t); }
+  }
+  assert.deepEqual(arrived, [800, 1600, 2400], 'three arrivals, each felt with the buzzes');
+  assert.deepEqual(said, [800], 'only the first is said');
+});
+
+test('speech priority: a name cuts anything and re-queues a cut instruction; instructions and status wait (#107)', () => {
+  assert.deepEqual(speechCut([], 'landmark'), { cancel: true, resay: -1 });
+  assert.deepEqual(speechCut(['instruction'], 'landmark'), { cancel: true, resay: 0 }, 'the tutor\'s words come back whole');
+  assert.deepEqual(speechCut(['status', 'instruction', 'status'], 'landmark'), { cancel: true, resay: 1 });
+  assert.deepEqual(speechCut(['landmark', 'status'], 'landmark'), { cancel: true, resay: -1 });
+  assert.deepEqual(speechCut(['landmark'], 'instruction'), { cancel: false, resay: -1 }, 'never cuts a name mid-word: queued after it');
+  assert.deepEqual(speechCut(['status'], 'instruction'), { cancel: false, resay: -1 }, 'the welcome finishes first');
+  assert.deepEqual(speechCut(['instruction'], 'instruction'), { cancel: true, resay: -1 }, 'a newer instruction or a replay replaces the old');
+  assert.deepEqual(speechCut(['instruction'], 'status'), { cancel: false, resay: -1 }, '"Drawing changed." waits behind the tutor');
+  assert.deepEqual(speechCut(['landmark'], 'status'), { cancel: false, resay: -1 });
+  assert.deepEqual(speechCut(['status'], 'status'), { cancel: true, resay: -1 }, 'as before: a status line replaces an older one');
+  assert.deepEqual(speechCut([], 'status'), { cancel: true, resay: -1 });
 });

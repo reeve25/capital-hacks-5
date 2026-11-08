@@ -20,9 +20,17 @@ PAGES = {
     "/": ("feel.html", "text/html"),
     "/feel": ("feel.html", "text/html"),
     "/dev": ("feel.html", "text/html"),  # same page with the test tools shown (#90)
+    "/feel.css": ("feel.css", "text/css"),
+    "/feel-live.js": ("feel-live.js", "text/javascript"),
+    "/feel-home.js": ("feel-home.js", "text/javascript"),
     "/draw": ("draw.html", "text/html"),
     "/tactile.js": ("tactile.js", "text/javascript"),
     "/stage": ("stage.html", "text/html"),
+    "/stage.css": ("stage.css", "text/css"),
+    "/stage-board.js": ("stage-board.js", "text/javascript"),
+    "/stage-session.js": ("stage-session.js", "text/javascript"),
+    "/stage-tools.js": ("stage-tools.js", "text/javascript"),
+    "/stage-relay.js": ("stage-relay.js", "text/javascript"),
     "/board.js": ("board.js", "text/javascript"),
 }
 

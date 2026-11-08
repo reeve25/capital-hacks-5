@@ -139,7 +139,7 @@
 <script src="/tactile.js"></script>
 <script>
 const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper, landmarkLine, startMark, replayLine, landmarkVoice, speechCut,
-  revealUpto, arrivals, revealed, revealChanged } = Tactile;
+  revealUpto, nextSeq, revealed, revealChanged } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -326,12 +326,10 @@ const toPx = (p) => [originX + p.x * pxPerMm, originY + p.y * pxPerMm];
 
 // App state
 let mode = 'home', strokes = [], remote = [], remoteMarks = [], path = [], showInk = false;
-// Step-through reveal (#111): `reveal` is the relay's upto (null shows everything), and `arrived` ranks strokes and
-// landmarks by arrival for landmarks that lie on no stroke. Hidden strokes and landmarks are blank glass: the renderer,
-// "Drawing changed." and the start point all work from what is shown.
+// Step-through reveal (#111): `reveal` is the relay's upto (null shows everything). Hidden strokes and landmarks are
+// blank glass: the renderer, "Drawing changed." and the start point all work from what is shown.
 let reveal = null;
-const arrived = arrivals();
-const shownNow = () => revealed(remote, remoteMarks, reveal, arrived.rank);
+const shownNow = () => revealed(remote, remoteMarks, reveal);
 const shownKey = () => { const v = shownNow(); return drawingKey(v.strokes, v.landmarks); };
 let renderer = new Renderer({});
 let queueShapes = [], current = null, startedAt = null, results = [];
@@ -446,25 +444,24 @@ function connect() {
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     const was = reveal;
-    // A sync carries the relay's reveal (absent means all shown); undo's sync has it clamped, so it is trusted as is.
-    if (ev.type === 'sync') {
-      remote = ev.strokes; remoteMarks = ev.landmarks || []; reveal = revealUpto(ev.reveal); synced = true;
-      arrived.sync(remote, remoteMarks);
-      if (ev.instruction) onInstruction(ev.instruction);
-    } else if (ev.type === 'stroke') {
+    // A sync carries the relay's reveal (absent means all shown) and each item's seq; after Undo or Clear it is the
+    // relay's word, so it is trusted as is. Live events carry no seq: a new item goes after the highest known one and
+    // an update keeps its own.
+    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; reveal = revealUpto(ev.reveal); synced = true; if (ev.instruction) onInstruction(ev.instruction); }
+    else if (ev.type === 'stroke') {
       const i = remote.findIndex((s) => s.id === ev.id);
-      if (i >= 0) remote[i] = ev; else remote.push(ev);
-      arrived.note('stroke', ev.id);
+      const item = { ...ev, seq: i >= 0 ? remote[i].seq : nextSeq(remote, remoteMarks) };
+      if (i >= 0) remote[i] = item; else remote.push(item);
     } else if (ev.type === 'landmark') {
       const i = remoteMarks.findIndex((l) => l.id === ev.id);
-      if (i >= 0) remoteMarks[i] = ev; else remoteMarks.push(ev);
-      arrived.note('landmark', ev.id);
+      const item = { ...ev, seq: i >= 0 ? remoteMarks[i].seq : nextSeq(remote, remoteMarks) };
+      if (i >= 0) remoteMarks[i] = item; else remoteMarks.push(item);
     } else if (ev.type === 'clear') { remote = []; remoteMarks = []; reveal = null; } // the relay resets the reveal too
     else if (ev.type === 'reveal') reveal = revealUpto(ev.upto);
     else if (ev.type === 'instruction') return onInstruction(ev);
     else return;
     // A reveal that changes nothing the student can feel (the same upto again, a step past the end) is no event.
-    const updated = revealChanged(remote, remoteMarks, was, reveal, arrived.rank);
+    const updated = revealChanged(remote, remoteMarks, was, reveal);
     if (ev.type === 'reveal' && !updated) return;
     if (mode === 'live') {
       const shown = shownNow();

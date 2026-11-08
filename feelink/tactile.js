@@ -289,10 +289,11 @@
   }
 
   // Step-through reveal (#111): the tutor shows the drawing a stroke at a time. `upto` is how many strokes are shown,
-  // counted in the relay's first-arrival order (the order a sync lists them); null, absent or not a number shows all.
-  const revealUpto = (v) => (Number.isFinite(v) ? Math.max(0, Math.floor(v)) : null);
+  // in arrival order; anything but a whole number >= 0 (null, absent, 2.5, -1) shows all, as on the stage. Revealing
+  // the last stroke arrives as null too.
+  const revealUpto = (v) => (Number.isInteger(v) && v >= 0 ? v : null);
 
-  // Whether p lies within r mm of the stroke's line (its points joined in order). The line, not just its points: a
+  // Whether p lies within r mm of the stroke's line segments, as on the stage. The segments, not just the points: a
   // straight stroke from the stage is two points, and a landmark half way along it is on it.
   function onStroke(p, stroke, r) {
     const pts = stroke.pts || [];
@@ -301,45 +302,44 @@
     return false;
   }
 
-  // Arrival ranks by first sight, as the relay orders strokes and landmarks together. A sync lists the two apart, so
-  // items first seen in one (a phone that loaded or reconnected late) rank strokes before landmarks: an off-line
-  // landmark whose turn is unknown then stays hidden until every stroke is shown, so a reveal never gives a part
-  // away early. Ranks outlive a clear, since an undo can bring that board back.
-  function arrivals() {
-    const ranks = new Map();
-    const note = (kind, id) => { const k = kind + ' ' + id; if (!ranks.has(k)) ranks.set(k, ranks.size); };
-    return {
-      note,
-      sync(strokes, landmarks) {
-        for (const s of strokes || []) note('stroke', s.id);
-        for (const l of landmarks || []) note('landmark', l.id);
-      },
-      rank: (kind, id) => ranks.get(kind + ' ' + id) ?? Infinity,
-    };
+  // Arrival order is `seq`, which the relay stamps on every stored stroke and landmark and a sync carries. Live events
+  // carry none, so the phone gives a new one the next seq after the highest it knows (nextSeq). With no seq (an older
+  // relay's sync) a stroke counts as arriving before anything stamped since, and a landmark as arriving after every
+  // stroke, so a landmark of unknown order stays hidden while anything is hidden and never gives a part away early.
+  const strokeSeq = (s) => (Number.isFinite(s.seq) ? s.seq : -Infinity);
+  const markSeq = (l) => (Number.isFinite(l.seq) ? l.seq : Infinity);
+  function nextSeq(strokes, landmarks) {
+    let top = -1;
+    for (const x of (strokes || []).concat(landmarks || [])) if (Number.isFinite(x.seq) && x.seq > top) top = x.seq;
+    return top + 1;
   }
 
-  // What the student may feel: {strokes, landmarks}. A stroke is shown when its index < upto. A landmark is shown when
-  // it lies within `radius` of a shown stroke, or, lying on no stroke at all, when it arrived before the first hidden
-  // stroke (`rank` from arrivals()). With nothing hidden both lists come back as they are, so the phone is unchanged.
-  function revealed(strokes, landmarks, upto, rank, radius = LANDMARK_MM) {
+  // What the student may feel: {strokes, landmarks}. Only the tutor's strokes (by 'tutor') are reveal steps: in seq
+  // order (the list's own order where seq is missing; sort is stable), the first `upto` shown. Anyone else's stroke,
+  // such as the student's own two-finger one (by 'phone'), is always shown and counts toward nothing. A landmark is
+  // shown when it lies within `radius` of a shown tutor stroke's segments, or, lying on no tutor stroke at all, when
+  // its seq is below the first hidden stroke's. With nothing hidden both lists come back as they are, so the phone is
+  // unchanged.
+  function revealed(strokes, landmarks, upto, radius = LANDMARK_MM) {
     const n = revealUpto(upto);
     strokes = strokes || [];
     landmarks = landmarks || [];
-    if (n === null || n >= strokes.length) return { strokes, landmarks };
-    const shown = strokes.slice(0, n), hidden = strokes.slice(n);
-    const firstHidden = Math.min(...hidden.map((s) => rank('stroke', s.id)));
+    const steps = strokes.filter((s) => s.by === 'tutor');
+    if (n === null || n >= steps.length) return { strokes, landmarks };
+    steps.sort((a, b) => strokeSeq(a) - strokeSeq(b) || 0); // -Inf - -Inf is NaN: a tie
+    const shown = steps.slice(0, n), hidden = steps.slice(n), firstHidden = strokeSeq(hidden[0]);
     return {
-      strokes: shown,
+      strokes: strokes.filter((s) => s.by !== 'tutor' || shown.includes(s)),
       landmarks: landmarks.filter((l) => shown.some((s) => onStroke(l, s, radius))
-        || (!hidden.some((s) => onStroke(l, s, radius)) && rank('landmark', l.id) < firstHidden)),
+        || (!hidden.some((s) => onStroke(l, s, radius)) && markSeq(l) < firstHidden)),
     };
   }
 
   // Whether moving the reveal from `from` to `to` changes what the student can feel on this drawing: the only time the
-  // phone says "Drawing updated." (#111). The same upto again, a sync that repeats it, or a step past the end does not.
-  function revealChanged(strokes, landmarks, from, to, rank) {
+  // phone says "Drawing updated." (#111). The same upto again, or a sync that repeats it, does not.
+  function revealChanged(strokes, landmarks, from, to) {
     if (revealUpto(from) === revealUpto(to)) return false;
-    const key = (u) => { const v = revealed(strokes, landmarks, u, rank); return drawingKey(v.strokes, v.landmarks); };
+    const key = (u) => { const v = revealed(strokes, landmarks, u); return drawingKey(v.strokes, v.landmarks); };
     return key(from) !== key(to);
   }
 
@@ -424,7 +424,7 @@
   };
 
   const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue, drawingKey, doubleTapper,
-    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, arrivals, revealed, revealChanged };
+    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

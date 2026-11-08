@@ -18,6 +18,7 @@ HERE = Path(__file__).parent
 PAGES = {
     "/": ("feel.html", "text/html"),
     "/feel": ("feel.html", "text/html"),
+    "/dev": ("feel.html", "text/html"),  # same page with the test tools shown (#90)
     "/draw": ("draw.html", "text/html"),
     "/tactile.js": ("tactile.js", "text/javascript"),
     "/stage": ("stage.html", "text/html"),

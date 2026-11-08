@@ -135,7 +135,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   heading(s, "A tutor's whiteboard the student feels, on a phone they already own", 2);
   const iw = 5.35, ix = M, iy = 1.7;
   const ih = image16x9(s, asset("sim-route-lesson-still-0-establishing.png"), ix, iy, iw);
-  caption(s, "The tutor's screen, desktop simulation of the current build with the regions named for this slide. Nothing to install and nothing to buy: a web page on the laptop, Chrome on an ordinary Android phone, one small Python relay between them.",
+  caption(s, "The tutor's screen, desktop simulation of the current build with the regions named for this slide. Nothing to buy: a web page on the laptop, Chrome on an ordinary Android phone, one small Python relay between them, today over a USB cable.",
     ix, iy + ih + 0.08, iw, 0.62);
   const head = (t, c = GREEN) => run(t, { fontFace: SEMI, fontSize: 11, color: c, breakLine: true });
   const body = (t, last) => run(t, { fontSize: 10, breakLine: !last, paraSpaceAfter: last ? 0 : 7 });
@@ -156,7 +156,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   const rows = [
     ["For the student", "The drawing is under your finger the moment it is drawn, on the phone you already carry. Lines buzz, labels speak their names, and you explore at your own pace."],
     ["For the tutor", "You see the student's finger live, what the phone last said and how much of the drawing has been covered, and you reveal the next part when they are ready. You keep teaching."],
-    ["For the school", "Nothing to buy or install: a web page on the laptop, Chrome on an Android phone, one small relay. The same workspace carries routes, graphs, geometry and circuits."],
+    ["For the school", "Nothing to buy: a web page on the laptop, Chrome on an Android phone, one small relay (today over a USB cable). The same workspace carries routes, graphs, geometry and circuits."],
   ];
   rows.forEach(([h, b], i) => {
     const y = 1.38 + i * 1.22;
@@ -205,7 +205,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   const gy = 1.22, gh = 4.0, gw = gh * 16 / 9;
   s.addImage({ path: asset("sim-route-lesson-pitch.gif"), x: M, y: gy, w: gw, h: gh });
   const cx = M + gw + 0.22;
-  caption(s, "Scripted tutor and finger on the laptop; no phone, vibration and speech stubbed. Left: the tutor's laptop. Right: what the phone does. The earlier build (tag demo-2) passed a real Pixel 8 check on Saturday evening; this build has not been on the phone yet, so nothing on this slide is device footage.",
+  caption(s, "Scripted tutor and finger on the laptop; no phone, vibration and speech stubbed. Left: the tutor's laptop. Right: what the phone does. The earlier build (tag demo-2) passed a real Pixel 8 check on Saturday evening; this build has not been on the phone yet, so nothing on this slide is device footage. The amber ring is a vibration the script requested, not measured motor output.",
     cx, gy, W - M - cx, gh);
   s.addNotes("30 s. Say: \"Left, the tutor's laptop; right, the student's phone, dark on purpose. A desktop simulation of the current build: scripted finger, buzz and speech stubbed. The finger has stopped at the corner. The tutor clicks Next; the next leg appears and the phone announces it. Now the tutor draws a new leg live, names it Library, and the student follows it there. Teal is covered ink; the amber ring is a buzz the phone asked for.\"\n\nTiming: the clip is 20.6 s and loops. Start talking as it starts; the \"Next\" click is at about 3 s, the live-drawn Library leg from about 9 s. Let it loop under the last sentence.\n\nColours on the board: teal is ink the finger has passed over, grey is drawn but not yet passed over, dashed is hidden by the tutor until Next, the amber ring is a buzz the phone asked for.\n\nNever call it a user, a learner, route discovery or device footage. The amber ring is a request, not proof the motor ran. It is a desktop simulation (scripted finger, buzz and speech stubbed), labelled on both panels. The detailed annotated version is the backup in recordings/out-detailed-0131/. GIFs freeze if the deck is exported to PDF.");
 }
@@ -216,7 +216,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   label(s, "HOW IT WORKS");
   heading(s, "What we built and measured on the phone");
   const cards = [
-    ["0 of 132", "Chrome on Android ignores vibrate(0)", "The standard stop never cancelled a buzz; a 2 s buzz “stopped” this way ran 2091 ms. FeelInk stops with a 1 ms buzz instead: the same buzz ended at 311 ms when stopped at 300 ms. Measured with adb dumpsys on the Pixel 8."],
+    ["0 of 132", "Chrome on our Pixel 8 ignores vibrate(0)", "The standard stop never cancelled a buzz; a 2 s buzz “stopped” this way ran 2091 ms. FeelInk stops with a 1 ms buzz instead: the same buzz ended at 311 ms when stopped at 300 ms. Measured with adb dumpsys on the Pixel 8."],
     ["4–5 ms", "Relay to phone, median", "151 of 151 stroke updates reached the phone; 192 of 192 finger samples came back to the stage, median 14 ms; board mapping error 0.03–0.04 mm. Measured on an earlier build, Saturday, over USB."],
     ["No amplitude", "So strength is rhythm", "The Web Vibration API has no intensity. A line is one 5 s hold re-armed at 4.5 s; three sparser pulse patterns fade it toward the edge. Buzzes over 1 s follow the phone's media vibration setting: 51% at 1, 100% at 3. Measured."],
     ["A label is a state", "Not a one-off cue", "Near a label the hold stops, 400 ms of silence while the name starts, three long pulses, then a soft heartbeat while the finger rests. Built; labels were spoken on the Pixel in the demo-2 check."],
@@ -261,7 +261,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   label(s, "VALIDATION");
   heading(s, "Limitations, and what the critique changes");
   const cols = [
-    ["Already in the design", TEAL, [
+    ["In the design, not yet tried by a student", TEAL, [
       "The tutor sees the finger live and talks, so “which way do I search” is answered by a person, not the phone.",
       "Off the ink, the phone taps on a cadence that quickens toward the nearest line (built; not yet felt on a phone).",
       "A fade band gives a weaker signal beside the line before it goes silent.",
@@ -284,7 +284,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
     text(s, items.map((t, j) => run(t, { bullet: { indent: 12 }, breakLine: j < items.length - 1, paraSpaceAfter: 5 })),
       { x: x + 0.22, y: cy + 0.58, w: cw - 0.44, h: ch - 0.7, fontSize: 10 });
   });
-  text(s, "Half the critique is why the tutor is in the loop. The other half is open, and we say so.", { x: M, y: 4.72, w: CW, h: 0.35, fontSize: 12, italic: true, color: GREEN });
+  text(s, "Half the critique shaped the design; none of it has been tried with a blind student yet. The other half is open, and we say so.", { x: M, y: 4.72, w: CW, h: 0.35, fontSize: 12, italic: true, color: GREEN });
   s.addNotes("15 s. Say: \"Half of that critique is why the tutor is in the loop: a person answers 'which way do I search', and labels speak. The other half is open: TalkBack, USB only, one phone, no evidence of learning.\"\n\nNever claim TalkBack works, Wi-Fi works, any phone beyond the one Pixel 8, or that anything after tag demo-2 was felt on the phone.");
 }
 
@@ -297,7 +297,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
   const cards = [
     ["Cost", "A phone the student already owns, against a $15,500 display. A supplement to tactile graphics, braille and O&M, not a replacement."],
     ["Reach", "The same lines, labels and reveal steps carry graphs, geometry and circuits. A one-click coordinate plane is the first preset."],
-    ["How it was built", "Two people in one weekend, with AI-assisted development: Claude Code and Codex agents implemented under our direction, each change tested in the browser and the demo builds checked on the phone by hand."],
+    ["How it was built", "Two people in one weekend, with AI-assisted development: Claude Code and Codex agents implemented under our direction, each change tested in the browser; the two tagged demo builds were checked on a Pixel 8 by hand, later builds on the desktop only."],
   ];
   const gap = 0.16, cw = (CW - 2 * gap) / 3, cy = 1.62, ch = 2.0;
   cards.forEach(([h, b], i) => {
@@ -317,7 +317,7 @@ const run = (t, o = {}) => ({ text: t, options: o });
     { x: M, y: ny + 0.32, w: 4.75, h: 1.0, fontSize: 10 });
   const qx = 5.55;
   bar(s, qx, ny + 0.04, 1.1);
-  text(s, "If the students say yes, it costs nothing to put in every classroom with an Android phone. If they say no, we will have learned that for the price of a weekend.",
+  text(s, "If the students say yes, a classroom with a laptop and an Android phone needs no new hardware to try it. If they say no, we will have learned that for the price of a weekend.",
     { x: qx + 0.2, y: ny, w: W - M - qx - 0.2, h: 1.2, fontSize: 11, italic: true, color: GREEN, lineSpacingMultiple: 1.1 });
   s.addNotes("21 s. Say: \"Every blind student with an Android phone could get the diagram the moment it is drawn. Next: blind students and their teachers try it, with consent, before we build more; then TalkBack and a classroom network. If they say yes, it costs nothing to roll out; if no, we learned that for a weekend.\"\n\nIf over time, cut the last sentence.\n\nReeve, Nov 8: sonification stays in notes or Q&A, not on the slide; the Next list leads with target-user testing, TalkBack and a reliable classroom setup.");
 }
@@ -342,8 +342,8 @@ const run = (t, o = {}) => ({ text: t, options: o });
   card(s, M, dy, CW, 2.45, FILL);
   text(s, "Disclosure, as the organisers ask", { x: M + 0.25, y: dy + 0.17, w: CW - 0.5, h: 0.28, fontFace: SEMI, fontSize: 11.5, color: GREEN });
   const disc = [
-    "AI tools: Claude Code (Anthropic) agents and Codex (OpenAI) reviews did implementation under our direction; we specified, tested and checked the phone by hand.",
-    "Open source: impeccable design skill (Paul Bakaus, Apache 2.0); Atkinson Hyperlegible typeface (Braille Institute, via Google Fonts); FFmpeg to compose the clips. The app itself is Python standard library and plain browser APIs, no frameworks.",
+    "AI tools: Claude Code (Anthropic) agents and Codex (OpenAI) reviews did implementation under our direction; we specified, tested in the browser and checked the tagged demo builds on the Pixel by hand.",
+    "Open source: impeccable design skill (Paul Bakaus, Apache 2.0); Atkinson Hyperlegible typeface (Braille Institute, via Google Fonts); Poppins (Google Fonts, the template's face); FFmpeg to compose the clips; pptxgenjs to build the deck. The app itself is Python standard library and plain browser APIs, no frameworks.",
     "Hardware: owned gear only, an unmodified Pixel 8 and a laptop. No physical build.",
     "Repo created at the event on Friday Nov 6. The demonstration clips are desktop simulations and are labelled as such.",
   ];

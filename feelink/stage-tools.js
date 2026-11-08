@@ -15,24 +15,26 @@ function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.
 const nameBox = document.getElementById('name'), nameWrap = document.getElementById('namebox'), nameStart = document.getElementById('nameStart');
 const hint = document.getElementById('hint');
 const toolDraw = document.getElementById('toolDraw'), toolMark = document.getElementById('toolMark');
+// Key hints only, no explanations (human-led note, Nov 7): the line under the tools names the key that changes what the
+// tool does next. The start point lives with the Landmark tool, where the tutor is thinking about points.
 const HINT_DRAW = 'Hold <kbd>Shift</kbd> for a straight line.';
-const HINT_PLACE = 'Click the board to place a point, or click a point to rename it. <kbd>Esc</kbd> cancels.';
-// The reveal group's line. While something is hidden (#111), a new stroke arrives last and stays hidden until revealed.
-const STEP_HIDING = 'Dashed strokes are hidden from the student. New ones stay hidden until revealed.';
-const STEP_READY = 'Press <kbd>P</kbd> to hide the last stroke, then <kbd>N</kbd> to bring it back.';
+const HINT_PLACE = 'Click to place a point or rename one. <kbd>S</kbd> over a point makes it the start.';
+// The reveal group's line: a state, shown only while something is hidden (#111). A new stroke drawn then arrives last
+// and stays hidden too, dashed like the rest, so the dashes are all the tutor needs to read.
+const STEP_HIDING = 'Dashed lines are hidden from the student.';
 // What a step key that changes nothing says, for NOTE_MS. Reveal next never hides the drawing (board.js revealStep).
-const NOTES = { all: 'Everything is shown. Press <kbd>P</kbd> to step back.',
-  none: 'Nothing is shown yet. Press <kbd>N</kbd> to reveal the first stroke.',
-  empty: 'Draw first, then reveal it one stroke at a time.' };
+const NOTES = { all: 'Everything is shown. <kbd>P</kbd> steps back.',
+  none: 'Everything is hidden. <kbd>N</kbd> reveals the first line.',
+  empty: 'Nothing to reveal yet.' };
 const NOTE_MS = 3500;
 const stepNote = document.getElementById('stepNote');
 let placing = false, straight = false, pending = null; // pending: {id, x, y} while the name box is open
-let note = '', noteTimer = 0, hiding = false, steps = 0, hintHtml = '', stepHtml = '';
+let note = '', noteTimer = 0, hiding = false, hintHtml = '', stepHtml = '';
 function renderHint() {
   const html = placing ? HINT_PLACE : HINT_DRAW;
   if (html !== hintHtml) { hintHtml = html; hint.innerHTML = html; } // aria-live: only real changes are announced
   hint.classList.toggle('on', straight && !placing);
-  const step = note ? NOTES[note] : hiding ? STEP_HIDING : steps > 0 ? STEP_READY : NOTES.empty;
+  const step = note ? NOTES[note] : hiding ? STEP_HIDING : '';
   if (step !== stepHtml) { stepHtml = step; stepNote.innerHTML = step; }
 }
 function flashNote(key) {
@@ -177,7 +179,7 @@ function clearBoard() {
 const buttons = [[toolDraw, () => setPlacing(false)], [toolMark, () => setPlacing(!placing)],
   [document.getElementById('undo'), undo], [document.getElementById('clear'), clearBoard], [document.getElementById('undoClear'), undo],
   [document.getElementById('revealNext'), () => stepReveal('next')], [document.getElementById('revealPrev'), () => stepReveal('prev')],
-  [document.getElementById('revealAll'), () => stepReveal('all')]];
+  [document.getElementById('revealAll'), () => stepReveal('all')], [cueToggle, () => setCue(tell.hidden)]];
 for (const [btn, act] of buttons) {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => { closeName(true); act(); });
@@ -192,6 +194,7 @@ addEventListener('keydown', (e) => {
   else if (k === 's') toggleStartNear();
   else if (k === 'n') stepReveal(e.shiftKey ? 'all' : 'next');
   else if (k === 'p') stepReveal('prev');
+  else if (k === 't') { e.preventDefault(); setCue(true); } // the spoken cue; preventDefault keeps the T out of its field
   else if (k === 'd' || k === 'escape') setPlacing(false);
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });
@@ -224,7 +227,7 @@ function showReveal(rv) {
       }));
     }
   }
-  if (rv.hiding !== hiding || rv.total !== steps) { hiding = rv.hiding; steps = rv.total; renderHint(); }
+  if (rv.hiding !== hiding) { hiding = rv.hiding; renderHint(); }
   const stuck = { revealPrev: !rv.total || rv.shown <= 0, revealNext: rv.shown >= rv.total, revealAll: rv.shown >= rv.total };
   for (const id in stuck) if (stepBtn[id].getAttribute('aria-disabled') !== String(stuck[id])) stepBtn[id].setAttribute('aria-disabled', String(stuck[id]));
 }

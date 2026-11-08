@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FeelInk Studio</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -14,10 +15,11 @@
 <aside class="panel left" aria-label="Tutor tools">
   <header class="brand">
     <svg viewBox="0 0 20 26" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="25" rx="4" fill="#fbfaf6"/><path d="M6 20.5V12h8V6.5" fill="none" stroke="#0d7064" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="6.5" r="3" fill="#ffb020" stroke="#1b222b" stroke-width="1.2"/></svg>
-    <div><h1>FeelInk <span>Studio</span></h1><p>Spatial lessons by touch</p></div>
+    <h1>FeelInk <span>Studio</span></h1>
   </header>
   <div class="panel-body">
-    <section class="group" aria-label="Drawing tools">
+    <section class="group" aria-labelledby="lessonTitle">
+      <h2 id="lessonTitle">Shape the lesson</h2>
       <div class="seg" role="group" aria-label="Tool">
         <button class="tool" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l4 4L8.5 19.5h-4v-4z"/><path d="M13 7l4 4"/></svg><span>Draw</span><kbd>D</kbd></button>
@@ -46,45 +48,47 @@
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>Reveal all</span><kbd>Shift</kbd><kbd>N</kbd></button>
       <p class="say" id="stepNote" aria-live="polite"></p>
     </section>
-    <section class="key" aria-labelledby="keyTitle">
-      <h2 id="keyTitle">On the board</h2>
-      <ul>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M5 7h9" stroke="#b3b9c1" stroke-width="2.4" stroke-linecap="round"/><path d="M14 7h9" stroke="#0d7064" stroke-width="2.4" stroke-linecap="round"/></svg>Teal where the student has felt it</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M4 9.5c4-4 8 1 13-2.5" fill="none" stroke="#6ac9bd" stroke-width="2" stroke-linecap="round"/><circle cx="19.5" cy="6.5" r="3.6" fill="#1b222b"/><circle cx="19.5" cy="6.5" r="2.9" fill="#ffffff"/><circle cx="19.5" cy="6.5" r="2.1" fill="#ffb020"/></svg>Their finger and its path</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><circle cx="14" cy="7" r="5.2" fill="none" stroke="#ffb020" stroke-width="1.4"/><circle cx="14" cy="7" r="2.2" fill="#ffb020"/></svg>A buzz on their phone</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><circle cx="9" cy="7" r="3" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/><circle cx="19.5" cy="7" r="3.3" fill="#0d7064" stroke="#1b222b" stroke-width="0.8"/><circle cx="19.5" cy="7" r="1.1" fill="#fbfaf6"/></svg>A named point, filled once spoken</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M14 10V2.4l5 2.2-5 2.2" fill="#1b222b" stroke="#1b222b" stroke-width="0.9" stroke-linejoin="round"/><circle cx="14" cy="10.6" r="2.2" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/></svg><span>Start point: <kbd>S</kbd> over a point</span></li>
-      </ul>
+    <!-- Optional, closed by default: the tutor talks to the student. A typed line their phone says aloud is for remote
+         lessons, replay or a fallback. -->
+    <section class="cue" aria-label="Spoken cue">
+      <button class="cue-toggle" id="cueToggle" type="button" aria-expanded="false" aria-controls="tell" aria-keyshortcuts="T">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.2 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>Send a spoken cue</span><kbd>T</kbd></button>
+      <form class="tell" id="tell" autocomplete="off" hidden>
+        <div class="field">
+          <input id="tellText" type="text" maxlength="120" spellcheck="true" enterkeyhint="send" aria-label="Spoken cue" placeholder="Words their phone will say">
+          <button id="tellSend" type="submit" aria-label="Send cue" title="Send (Enter)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v7a3 3 0 0 1-3 3H6"/><path d="M10 11l-4 4 4 4"/></svg></button>
+        </div>
+        <p class="cue-state" id="cueState" role="status" hidden><q id="cueText"></q><b class="badge" id="cueBadge"></b></p>
+        <small>For remote lessons, replay or a fallback. A two-finger double tap on the phone repeats it.</small>
+      </form>
     </section>
   </div>
 </aside>
 <aside class="panel right" aria-label="Student">
   <header class="status" id="status" data-tone="wait"><i></i><div><b id="statusText" role="status">Connecting…</b><small id="statusSub"></small></div></header>
   <div class="panel-body">
-    <section class="heard" aria-labelledby="heardTitle">
-      <h2 id="heardTitle">Spoken on their phone</h2>
-      <div class="empty" id="heardEmpty">
-        <p>Nothing yet. Each line their phone says aloud shows here, newest first:</p>
-        <ul>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.2" fill="#2bb3a3"/><circle cx="8" cy="8" r="1.8" fill="#0a1119"/></svg>A point's name, when their finger finds it</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7H7l-3 2.5v-2.5H2.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Your instruction, once it has played</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M7 12h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Phone updates, such as a changed drawing</li>
-        </ul>
-      </div>
-      <ol id="heardList" aria-labelledby="heardTitle" aria-live="polite"></ol>
-      <details id="earlier" hidden><summary><span>Earlier (<span id="earlierCount">0</span>)</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><ol id="earlierList"></ol></details>
-    </section>
-    <form class="tell" id="tell" autocomplete="off">
-      <label for="tellText">Instruction</label>
-      <div class="field">
-        <input id="tellText" type="text" maxlength="120" spellcheck="true" enterkeyhint="send" placeholder="A task they can replay…">
-        <button id="tellSend" type="submit" aria-label="Send instruction" title="Send (Enter)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v7a3 3 0 0 1-3 3H6"/><path d="M10 11l-4 4 4 4"/></svg></button>
-      </div>
-      <small>The phone reads it aloud. A two-finger double tap replays it.</small>
-    </form>
+    <!-- The student right now, each line marked with the board's own glyph for it: their finger, a spoken point, felt ink. -->
+    <ul class="now" aria-label="The student now">
+      <li class="fact" id="touchRow" data-state="none">
+        <svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="g-ring" cx="10" cy="10" r="7.6"/><circle class="g-dot" cx="10" cy="10" r="5"/></svg>
+        <b id="touchText">No touch yet</b><span class="sub" id="touchSub"></span>
+      </li>
+      <li class="fact" id="spokeRow" data-state="none">
+        <svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="g-zone" cx="10" cy="10" r="8.6"/><circle class="g-dot" cx="10" cy="10" r="4.6"/><circle class="g-hole" cx="10" cy="10" r="1.6"/></svg>
+        <b id="spokeText" aria-live="polite">No point spoken yet</b><span class="sub" id="spokeSub"></span>
+      </li>
+      <li class="fact" id="feltRow" data-state="none">
+        <svg class="g" viewBox="0 0 20 20" aria-hidden="true"><path class="g-unfelt" d="M2.5 10h15"/><path class="g-felt" d="M2.5 10h8"/></svg>
+        <b id="feltText">Nothing drawn yet</b><span class="bars" id="feltBars" aria-hidden="true"></span>
+      </li>
+    </ul>
+    <details class="said" id="said" hidden>
+      <summary><span>Spoken on their phone</span><span class="n" id="saidCount">0</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></summary>
+      <ol id="heardList"></ol>
+    </details>
   </div>
 </aside>
-<div id="guide" aria-hidden="true"><div><b>Draw here</b><p>The student feels every line on their phone.</p></div></div>
+<div id="guide" aria-hidden="true"><div><b>Draw here</b></div></div>
 <div id="namebox" role="group" aria-label="Named point">
   <input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Point name" placeholder="Name this point">
   <div class="row"><label><input id="nameStart" type="checkbox">Start point</label><span>Enter saves</span></div>

@@ -390,8 +390,9 @@ test('connection status is in words, board link first, then the phone and its fi
   assert.deepEqual(B.connectionStatus(false, 'connected', true), { tone: 'off', text: 'Studio offline', sub: 'Reconnecting…', receiving: false });
   assert.deepEqual(B.connectionStatus(true, 'waiting', false), { tone: 'wait', text: 'Waiting for the student', sub: 'Open FeelInk on their phone', receiving: false });
   assert.equal(B.connectionStatus(true, 'waiting', true).tone, 'wait', 'a stale finger is not a live phone');
-  assert.deepEqual(B.connectionStatus(true, 'connected', false), { tone: 'on', text: 'Student connected', sub: 'Not touching the screen', receiving: true });
-  assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'live', text: 'Student exploring', sub: 'Finger on the board', receiving: true });
+  assert.deepEqual(B.connectionStatus(true, 'connected', false), { tone: 'on', text: 'Student connected', sub: '', receiving: true });
+  // The finger has its own line in the session panel; on the link it only sets the dot's ripple.
+  assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'live', text: 'Student connected', sub: '', receiving: true });
 });
 
 test('landmark-rest heartbeat is a small one-off ring that leaves a held line alone (#90)', () => {
@@ -670,7 +671,7 @@ test("reveal: only the tutor's strokes are steps; the student's are always shown
   assert.deepEqual(v(0).mark, [false, false, false], 'onKid arrived after s1, the first hidden; crossed sits on hidden s2');
   assert.deepEqual(v(1).mark, [true, false, false], "onKid arrived before s2; the laptop's line through crossed does not count");
   assert.deepEqual(v(2).mark, [true, true, true]);
-  assert.equal(B.revealLegend(v(1).shown, v(1).total), 'Shown 1 of 2 strokes');
+  assert.equal(B.revealLegend(v(1).shown, v(1).total), 'Shown 1 of 2 lines');
   assert.equal(B.revealLegend(v(2).shown, v(2).total), '');
   // Steps count the tutor's strokes only.
   assert.deepEqual(B.revealStep(null, strokes, 'prev'), { upto: 1, changed: true, note: '' });
@@ -681,26 +682,26 @@ test("reveal: only the tutor's strokes are steps; the student's are always shown
 });
 
 test('reveal: the legend line shows only while something is hidden', () => {
-  assert.equal(B.revealLegend(2, 5), 'Shown 2 of 5 strokes');
-  assert.equal(B.revealLegend(0, 3), 'Shown 0 of 3 strokes');
-  assert.equal(B.revealLegend(0, 1), 'Shown 0 of 1 stroke');
+  assert.equal(B.revealLegend(2, 5), 'Shown 2 of 5 lines');
+  assert.equal(B.revealLegend(0, 3), 'Shown 0 of 3 lines');
+  assert.equal(B.revealLegend(0, 1), 'Shown 0 of 1 line');
   assert.equal(B.revealLegend(3, 3), '');
   assert.equal(B.revealLegend(0, 0), '');
   const { view } = route();
   const v = view(2);
-  assert.equal(B.revealLegend(v.shown, v.total), 'Shown 2 of 3 strokes');
+  assert.equal(B.revealLegend(v.shown, v.total), 'Shown 2 of 3 lines');
   assert.equal(B.revealLegend(view(null).shown, view(null).total), '');
 });
 
 test('reveal meter: the step-through control always says where it stands (D10)', () => {
   assert.equal(B.revealMeter(0, 0), 'Nothing to reveal yet');
-  assert.equal(B.revealMeter(1, 3), 'Shown 1 of 3 strokes', 'mid-reveal reads as the legend line did');
-  assert.equal(B.revealMeter(0, 1), 'Shown 0 of 1 stroke');
-  assert.equal(B.revealMeter(3, 3), 'All 3 strokes shown');
-  assert.equal(B.revealMeter(1, 1), 'The stroke is shown');
+  assert.equal(B.revealMeter(1, 3), 'Shown 1 of 3 lines', 'mid-reveal reads as the legend line did');
+  assert.equal(B.revealMeter(0, 1), 'Shown 0 of 1 line');
+  assert.equal(B.revealMeter(3, 3), 'All 3 lines shown');
+  assert.equal(B.revealMeter(1, 1), 'The line is shown');
   const { view } = route();
-  assert.equal(B.revealMeter(view(2).shown, view(2).total), 'Shown 2 of 3 strokes');
-  assert.equal(B.revealMeter(view(null).shown, view(null).total), 'All 3 strokes shown');
+  assert.equal(B.revealMeter(view(2).shown, view(2).total), 'Shown 2 of 3 lines');
+  assert.equal(B.revealMeter(view(null).shown, view(null).total), 'All 3 lines shown');
 });
 
 test('side panels stay out of the GIF crop zone and off the board (D10)', () => {
@@ -722,4 +723,43 @@ test('side panels stay out of the GIF crop zone and off the board (D10)', () => 
   assert.ok(p.lw <= v.x - 16 && p.rx >= v.x + v.w + 16);
   const tiny = place(640, 480), q = B.sidePanels(tiny, 640, 480);
   assert.ok(q.lw <= tiny.x - 16 && q.rx >= tiny.x + tiny.w + 16 && q.lw >= 0 && q.rw >= 0, JSON.stringify(q));
+});
+
+test("session panel: the finger in words, only from the phone's reports (human-led, Nov 7)", () => {
+  const t = (o) => B.touchState({ live: true, ever: true, down: true, stillMs: 0, level: 4, top: 4, ...o });
+  assert.deepEqual(B.touchState({}), { state: 'none', text: 'No touch yet', sub: '' }, 'never connected');
+  assert.deepEqual(B.touchState({ ever: true, down: true }), { state: 'none', text: 'Not touching', sub: '' }, 'a gone phone is not touching, whatever its last finger said');
+  assert.deepEqual(t({ down: false }), { state: 'lifted', text: 'Not touching', sub: '' });
+  assert.deepEqual(t({}), { state: 'exploring', text: 'Exploring', sub: 'On the line' });
+  // The level is the buzz the phone is playing: top on the line, the fade steps beside it, 0 nothing.
+  assert.deepEqual([3, 1, 0].map((level) => t({ level }).sub), ['Beside the line', 'Beside the line', 'Off the line']);
+  assert.equal(t({ level: undefined }).sub, '', 'no level reported: say nothing about the line');
+  assert.equal(t({ level: 0, inked: false }).sub, '', 'an empty board is not "off the line"');
+  assert.equal(t({ at: 'Library', level: 0 }).sub, 'At Library', 'a point under the finger says where it is');
+  assert.equal(t({ stillMs: B.TOUCH_REST_MS - 1 }).state, 'exploring');
+  assert.deepEqual(t({ stillMs: B.TOUCH_REST_MS, at: 'Gym' }), { state: 'resting', text: 'Resting', sub: 'At Gym' });
+});
+
+test('session panel: how long ago a point was spoken, and how much of the drawing is teal', () => {
+  assert.deepEqual([0, 4999, 5000, 59999, 60000, 3599999, 3600000, -5, NaN].map(B.ago),
+    ['just now', 'just now', '5 s ago', '59 s ago', '1 min ago', '59 min ago', '1 h ago', 'just now', 'just now']);
+  assert.equal(B.feltLine([]), 'Nothing drawn yet');
+  assert.equal(B.feltLine([0, 0]), 'Nothing felt yet');
+  assert.equal(B.feltLine([1, 0.4, 0]), 'Felt 1 of 3 lines in full', 'a part-felt line is not counted');
+  assert.equal(B.feltLine([0.99, 0.2]), 'Felt 0 of 2 lines in full');
+  assert.equal(B.feltLine([1, 1, 1]), 'Felt all 3 lines');
+  assert.equal(B.feltLine([1, 1]), 'Felt both lines');
+  assert.equal(B.feltLine([1]), 'Felt the whole line');
+  assert.equal(B.feltLine([0.5]), 'Felt 0 of 1 line in full');
+  // Mid-reveal the count is of the shown lines, and says so.
+  assert.equal(B.feltLine([1, 1], true), 'Felt both shown lines');
+  assert.equal(B.feltLine([1, 0.3], true), 'Felt 1 of 2 shown lines in full');
+  assert.equal(B.feltLine([1], true), 'Felt the whole shown line');
+  assert.equal(B.feltLine([], true), 'Nothing shown yet');
+  assert.equal(B.feltLine([0], true), 'Nothing felt yet');
+  // As the stage feeds it: the felt share of each shown line's samples, here a route felt along its first line.
+  const samples = B.resample([{ x: 5, y: 10 }, { x: 5, y: 60 }]), felt = new Float64Array(samples.length);
+  B.markFelt(samples, felt, { x: 5, y: 10 }, { x: 5, y: 60 });
+  const share = felt.filter((f) => f > 0).length / samples.length;
+  assert.equal(B.feltLine([share, 0]), 'Felt 1 of 2 lines in full');
 });

@@ -614,8 +614,10 @@
     return `${Math.floor(s / 3600)} h ago`;
   }
 
-  // What the student has felt of the tutor's shown lines, from the teal the board draws: `fractions` holds each line's
-  // felt share (felt samples over all of its 1 mm samples). Partial progress is said as the mean share ("about 70%"),
+  // How much of the tutor's shown lines the student's finger has covered, from the teal the board draws: `fractions` holds
+  // each line's felt share (felt samples over all of its 1 mm samples). The words say "covered", never "felt": the share
+  // is finger geometry against the ink, not a report of what the student perceived or learned (review, Nov 8).
+  // Partial progress is said as the mean share ("about 70%"),
   // because a finger following the buzz almost never covers every millimetre, so "lines felt in full" read 0 after a
   // good trace (Reeve, Nov 7 20:50). A whole line still needs all of it teal, so the words never claim more than the
   // board shows; the session panel's bars carry each line. While a step-through reveal hides some (`hiding`), the
@@ -623,13 +625,13 @@
   function feltLine(fractions, hiding = false) {
     const n = (fractions || []).length;
     if (!n) return hiding ? 'Nothing shown yet' : 'Nothing drawn yet';
-    if (!fractions.some((f) => f > 0)) return 'Nothing felt yet';
+    if (!fractions.some((f) => f > 0)) return 'Nothing covered yet';
     const shown = hiding ? 'shown ' : '';
-    if (fractions.every((f) => f >= 1)) return n === 1 ? `Felt the whole ${shown}line` : n === 2 ? `Felt both ${shown}lines` : `Felt all ${n} ${shown}lines`;
+    if (fractions.every((f) => f >= 1)) return n === 1 ? `Covered the whole ${shown}line` : n === 2 ? `Covered both ${shown}lines` : `Covered all ${n} ${shown}lines`;
     const mean = fractions.reduce((a, f) => a + Math.min(1, Math.max(0, f)), 0) / n;
     const pct = Math.min(99, Math.max(1, Math.round(mean * 100)));
-    if (n === 1) return `Felt about ${pct}% of the ${shown}line`;
-    return `Felt about ${pct}% of ${hiding ? 'what is shown' : 'the drawing'}`;
+    if (n === 1) return `Covered about ${pct}% of the ${shown}line`;
+    return `Covered about ${pct}% of ${hiding ? 'what is shown' : 'the drawing'}`;
   }
 
   // Studio side panels (D10). The GIF pipeline (tools/record/compose.py detect_board) crops the stage video to the board

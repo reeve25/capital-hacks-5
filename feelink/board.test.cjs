@@ -752,25 +752,25 @@ test('session panel: how long ago a point was spoken, and how much of the drawin
   assert.deepEqual([0, 4999, 5000, 59999, 60000, 3599999, 3600000, -5, NaN].map(B.ago),
     ['just now', 'just now', '5 s ago', '59 s ago', '1 min ago', '59 min ago', '1 h ago', 'just now', 'just now']);
   assert.equal(B.feltLine([]), 'Nothing drawn yet');
-  assert.equal(B.feltLine([0, 0]), 'Nothing felt yet');
-  assert.equal(B.feltLine([1, 0.4, 0]), 'Felt about 47% of the drawing', 'partial progress is the mean share');
-  assert.equal(B.feltLine([0.99, 0.2]), 'Felt about 60% of the drawing');
-  assert.equal(B.feltLine([0.999]), 'Felt about 99% of the line', 'never rounds up to a whole line');
-  assert.equal(B.feltLine([0.001]), 'Felt about 1% of the line', 'never rounds down to nothing');
-  assert.equal(B.feltLine([1, 1, 1]), 'Felt all 3 lines');
-  assert.equal(B.feltLine([1, 1]), 'Felt both lines');
-  assert.equal(B.feltLine([1]), 'Felt the whole line');
-  assert.equal(B.feltLine([0.5]), 'Felt about 50% of the line');
+  assert.equal(B.feltLine([0, 0]), 'Nothing covered yet');
+  assert.equal(B.feltLine([1, 0.4, 0]), 'Covered about 47% of the drawing', 'partial progress is the mean share');
+  assert.equal(B.feltLine([0.99, 0.2]), 'Covered about 60% of the drawing');
+  assert.equal(B.feltLine([0.999]), 'Covered about 99% of the line', 'never rounds up to a whole line');
+  assert.equal(B.feltLine([0.001]), 'Covered about 1% of the line', 'never rounds down to nothing');
+  assert.equal(B.feltLine([1, 1, 1]), 'Covered all 3 lines');
+  assert.equal(B.feltLine([1, 1]), 'Covered both lines');
+  assert.equal(B.feltLine([1]), 'Covered the whole line');
+  assert.equal(B.feltLine([0.5]), 'Covered about 50% of the line');
   // Mid-reveal the count is of the shown lines, and says so.
-  assert.equal(B.feltLine([1, 1], true), 'Felt both shown lines');
-  assert.equal(B.feltLine([1, 0.3], true), 'Felt about 65% of what is shown');
-  assert.equal(B.feltLine([1], true), 'Felt the whole shown line');
+  assert.equal(B.feltLine([1, 1], true), 'Covered both shown lines');
+  assert.equal(B.feltLine([1, 0.3], true), 'Covered about 65% of what is shown');
+  assert.equal(B.feltLine([1], true), 'Covered the whole shown line');
   assert.equal(B.feltLine([], true), 'Nothing shown yet');
-  assert.equal(B.feltLine([0], true), 'Nothing felt yet');
+  assert.equal(B.feltLine([0], true), 'Nothing covered yet');
   // As the stage feeds it: the felt share of each shown line's samples, here a route felt along its first line.
   const samples = B.resample([{ x: 5, y: 10 }, { x: 5, y: 60 }]), felt = new Float64Array(samples.length);
   B.markFelt(samples, felt, { x: 5, y: 10 }, { x: 5, y: 60 });
   const share = felt.filter((f) => f > 0).length / samples.length;
   assert.ok(share > 0.9 && share <= 1, `first line felt along: ${share}`);
-  assert.match(B.feltLine([share, 0]), /^Felt about (4[5-9]|50)% of the drawing$/);
+  assert.match(B.feltLine([share, 0]), /^Covered about (4[5-9]|50)% of the drawing$/);
 });

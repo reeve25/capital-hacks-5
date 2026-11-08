@@ -7,6 +7,8 @@ Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human 
 ## Open (Sat Nov 7, 18:05). Development decisions and actions for the agents only (Reeve, 17:59): recording, consent, organizer questions, fact sheet and the deck are handled by Reeve and Nathan outside this board.
 
 ### FYI
+- One lead at a time: the previous lead session merged #145 and pulled the checkout at 20:11-20:12 during the re-check gate; it was asked to stand down (20:19). Any decision Reeve types elsewhere goes to the team log as a DECISION line only.
+- The coordinate-plane preset (#147) is on origin/main, not yet felt on the Pixel; it needs a relay restart after the pull that follows demo-2.
 - The Pixel stays on the USB cable. While an agent check runs, nobody touches it. Media vibration must stay at 3 (at 1 long buzzes play at half strength).
 - The relay (restarted 17:44 on `c64269c`) and keep-alive run under nohup from the main checkout (logs in `.tmp/`); the lead watches port 8765 every 60 s and restarts the relay after any `server.py` change.
 - #111 (step-through reveal) is P2: two agents are building it, and it lands only after a Pixel re-check, never as a last-minute change to the recording build.

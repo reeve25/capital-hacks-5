@@ -43,6 +43,7 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 17:14, Reeve: next cycle = guided learning (landmarks, start/end points, live student feedback, sequential diagram presentation) on the existing drawing interface. Step-through reveal proposed on #107 as item 6 (reveal pointer on the relay).
 - Sat 17:10, Reeve: A0c passed (landmark arrival clear and spoken; Back and two-finger double tap work). Tutor-interaction brief: spoken instructions to the phone, live finger visibility, collapsed heard-log distinguishing sent from heard, clear link states, a start point; keep layout and ownership; filed as the 'Tutor guides the student' issue for the next lead to launch.
 - Sat 17:02, Reeve: TalkBack dropped (no mode, no Pixel session; #91 closed as parked, research stays on main). Other D7 items stand.
 - Sat 16:46: phone product build (#90), undoable Clear, TalkBack research (#91) and the stage product pass (#92) are on main; phone and laptop pages reloaded. Deck still parked.

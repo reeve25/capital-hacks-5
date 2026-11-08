@@ -74,19 +74,50 @@
   .status i { width: 10px; height: 10px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--edge); }
   .status[data-tone="on"] i { background: var(--on); border-color: var(--on); }
   .status[data-tone="off"] i { background: var(--bad); border-color: var(--bad); }
+  .status[data-tone="warn"] i { background: var(--amber); border-color: var(--amber); }
   .status b { display: block; font-size: 15px; line-height: 1.25; }
   .status small { display: block; font-size: 13px; line-height: 1.3; color: var(--muted); }
   .status small:empty { display: none; }
   .heard { overflow: hidden; }
+  /* Instruction box (#107): Enter sends a short line the phone says aloud. Dark, not paper: see the tools note. */
+  .tell { margin: 0 0 22px; }
+  .tell label { display: block; margin: 0 0 8px; font-size: 14px; line-height: 1.3; font-weight: 700; color: var(--muted); }
+  .tell input { display: block; width: 100%; height: 40px; margin: 0; padding: 0 12px; box-sizing: border-box;
+    font: 400 15px 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--text); background: var(--raised);
+    border: 1px solid var(--edge); border-radius: 8px; outline: none; }
+  .tell input::placeholder { color: var(--muted); }
+  .tell input:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  .tell small { display: block; margin-top: 6px; font-size: 13px; line-height: 1.35; color: var(--muted); }
+  /* Heard log (#107): the latest line large, older ones folded under "Earlier". An instruction carries its state in
+     words and colour: dashed "Sent, not heard yet" until the phone reports saying it, then solid green "Heard". */
   .heard .empty { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
   .heard ol { list-style: none; margin: 0; padding: 0; }
-  .heard li { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line);
+  .heard li { display: flex; flex-direction: column; gap: 5px; padding: 9px 0; border-top: 1px solid var(--line);
     font-size: 15px; line-height: 1.3; color: var(--muted); }
   .heard li:first-child { padding-top: 0; border-top: 0; }
-  .heard li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-  .heard li.landmark span { font-weight: 700; }
+  .heard li .say { min-width: 0; overflow-wrap: anywhere; }
+  .heard li.k-landmark .say { font-weight: 700; }
   .heard li.latest { color: var(--text); }
-  .heard li.latest.landmark span { font-size: 18px; }
+  .heard li.latest .say { font-size: 18px; font-weight: 700; }
+  .heard li.k-instruction { padding-left: 10px; border-left: 3px solid var(--on); }
+  .heard li.k-instruction.is-sent { border-left-style: dashed; border-left-color: var(--edge); }
+  .heard li.k-instruction.is-replaced { border-left-color: var(--line); }
+  .heard .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .heard .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; box-sizing: border-box;
+    border-radius: 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .heard li.is-sent .badge { color: var(--text); border: 1px dashed var(--edge); }
+  .heard li.is-heard .badge { color: var(--ink); background: var(--on); }
+  .heard li.is-replaced .badge { color: var(--muted); border: 1px solid var(--line); }
+  .heard .count { font-size: 13px; font-weight: 700; color: var(--text); }
+  .heard details { min-height: 0; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--line); overflow-y: auto; }
+  .heard details[hidden] { display: none; }
+  .heard summary { display: flex; align-items: center; justify-content: space-between; min-height: 32px; font-size: 14px;
+    font-weight: 700; color: var(--muted); cursor: pointer; list-style: none; }
+  .heard summary::-webkit-details-marker { display: none; }
+  .heard summary::after { content: '+'; font-size: 20px; line-height: 1; }
+  .heard details[open] summary::after { content: '\2212'; }
+  .heard summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  .heard details ol { margin-top: 6px; }
   .heard time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .heard li.enter { animation: enter 220ms cubic-bezier(0.23, 1, 0.32, 1); }
   @keyframes enter { from { opacity: 0.35; transform: translateY(-4px); } }
@@ -100,12 +131,16 @@
   body.board-busy #guide { opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .heard li.enter { animation: none; } #guide, .tool, .hint kbd { transition: none; } }
 
-  /* Name box for a new point, opened on the board where the tutor clicked. Paper-board style. */
-  #name { position: fixed; z-index: 2; display: none; width: 220px; padding: 8px 10px; box-sizing: border-box;
-    font: 700 18px 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--ink); background: var(--paper);
-    border: 2px solid var(--ink); border-radius: 6px; outline: none; }
+  /* Name box for a new point, opened on the board where the tutor clicked. Paper-board style. The checkbox marks the
+     start point (#107). */
+  #namebox { position: fixed; z-index: 2; display: none; width: 220px; padding: 6px 10px 8px; box-sizing: border-box;
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 6px; }
+  #namebox:focus-within { box-shadow: 0 0 0 3px var(--amber); }
+  #name { display: block; width: 100%; margin: 0; padding: 2px 0; box-sizing: border-box; font: 700 18px 'Atkinson Hyperlegible', system-ui, sans-serif;
+    color: var(--ink); background: transparent; border: 0; outline: none; }
   #name::placeholder { color: var(--ink-soft); }
-  #name:focus-visible { box-shadow: 0 0 0 3px var(--amber); }
+  #namebox label { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 14px; color: var(--ink-soft); cursor: pointer; }
+  #namebox input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--ink); }
 </style>
 </head>
 <body class="board-busy">
@@ -128,9 +163,10 @@
     <h2 id="legendTitle">On the board</h2>
     <ul>
       <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M5 9h11" stroke="#b3b9c1" stroke-width="2.4" stroke-linecap="round"/><path d="M16 9h11" stroke="#1b222b" stroke-width="2.4" stroke-linecap="round"/></svg>Ink darkens once felt</li>
-      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M5 10.5c5-3.5 10 2.5 22-2" fill="none" stroke="#2bb3a3" stroke-width="3" stroke-linecap="round"/></svg>The student's finger path</li>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M5 10.5c5-3.5 10 2.5 22-2" fill="none" stroke="#6ac9bd" stroke-width="2.2" stroke-linecap="round"/></svg>The student's finger path</li>
       <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><circle cx="16" cy="9" r="6.6" fill="none" stroke="#ffb020" stroke-width="1.4"/><circle cx="16" cy="9" r="3.3" fill="#1b222b"/><circle cx="16" cy="9" r="2.8" fill="#ffffff"/><circle cx="16" cy="9" r="2.1" fill="#ffb020"/></svg>A buzz on the phone</li>
       <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><circle cx="10" cy="9" r="3" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/><circle cx="22" cy="9" r="3.4" fill="#1b222b"/><circle cx="22" cy="9" r="1.2" fill="#fbfaf6"/></svg>Named point, filled once announced</li>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M16 9V0.8l5.8 2.4L16 5.6" fill="#1b222b" stroke="#fbfaf6" stroke-width="2.2" stroke-linejoin="round" paint-order="stroke"/><path d="M16 9V0.8" stroke="#1b222b" stroke-width="1.1"/><circle cx="16" cy="11" r="2.6" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/></svg><span>Start point: <kbd>S</kbd> over a point</span></li>
     </ul>
   </section>
 </div>
@@ -138,12 +174,21 @@
   <div class="status" id="status" data-tone="wait"><i></i><div><b id="statusText" role="status">Connecting…</b><small id="statusSub"></small></div></div>
 </div>
 <div class="col body right heard">
+  <form class="tell" id="tell" autocomplete="off">
+    <label for="tellText">Instruction</label>
+    <input id="tellText" type="text" maxlength="120" spellcheck="true" enterkeyhint="send" placeholder="Tell the student…">
+    <small>Enter sends. The phone says it aloud, and a two-finger double tap repeats it.</small>
+  </form>
   <h2 id="heardTitle">Student heard</h2>
   <p class="empty" id="heardEmpty">Whatever the phone says aloud shows up here.</p>
   <ol id="heardList" aria-labelledby="heardTitle" aria-live="polite"></ol>
+  <details id="earlier" hidden><summary><span>Earlier (<span id="earlierCount">0</span>)</span></summary><ol id="earlierList"></ol></details>
 </div>
 <div id="guide" aria-hidden="true"><div><b>Draw here</b><p>The student feels every line on their phone.</p></div></div>
-<input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Point name" placeholder="Name this point">
+<div id="namebox" role="group" aria-label="Named point">
+  <input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Point name" placeholder="Name this point">
+  <label><input id="nameStart" type="checkbox">Start point</label>
+</div>
 <script src="/tactile.js"></script>
 <script src="/board.js"></script>
 <script>
@@ -154,9 +199,10 @@ const HEADER_PX = 52, PAD_PX = 12;
 const GAP_PX = 56, LEFT_PX = 220, RIGHT_PX = 260, EDGE_PX = 20;
 const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', unfelt: '#b3b9c1', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff' };
 // Sizes in board millimetres (about 8 px/mm when the page is 1000 px tall, about 4 px/mm in the GIF).
-const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 3.2, TRAIL_TAIL_MM = 0.8, TRAIL_MS = 3000;
-const CURSOR_MM = 3.4, CURSOR_BORDER_MM = 1.0, CURSOR_TAU_MS = 35;
-const PHONE_FRESH_MS = 3000, HEARD_MAX = 8;
+// The finger is the thing to watch (#107): a large amber dot in a white ring with a heavy ink edge, readable over ink
+// and paper alike, while the trail behind it stays thin and starts already part-faded toward the paper.
+const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 2.2, TRAIL_TAIL_MM = 0.5, TRAIL_MS = 3000, TRAIL_FADE0 = 0.3;
+const CURSOR_MM = 4.4, CURSOR_BORDER_MM = 1.1, CURSOR_EDGE_MM = 0.75, CURSOR_TAU_MS = 35;
 // Found-by-touch radius: half the phone's core width, updated from its phoneconfig (default 3 mm).
 let feltMm = Board.FELT_MM;
 // Movement-only polish (touch-down pop, lift shrink, ink settle) is skipped under reduced motion.
@@ -200,7 +246,7 @@ function upsert(st) {
 // downAt/upAt drive the touch-down pop and the lift shrink; upAt is null while the finger is down.
 const finger = { down: false, last: null, cur: null, downAt: -Infinity, upAt: -Infinity, lastAt: 0 };
 let trail = []; // {x, y, t} or {gap: true, t}
-let lastPhoneAt = -Infinity;
+let lastPhoneAt = -Infinity, phoneLeft = false;
 function onFinger(ev) {
   const now = performance.now();
   if (!ev.down || !Number.isFinite(ev.x) || !Number.isFinite(ev.y)) {
@@ -229,7 +275,9 @@ function spawnRings(list, now) {
 }
 
 // Landmarks (#64, #65): named points, kept in relay order. `found` holds ids the phone has announced.
+// `start` marks the tutor's start point (#107); the relay stores it only when set.
 let landmarks = [];
+const landmarkOf = (ev) => ({ id: ev.id, x: ev.x, y: ev.y, name: ev.name, by: ev.by, ...(ev.start ? { start: true } : {}) });
 const foundMarks = new Set();
 let caption = null; // {name, t0}: what the phone just spoke, shown by the cursor for the silent GIF
 function setLandmarks(list) {
@@ -240,35 +288,71 @@ function setLandmarks(list) {
 function markFound(name) {
   const l = B.landmarkFor(landmarks, name, finger.last || finger.cur);
   if (l) foundMarks.add(l.id);
+  return l;
 }
+// The caption repeats what the phone says, "Start: <name>" on the start point (tactile.js landmarkLine).
 function onLandmarkCue(h, now) {
   if (!h.name) return;
-  caption = { name: h.name, t0: now };
-  markFound(h.name);
+  const l = markFound(h.name);
+  caption = { name: l && l.start ? 'Start: ' + h.name : h.name, t0: now };
 }
 
-// "Student heard" (#92): only lines the phone reports it spoke (#90), newest first. Never inferred from a haptic.
+// "Student heard" (#92, #107): lines the phone reports it spoke (#90), never inferred from a haptic, plus the tutor's
+// instructions, which show "Sent" until the phone reports saying them. board.js HeardLog merges repeats.
 const heardList = document.getElementById('heardList'), heardEmpty = document.getElementById('heardEmpty');
+const earlier = document.getElementById('earlier'), earlierList = document.getElementById('earlierList'), earlierCount = document.getElementById('earlierCount');
 const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+const STATE_TEXT = { sent: 'Sent, not heard yet', heard: 'Heard', replaced: 'Replaced, never heard' };
+const log = new B.HeardLog();
+let latestKey = '';
+function heardItem(x, latest) {
+  const li = document.createElement('li');
+  li.className = 'k-' + x.kind + ' is-' + x.state + (latest ? ' latest' : ''); // k-: 'status' is the header's class
+  const say = document.createElement('span');
+  say.className = 'say';
+  say.textContent = x.kind === 'status' ? x.text : '“' + x.text + '”';
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  if (x.kind === 'instruction') {
+    const badge = document.createElement('b');
+    badge.className = 'badge';
+    badge.textContent = STATE_TEXT[x.state] + (x.n > 1 ? ' ×' + x.n : '');
+    meta.append(badge);
+  } else if (x.n > 1) {
+    const n = document.createElement('b');
+    n.className = 'count';
+    n.textContent = '×' + x.n;
+    meta.append(n);
+  }
+  const time = document.createElement('time');
+  time.dateTime = new Date(x.at).toISOString();
+  time.textContent = clock(x.at);
+  meta.append(time);
+  li.append(say, meta);
+  return li;
+}
+function renderHeard() {
+  const first = log.latest, rest = log.earlier;
+  heardEmpty.hidden = !!first;
+  const key = first ? [first.kind, first.key, first.at, first.state].join('|') : '';
+  const li = first ? heardItem(first, true) : null;
+  if (li && key !== latestKey && !REDUCE) li.classList.add('enter');
+  latestKey = key;
+  heardList.replaceChildren(...(li ? [li] : []));
+  earlier.hidden = !rest.length;
+  earlierCount.textContent = rest.length;
+  earlierList.replaceChildren(...rest.map((x) => heardItem(x, false)));
+}
 function onSpoken(ev) {
   const s = reports.spoken(ev);
   if (!s) return;
-  if (s.kind === 'landmark') markFound(B.cleanName(s.text));
+  if (s.kind === 'landmark') markFound(B.markName(s.text));
   // Timed when it was said: arrival less the time the report waited on the phone, if it says.
-  const at = Date.now() - (Number(ev.age) > 0 ? Number(ev.age) : 0);
-  const li = document.createElement('li');
-  li.className = s.kind + ' latest' + (REDUCE ? '' : ' enter');
-  const text = document.createElement('span');
-  text.textContent = s.kind === 'landmark' ? '“' + s.text + '”' : s.text;
-  const time = document.createElement('time');
-  time.dateTime = new Date(at).toISOString();
-  time.textContent = clock(at);
-  li.append(text, time);
-  const prev = heardList.firstElementChild;
-  if (prev) prev.classList.remove('latest', 'enter');
-  heardList.prepend(li);
-  while (heardList.children.length > HEARD_MAX) heardList.lastElementChild.remove();
-  heardEmpty.hidden = true;
+  log.heard(s, Date.now() - (Number(ev.age) > 0 ? Number(ev.age) : 0));
+  renderHeard();
+}
+function onInstruction(ins) {
+  if (log.sent(ins, Date.now())) renderHeard();
 }
 
 // Relay.
@@ -282,15 +366,23 @@ es.onmessage = (m) => {
   let ev;
   try { ev = JSON.parse(m.data); } catch { return; }
   const now = performance.now();
-  // phoneconfig repeats every 2 s while the phone is live and is its presence signal (#34).
-  if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'spoken' || ev.type === 'hello' || ev.type === 'presence') lastPhoneAt = now;
+  // phoneconfig repeats every 2 s while the phone is live and is its presence signal (#34). One sent from the phone's
+  // menu (live: false) is not: the student feels nothing there, and one sent on leaving Live marks the phone gone at
+  // once (#107). A spoken report is not presence either: "Back to menu." lands after the phone has left.
+  if (ev.type === 'phoneconfig' && ev.live === false) { if (Number.isFinite(lastPhoneAt)) phoneLeft = true; }
+  else if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'hello' || ev.type === 'presence') {
+    lastPhoneAt = now;
+    if (ev.type !== 'haptic') phoneLeft = false; // the stop buzz sent on leaving can land after the leaving config
+  }
   if (ev.type === 'sync') {
     synced = true;
     setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
     setLandmarks(ev.landmarks);
+    if (ev.instruction) onInstruction(ev.instruction);
   }
   else if (ev.type === 'stroke') { if (!mine || ev.id !== mine.id) upsert({ id: ev.id, by: ev.by, pts: ev.pts || [] }); }
-  else if (ev.type === 'landmark') { if (B.validLandmark(ev)) setLandmarks(B.upsertById(landmarks, { id: ev.id, x: ev.x, y: ev.y, name: ev.name, by: ev.by })); }
+  else if (ev.type === 'landmark') { if (B.validLandmark(ev)) setLandmarks(B.upsertById(landmarks, landmarkOf(ev))); }
+  else if (ev.type === 'instruction') onInstruction(ev);
   else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); setLandmarks([]); caption = null; }
   else if (ev.type === 'finger') onFinger(ev);
   else if (ev.type === 'haptic') {
@@ -314,7 +406,8 @@ function inBoard(e) {
 function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
 // Placing a landmark: L (or the Landmark button) arms it, the next click on the board opens the name box there
 // (or on the point clicked, to rename it). Enter posts it, Escape or clicking away cancels. Then back to Draw.
-const nameBox = document.getElementById('name'), hint = document.getElementById('hint');
+const nameBox = document.getElementById('name'), nameWrap = document.getElementById('namebox'), nameStart = document.getElementById('nameStart');
+const hint = document.getElementById('hint');
 const toolDraw = document.getElementById('toolDraw'), toolMark = document.getElementById('toolMark');
 const HINT_DRAW = 'Hold <kbd>Shift</kbd> for a straight line';
 const HINT_PLACE = 'Click the board to place a point, or click a point to rename it. <kbd>Esc</kbd> cancels';
@@ -339,10 +432,11 @@ setPlacing(false);
 function openName(p, existing) {
   pending = existing ? { id: existing.id, x: existing.x, y: existing.y } : { id: 'mark-' + Date.now(), x: p.x, y: p.y };
   const px = view.x + pending.x * view.scale, py = view.y + pending.y * view.scale;
-  nameBox.style.left = Math.max(8, Math.min(innerWidth - 228, px + 14)) + 'px';
-  nameBox.style.top = Math.max(8, Math.min(innerHeight - 50, py - 22)) + 'px';
+  nameWrap.style.left = Math.max(8, Math.min(innerWidth - 228, px + 14)) + 'px';
+  nameWrap.style.top = Math.max(8, Math.min(innerHeight - 76, py - 22)) + 'px';
   nameBox.value = existing ? existing.name || '' : '';
-  nameBox.style.display = 'block';
+  nameStart.checked = !!(existing && existing.start);
+  nameWrap.style.display = 'block';
   // After the click finishes, so the click's own focus change cannot pull focus back off the box.
   setTimeout(() => { if (pending) { nameBox.focus(); nameBox.select(); } }, 0);
 }
@@ -350,20 +444,56 @@ function closeName(save) {
   if (!pending) return;
   const name = B.cleanName(nameBox.value);
   if (save && name) {
-    const mark = { type: 'landmark', id: pending.id, x: +pending.x.toFixed(2), y: +pending.y.toFixed(2), name, by: 'tutor' };
+    const mark = { type: 'landmark', id: pending.id, x: +pending.x.toFixed(2), y: +pending.y.toFixed(2), name, by: 'tutor',
+      ...(nameStart.checked ? { start: true } : {}) };
     setLandmarks(B.upsertById(landmarks, mark));
     post(mark);
+    if (mark.start) setStart(mark.id, true); // unmarks any other start point
   }
   pending = null;
-  nameBox.style.display = 'none';
-  nameBox.blur();
+  nameWrap.style.display = 'none';
+  if (nameWrap.contains(document.activeElement)) document.activeElement.blur();
 }
-nameBox.addEventListener('keydown', (e) => {
+nameWrap.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') closeName(true);
   else if (e.key === 'Escape') closeName(false);
 });
-nameBox.addEventListener('blur', () => closeName(true));
+// Leaving the box saves it, as before; moving between the name and the checkbox does not.
+nameWrap.addEventListener('focusout', (e) => { if (!nameWrap.contains(e.relatedTarget)) closeName(true); });
+// A click on the checkbox's label would blur the name first and close the box; keep focus in the name instead.
+nameWrap.querySelector('label').addEventListener('mousedown', (e) => e.preventDefault());
+
+// The start point (#107): one at a time, so marking one unmarks any other. A change is the landmark re-posted with its
+// id, so it keeps its place in the undo order, as a rename does. S toggles it on the point nearest the pointer.
+const START_PICK_MM = 10;
+let pointerAt = null; // the mouse over the page, client px
+function setStart(id, on) {
+  const changed = landmarks.filter((l) => !!l.start !== (on && l.id === id)).map((l) => {
+    const { start, ...rest } = landmarkOf(l);
+    return { type: 'landmark', ...rest, ...(on && l.id === id ? { start: true } : {}) };
+  });
+  for (const mark of changed) { setLandmarks(B.upsertById(landmarks, mark)); post(mark); }
+}
+function toggleStartNear() {
+  if (!pointerAt) return;
+  const l = B.landmarkAt(landmarks, B.toMm(view, pointerAt.x, pointerAt.y), START_PICK_MM);
+  if (l) setStart(l.id, !l.start);
+}
+
+// Instructions (#107): Enter posts {type:'instruction', id, text, by}. The relay keeps the latest and the phone says
+// it aloud; the log shows it Sent until the phone reports saying it. Keys typed here are text, not board shortcuts.
+const tell = document.getElementById('tell'), tellText = document.getElementById('tellText');
+tell.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = B.cleanInstruction(tellText.value);
+  if (!text) return;
+  const ins = { type: 'instruction', id: 'say-' + Date.now(), text, by: 'tutor' };
+  onInstruction(ins);
+  post(ins);
+  tellText.value = '';
+});
+tellText.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') tellText.blur(); });
 
 c.addEventListener('pointerdown', (e) => {
   if (pending) { closeName(true); return; }
@@ -383,6 +513,7 @@ c.addEventListener('pointerdown', (e) => {
   upsert(mine);
   sendMine();
 });
+addEventListener('pointermove', (e) => { pointerAt = { x: e.clientX, y: e.clientY }; });
 c.addEventListener('pointermove', (e) => {
   if (!mine) return;
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
@@ -426,6 +557,7 @@ for (const [btn, act] of buttons) {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => { closeName(true); act(); });
 }
+earlier.querySelector('summary').addEventListener('mousedown', (e) => e.preventDefault());
 addEventListener('keydown', (e) => {
   if (e.key === 'Shift') { setStraight(true); return; }
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || pending) return;
@@ -433,6 +565,7 @@ addEventListener('keydown', (e) => {
   if (k === 'u') undo();
   else if (k === 'c') clearBoard();
   else if (k === 'l') setPlacing(!placing);
+  else if (k === 's') toggleStartNear();
   else if (k === 'd' || k === 'escape') setPlacing(false);
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });
@@ -479,7 +612,7 @@ function drawTrail(now) {
     if (a.gap || b.gap) continue;
     const age = Math.min(1, (now - b.t) / TRAIL_MS);
     const step = B.trailStep(age);
-    ctx.strokeStyle = B.mixHex(COL.trail, COL.paper, step * step);
+    ctx.strokeStyle = B.mixHex(COL.trail, COL.paper, TRAIL_FADE0 + (1 - TRAIL_FADE0) * step * step);
     ctx.lineWidth = TRAIL_MM + (TRAIL_TAIL_MM - TRAIL_MM) * age;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
@@ -527,7 +660,7 @@ function drawCursor(now) {
   if (k <= 0) return;
   const { x, y } = finger.cur;
   ctx.beginPath();
-  ctx.arc(x, y, (CURSOR_MM + CURSOR_BORDER_MM + 0.35) * k, 0, Math.PI * 2);
+  ctx.arc(x, y, (CURSOR_MM + CURSOR_BORDER_MM + CURSOR_EDGE_MM) * k, 0, Math.PI * 2);
   ctx.fillStyle = COL.ink;
   ctx.fill();
   ctx.beginPath();
@@ -543,6 +676,28 @@ function drawCursor(now) {
 // then filled), and the name beside it with a paper halo so it stays readable over ink. Flat colours only.
 const LM_DOT_MM = 1.9, LM_FONT_MM = 3.6, CAP_FONT_MM = 4.4;
 const FONT = (mm) => `700 ${mm}px 'Atkinson Hyperlegible', system-ui, sans-serif`;
+// The start point (#107) carries a small ink pennant on its dot, a map's start flag. Its outline counts as ink when the
+// name's side is chosen, so the name never sits on the flag.
+const FLAG = { pole: 4.6, w: 3.6, h: 2.8 };
+function flagPoints(l) {
+  const top = l.y - LM_DOT_MM - FLAG.pole, out = [];
+  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) out.push({ x: l.x + FLAG.w * i / 4, y: top + FLAG.h * j / 4 });
+  for (let j = 0; j <= 4; j++) out.push({ x: l.x, y: top + FLAG.pole * j / 4 });
+  return out;
+}
+function drawFlag(l) {
+  const y0 = l.y - LM_DOT_MM, top = y0 - FLAG.pole;
+  const shape = () => { ctx.beginPath(); ctx.moveTo(l.x, top); ctx.lineTo(l.x + FLAG.w, top + FLAG.h / 2); ctx.lineTo(l.x, top + FLAG.h); ctx.closePath(); };
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = COL.paper; // halo, so the flag reads over ink
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(l.x, y0 - 0.8); ctx.lineTo(l.x, top); ctx.stroke(); // clear of the dot's outline
+  shape(); ctx.stroke();
+  ctx.strokeStyle = COL.ink;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.moveTo(l.x, y0); ctx.lineTo(l.x, top); ctx.stroke();
+  shape(); ctx.fillStyle = COL.ink; ctx.fill();
+}
 function drawLandmarks() {
   if (!landmarks.length) return;
   ctx.textBaseline = 'middle';
@@ -569,10 +724,11 @@ function drawLandmarks() {
       ctx.fillStyle = COL.paper;
       ctx.fill();
     }
+    if (l.start) drawFlag(l);
     const name = B.cleanName(l.name);
     if (!name) continue;
     const w = ctx.measureText(name).width, gap = B.LANDMARK_MM + 0.8;
-    const at = B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, ink);
+    const at = B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, l.start ? ink.concat(flagPoints(l)) : ink);
     ctx.textAlign = at.align;
     ctx.lineWidth = 1.4;
     ctx.strokeStyle = COL.paper;
@@ -617,8 +773,9 @@ function drawCaption(now) {
 const statusEl = document.getElementById('status'), statusText = document.getElementById('statusText'), statusSub = document.getElementById('statusSub');
 let statusKey = '';
 function showStatus(now) {
-  const phoneLive = now - lastPhoneAt < PHONE_FRESH_MS;
-  const s = B.connectionStatus(tutorOnline && es.readyState === 1, phoneLive, finger.down);
+  const link = B.phoneLink(now - lastPhoneAt, phoneLeft);
+  const phoneLive = link === 'connected';
+  const s = B.connectionStatus(tutorOnline && es.readyState === 1, link, finger.down);
   const key = s.tone + '|' + s.text + '|' + s.sub;
   if (key !== statusKey) {
     statusKey = key;

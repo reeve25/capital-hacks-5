@@ -116,15 +116,16 @@
       this.keepNode();
     }
 
-    // Landmarks as the relay sends them: {id, x, y, name}. Each becomes a node of kind 'landmark'.
+    // Landmarks as the relay sends them: {id, x, y, name, start?}. Each becomes a node of kind 'landmark'.
     setLandmarks(list) {
       this.landmarks = (list || []).filter((l) => l && Number.isFinite(l.x) && Number.isFinite(l.y))
-        .map((l) => ({ x: l.x, y: l.y, kind: 'landmark', id: l.id, name: typeof l.name === 'string' ? l.name : '' }));
+        .map((l) => ({ x: l.x, y: l.y, kind: 'landmark', id: l.id, name: typeof l.name === 'string' ? l.name : '', start: !!l.start }));
       this.keepNode();
     }
 
     // The relay resends the scene on every edit, so the node under a resting finger is kept if it is still
-    // there; otherwise the next refresh would cue it (and speak a landmark) again with no movement.
+    // there; otherwise the next refresh would cue it (and speak a landmark) again with no movement. Marking it the
+    // start (#107) keeps it too: the finger has not moved, so nothing is announced.
     keepNode() {
       const n = this.node;
       if (!n) return;
@@ -184,7 +185,7 @@
     }
 
     nodeCommand(node, level) {
-      if (node.kind === 'landmark') return { type: 'node', kind: 'landmark', level, name: node.name };
+      if (node.kind === 'landmark') return { type: 'node', kind: 'landmark', level, name: node.name, ...(node.start ? { start: true } : {}) };
       return { type: 'node', kind: node.kind, level };
     }
 
@@ -302,6 +303,52 @@
     };
   }
 
+  // What the phone says on reaching a landmark (#107): its name, led by "Start:" on the tutor's start point.
+  const landmarkLine = (name, start) => (start ? `Start: ${name}` : name);
+  // The start point the tutor marked, or null. One is meant; if two arrive, the newest (last in relay order) wins.
+  function startMark(landmarks) {
+    let out = null;
+    for (const l of landmarks || []) if (l && l.start && typeof l.name === 'string' && l.name.trim()) out = l;
+    return out;
+  }
+
+  // What a two-finger double tap says (#107): the tutor's latest instruction, led by the start point when there is
+  // one ("Start: School. Follow the path to the library."), else the last line said. {text, kind, id?} or null.
+  function replayLine(instruction, start, lastSaid) {
+    if (instruction && instruction.text) {
+      const text = start && start.name ? `${landmarkLine(start.name.trim(), true)}. ${instruction.text}` : instruction.text;
+      return { text, kind: 'instruction', id: instruction.id };
+    }
+    return lastSaid && lastSaid.text ? lastSaid : null;
+  }
+
+  // Whether arriving at a landmark should speak its name (#107). Not when the finger left that same landmark under
+  // reMs ago: a finger wobbling across the 5 mm leave edge, or lifting and landing on it again, hears it once and
+  // feels the arrival buzz each time. Keys are the caller's (id and name, so a renamed point speaks again).
+  function landmarkVoice(opts = {}) {
+    const reMs = opts.reMs ?? 3000;
+    const left = new Map(); // key -> when the finger last left it
+    return {
+      enter(key, now) {
+        const t = left.get(key);
+        left.delete(key);
+        return !(t != null && now - t < reMs);
+      },
+      leave(key, now) { left.set(key, now); },
+    };
+  }
+
+  // Who may cut whom when a line is said while others are still talking (kinds in speaking order). speechSynthesis
+  // can only cancel everything, so this answers whether to cancel, and which cut line (an index, or -1) to say again
+  // right after the new one. A landmark name is about where the finger is now, so it cuts everything, but an
+  // instruction it cuts is said again after it: the tutor's words always arrive whole, and an instruction never cuts a
+  // name mid-word. An instruction or a status line waits behind any other kind, and replaces only its own kind.
+  // With nothing talking the answer is still cancel, as before #107: a cancel on an idle engine is harmless.
+  function speechCut(talking, kind) {
+    if (kind === 'landmark') return { cancel: true, resay: talking.lastIndexOf('instruction') };
+    return { cancel: talking.every((k) => k === kind), resay: -1 };
+  }
+
   // Test shapes, 46 mm across, centred on the board.
   const C = { x: BOARD.w / 2, y: BOARD.h / 2 }, R = 23;
   const at = (u, v) => ({ x: C.x + u * R, y: C.y + v * R });
@@ -321,7 +368,8 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue, drawingKey, doubleTapper };
+  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue, drawingKey, doubleTapper,
+    landmarkLine, startMark, replayLine, landmarkVoice, speechCut };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

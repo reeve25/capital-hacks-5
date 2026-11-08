@@ -371,7 +371,8 @@ def cmd_frames(a):
 
 # ---------- story: the annotated take ----------
 # A judge sees the clip for a few seconds, often cropped onto a slide, so every panel carries its own role header and
-# its own simulation tag, and the middle column says what caused each change, at the times the take logged.
+# its own simulation tag. The interaction gets the space: the middle column holds one short sentence per beat (at the
+# times the take logged) and, only while the tutor uses a control, a live inset of it.
 
 FACES = {
     "bold": ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
@@ -379,15 +380,19 @@ FACES = {
              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
     "reg": ("C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
 }
-# The stage's own colours (feelink/stage-board.js COL) for the legend, plus the layout's text and frame colours.
+# The layout's text, tag and frame colours (teal and amber are the stage's own, feelink/stage-board.js COL).
 C = {"bg": (14, 22, 32), "text": (232, 237, 242), "muted": (150, 166, 181), "teal": (43, 179, 163), "amber": (255, 176, 32),
-     "rule": (38, 51, 63), "card": (23, 34, 48), "tag": (36, 27, 8), "felt": (13, 112, 100), "unfelt": (179, 185, 193),
-     "hidden": (195, 196, 195), "paper": (251, 250, 246), "ink": (27, 34, 43), "bezel": (30, 40, 52), "edge": (70, 86, 104),
-     "tutor": (124, 196, 255), "student": (196, 178, 255), "white": (255, 255, 255)}
-PANELS = {"stage": (0, 600), "mid": (600, 1320), "phone": (1320, 1920)}  # x ranges of the three columns
-DEV_Y, DEV_H = 108, 780  # board window and phone screen: same height, side by side
-TAG_Y, TAG_H = 970, 96  # simulation tag box inside each side panel
-SLOT = (640, 432, 640, 300)  # inset slot in the middle column: x, y, w, h
+     "rule": (38, 51, 63), "card": (23, 34, 48), "tag": (36, 27, 8), "bezel": (30, 40, 52), "edge": (70, 86, 104),
+     "tutor": (124, 196, 255), "student": (196, 178, 255)}
+PANELS = {"stage": (0, 680), "mid": (680, 1240), "phone": (1240, 1920)}  # x ranges of the three columns
+# Rows, top to bottom. The board window and phone screen are height-bound, so they get every row the text does not need:
+# header (30 px) and subheader (20 px) above DEV_Y; below, the phone's speech bubble, then each side panel's simulation
+# tag (head plus one qualifier line) ending TAG_BOTTOM. The board has no bubble under it, so it runs down to the bubble's
+# bottom edge; the phone screen stops above the bubble.
+DEV_Y, BUB_H, TAG_BOTTOM = 88, 40, OUT_H - 10
+TAG = dict(size=17, head=19, pad=8)  # tag_box sizes for the story's side panels
+SLOT = (712, 262, 496, 340)  # inset slot in the middle column: x, y, w, h
+CAP = 32  # caption size in the 1920 master (about 21 px in the 1280 GIF); each caption may wrap to two lines at most
 
 
 def hexc(c):
@@ -514,17 +519,18 @@ class Texts:
         return y
 
 
-def tag_box(plate, texts, x, y, w, lines, size=18, head=22, bottom=None):
+def tag_box(plate, texts, x, y, w, lines, size=18, head=22, bottom=None, pad=12):
     """The simulation tag: an amber-edged box, the first line in amber capitals, the rest in body text. With bottom, the
-    box grows upward from there, so a longer tag never runs off the frame."""
+    box grows upward from there, so a longer tag never runs off the frame. Returns the box height."""
     body = [ln for raw in lines[1:] for ln in wrap(raw, size, w - 32)]
-    h = 18 + head + 6 + len(body) * round(size * 1.35) + 10
+    lh = round(size * 1.35)
+    h = 2 * pad + head + 10 + len(body) * lh
     if bottom is not None:
         y = bottom - h
     plate.rect(x, y, w, h, C["tag"], 10)
     plate.outline(x, y, w, h, 10, 2, C["amber"])
-    texts.add(lines[0], x + 16, y + 12, head, C["amber"], "bold")
-    texts.block(body, x + 16, x + w - 16, y + 18 + head + 4, size, C["text"], lh=round(size * 1.35))
+    texts.add(lines[0], x + 16, y + pad, head, C["amber"], "bold")
+    texts.block(body, x + 16, x + w - 16, y + pad + head + 10, size, C["text"], lh=lh)
     return h
 
 
@@ -534,60 +540,49 @@ def check_inside(what, box, x0, x1):
     assert x0 <= bx and bx + bw <= x1, f"{what} at x {bx}..{bx + bw} leaves its panel {x0}..{x1}"
 
 
-def story_plates(spec, tmp, texts, board_win, screen):
-    """The base plate (under the video) and the top plate (phone frame over the screen's corners)."""
+def story_plates(spec, tmp, texts, crop, phone_wh):
+    """The layout, the base plate (under the video) and the top plate (phone frame over the screen's corners). Returns
+    the board window, phone screen and speech bubble rectangles."""
     base, top = Plate(OUT_W, OUT_H, C["bg"]), Plate(OUT_W, OUT_H)
     for x in (PANELS["mid"][0], PANELS["mid"][1]):
         base.rect(x, 24, 1, OUT_H - 48, C["rule"])
-    # Headers and tags inside the two side panels.
+    # Headers and tags inside the two side panels. A tag is its head plus one qualifier line, so it stays short.
+    tag_top = OUT_H
     for key in ("stage", "phone"):
         x0, x1 = PANELS[key]
         title, sub = spec["headers"][key]
-        for what, t, size, face in (("header", title, 34, "bold"), ("subheader", sub, 22, "reg")):
+        for what, t, size, face in (("header", title, 30, "bold"), ("subheader", sub, 20, "reg")):
             check_inside(f"{key} {what}", ((x0 + x1) / 2 - text_w(t, size, face) / 2, 0, text_w(t, size, face), 0), x0, x1)
-        texts.add(title, f"{(x0 + x1) // 2}-tw/2", 22, 34, C["text"], "bold")
-        texts.add(sub, f"{(x0 + x1) // 2}-tw/2", 68, 22, C["muted"])
-        box = (x0 + 16, TAG_Y, x1 - x0 - 32, TAG_H)
+        texts.add(title, f"{(x0 + x1) // 2}-tw/2", 10, 30, C["text"], "bold")
+        texts.add(sub, f"{(x0 + x1) // 2}-tw/2", 46, 20, C["muted"])
+        box = (x0 + 16, 0, x1 - x0 - 32, 0)
         check_inside(f"{key} tag", box, x0, x1)
-        h = tag_box(base, texts, box[0], box[1], box[2], spec["tags"][key], bottom=OUT_H - 12)
-        assert OUT_H - 12 - h >= TAG_Y - 8, f"{key} tag is {h} px tall and would cover the phone's speech line; shorten it"
+        tag = spec["tags"][key]
+        assert len(tag) == 2 and len(wrap(tag[1], TAG["size"], box[2] - 32)) == 1, \
+            f"{key} tag must be a head and one qualifier line; shorten {tag[1:]}"
+        tag_top = min(tag_top, TAG_BOTTOM - tag_box(base, texts, box[0], 0, box[2], tag, bottom=TAG_BOTTOM, **TAG))
+    # The phone screen stops above the speech bubble; the board, with nothing under it, runs down to the bubble's bottom.
+    bz = 12  # phone bezel
+    assert DEV_Y - bz >= 46 + round(20 * 1.35), "the subheader would touch the phone frame"
+    bub = (PANELS["phone"][0] + 24, tag_top - 8 - BUB_H, PANELS["phone"][1] - PANELS["phone"][0] - 48, BUB_H)
+    bw, bh = fit(crop[2], crop[3], PANELS["stage"][1] - PANELS["stage"][0] - 48, bub[1] + BUB_H - 4 - DEV_Y)
+    board_win = (sum(PANELS["stage"]) // 2 - bw // 2, DEV_Y, bw, bh)
+    sw, sh = fit(*phone_wh, PANELS["phone"][1] - PANELS["phone"][0] - 48 - 2 * bz, bub[1] - 8 - bz - DEV_Y)
+    screen = (sum(PANELS["phone"]) // 2 - sw // 2, DEV_Y, sw, sh)
     # The board window's edge, and the phone: a frame with rounded screen corners, camera hole and side buttons.
-    bx, by, bw, bh = board_win
-    top.outline(bx - 4, by - 4, bw + 8, bh + 8, 14, 2, C["edge"])
-    sx, sy, sw, sh = screen
-    bz = 12
+    top.outline(board_win[0] - 4, DEV_Y - 4, bw + 8, bh + 8, 14, 2, C["edge"])
+    sx, sy = screen[:2]
     top.rect(sx - bz, sy - bz, sw + 2 * bz, sh + 2 * bz, C["bezel"], 46, hole=(sx, sy, sw, sh, 32))
     top.outline(sx - bz, sy - bz, sw + 2 * bz, sh + 2 * bz, 46, 2, C["edge"])
     top.rect(sx + sw / 2 - 7, sy + 12, 14, 14, (5, 8, 11), 7)
     top.outline(sx + sw / 2 - 8, sy + 11, 16, 16, 8, 2, (40, 50, 62))
     for y0, h in ((150, 70), (250, 110)):
         top.rect(sx + sw + bz, sy + y0, 5, h, C["edge"], 2)
-    # Middle column: the key. Swatches drawn like the stage draws them.
-    mx = PANELS["mid"][0] + 40
-    texts.add("WHAT HAPPENS", mx, 30, 20, C["muted"], "bold")
-    ly = 784
-    texts.add("KEY (TUTOR'S BOARD)", mx, ly, 18, C["muted"], "bold")
-    # The board's own legend words (feelink/stage-board.js), larger, each with what it means.
-    rows = [("felt", "Covered: ink the student's finger passed over"), ("unfelt", "Unexplored: drawn, not passed over"),
-            ("hidden", "Hidden by tutor: shown with Next"), ("dot", "Student's finger, live"),
-            ("ring", "Vibration requested: a request, not proof")]
-    for i, (kind, label) in enumerate(rows):
-        y = ly + 34 + i * 46
-        cy = y + 15
-        if kind in ("felt", "unfelt"):
-            base.rect(mx, cy - 5, 60, 10, C[kind], 5)
-        elif kind == "hidden":
-            for k in range(4):
-                base.rect(mx + k * 17, cy - 4, 10, 8, C[kind], 0)
-        elif kind == "dot":
-            base.rect(mx + 14, cy - 16, 32, 32, C["ink"], 16)
-            base.rect(mx + 17, cy - 13, 26, 26, C["white"], 13)
-            base.rect(mx + 21, cy - 9, 18, 18, C["amber"], 9)
-        else:
-            base.outline(mx + 12, cy - 18, 36, 36, 18, 3, C["amber"])
-        texts.add(label, mx + 80, y, 21, C["text"])
+    # Middle column: its heading. The captions and insets are timed, so cmd_story adds them.
+    texts.add("WHAT HAPPENS", SLOT[0], 14, 20, C["muted"], "bold")
     base.save(os.path.join(tmp, "base.png"))
     top.save(os.path.join(tmp, "top.png"))
+    return board_win, screen, bub
 
 
 def fit(w, h, bw, bh):
@@ -595,38 +590,54 @@ def fit(w, h, bw, bh):
     return int(w * s) // 2 * 2, int(h * s) // 2 * 2
 
 
+def from_caption(spec, n):
+    """The same take cut to start 0.8 s before caption n (1-based): the clips seek later and every time shifts; earlier
+    captions, and insets and speech over by then, are dropped, so the step counter restarts at 1. No stills."""
+    t = max(0.0, spec["captions"][n - 1]["t0"] - 0.8)
+
+    def shift(items):
+        return [dict(k, t0=round(max(0.0, k["t0"] - t), 3), t1=round(k["t1"] - t, 3)) for k in items if k["t1"] > t]
+    caps = shift(spec["captions"][n - 1:])
+    caps[0]["t0"] = 0.0  # the first caption is up from the first frame
+    return dict(spec, dur=round(float(spec["dur"]) - t, 3), stage_start=spec.get("stage_start", 0) + t,
+                phone_start=spec.get("phone_start", 0) + t, captions=caps, insets=shift(spec["insets"]),
+                speech=shift(spec["speech"]), stills=[])
+
+
 def cmd_story(a):
     ffmpeg, _ = tools()
     with open(a.spec, encoding="utf-8") as f:
         spec = json.load(f)
+    if a.from_caption:
+        spec = from_caption(spec, a.from_caption)
     stage, phone = probe(spec["stage"]), probe(spec["phone"])
     dur = float(spec["dur"])
+    for k in spec["captions"] + spec["insets"] + spec["speech"]:
+        assert 0 <= k["t0"] < k["t1"] <= dur + 0.01, f"{k} is not inside the take's 0..{dur} s"
     os.makedirs(a.out_dir, exist_ok=True)
     out_dir = os.path.abspath(a.out_dir)
     tmp = tempfile.mkdtemp(prefix="feelink-story-")
     texts = Texts(tmp)
 
-    # Board window: the board plus a 12 px rim, scaled to the device height and centred in the stage panel.
+    # Board window: the board plus a 12 px rim, scaled to the height the layout leaves and centred in the stage panel.
     x, y, w, h = spec["board"]
     m = 12
     crop = (max(0, x - m), max(0, y - m), w + 2 * m, h + 2 * m)
-    bw, bh = fit(crop[2], crop[3], 560, DEV_H)
-    board_win = (sum(PANELS["stage"]) // 2 - bw // 2, DEV_Y, bw, bh)
-    sw, sh = fit(phone["display_w"], phone["display_h"], 520, DEV_H)
-    screen = (sum(PANELS["phone"]) // 2 - sw // 2, DEV_Y, sw, sh)
-    story_plates(spec, tmp, texts, board_win, screen)
+    board_win, screen, bub = story_plates(spec, tmp, texts, crop, (phone["display_w"], phone["display_h"]))
+    bw, bh, sw, sh = board_win[2], board_win[3], screen[2], screen[3]
+    print(f"layout: board window {bw}x{bh}, phone screen {sw}x{sh}")
 
-    # Captions at the logged times: who acted, the cause, then the effect.
-    x0, x1 = PANELS["mid"][0] + 40, PANELS["mid"][1] - 40
+    # Captions at the logged times: who acts, then one short sentence (the bubble under the phone shows what it said).
+    x0, x1 = SLOT[0], SLOT[0] + SLOT[2]
     n = len(spec["captions"])
     for i, c in enumerate(spec["captions"]):
         when = (c["t0"], c["t1"])
-        texts.add(f"STEP {i + 1} OF {n}", f"{x1}-tw", 30, 20, C["muted"], "bold", when)
+        assert len(wrap(c["text"], CAP, x1 - x0, "semi")) <= 2, f"caption {i + 1} runs past two lines: {c['text']}"
+        texts.add(f"STEP {i + 1} OF {n}", f"{x1}-tw", 14, 20, C["muted"], "bold", when)
         who = "TUTOR" if c["who"] == "tutor" else "STUDENT (SCRIPTED FINGER)"
-        texts.add(who, x0, 70, 22, C[c["who"]], "bold", when)
-        yy = texts.block([c["cause"]], x0, x1, 106, 30, C["text"], "semi", lh=40, when=when)
-        texts.block(["\u2192 " + c["effect"]], x0, x1, yy + 8, 30, C["teal"], "semi", lh=40, when=when)
-    # Insets: a live crop of the tutor control in use (or the session panel), from the same stage frames.
+        texts.add(who, x0, 56, 24, C[c["who"]], "bold", when)
+        texts.block([c["text"]], x0, x1, 96, CAP, C["text"], "semi", lh=42, when=when)
+    # Insets: a live crop of the tutor control, only while it is in use, from the same stage frames.
     insets = []
     for k in spec["insets"]:
         # A 10 px margin, so the control's own edge and heading are not cut by the crop.
@@ -636,9 +647,8 @@ def cmd_story(a):
         iw, ih = fit(k["rect"][2], k["rect"][3], SLOT[2], SLOT[3])
         ix, iy = SLOT[0] + (SLOT[2] - iw) // 2, SLOT[1] + (SLOT[3] - ih) // 2
         insets.append((k, iw, ih, ix, iy))
-        texts.add(k["title"], x0, SLOT[1] - 34, 18, C["muted"], "bold", (k["t0"], k["t1"]))
+        texts.add(k["title"], x0, SLOT[1] - 32, 18, C["muted"], "bold", (k["t0"], k["t1"]))
     # What the phone said, in a bubble under the phone: speech is sound, so it stays off the dark screen.
-    bub = (PANELS["phone"][0] + 24, screen[1] + screen[3] + 22, PANELS["phone"][1] - PANELS["phone"][0] - 48, 46)
     draws = []
     for s in spec["speech"]:
         when = f"enable='between(t,{s['t0']:.3f},{s['t1']:.3f})'"
@@ -688,9 +698,10 @@ def cmd_story(a):
         shutil.move(os.path.join(tmp, f"still-{i:02d}.png"), dst)
         print(f"still {dst} at {s['t']:.2f} s")
     make_gif(mp4, os.path.join(out_dir, a.name + ".gif"), a)
-    story_stage_cut(spec, a, out_dir)
-    if spec.get("session_rect"):
-        story_session_still(spec, a, out_dir)
+    if not a.from_caption:  # the whole-stage cut and the session still come from the full take only
+        story_stage_cut(spec, a, out_dir)
+        if spec.get("session_rect"):
+            story_session_still(spec, a, out_dir)
     shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -711,7 +722,7 @@ def story_session_still(spec, a, out_dir):
     texts.add("The tutor's view of the student, live", m, 64, 22, C["muted"])
     plate.save(os.path.join(tmp, "plate.png"))
     with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
-        f.write(f"[1:v]crop={w}:{h}:{x}:{y},scale={w * s}:{h * s}:flags=lanczos[c];[0:v][c]overlay={m}:{head},"
+        f.write(f"[1:v]setpts=PTS-STARTPTS,crop={w}:{h}:{x}:{y},scale={w * s}:{h * s}:flags=lanczos[c];[0:v][c]overlay={m}:{head},"
                 + ",".join(texts.filters) + "[v]")
     out = os.path.join(out_dir, f"{a.name}-still-6-session-panel.png")
     r = subprocess.run([ffmpeg, "-hide_banner", "-y", "-i", "plate.png",
@@ -846,6 +857,8 @@ def main():
 
     t = sub.add_parser("story", help="annotated take (headers, tags, captions, insets, stills) from a spec JSON")
     t.add_argument("spec", help="JSON written by tools/record/sim_take.mjs (see README section 8)")
+    t.add_argument("--from-caption", type=int, metavar="N",
+                   help="pitch cut: start 0.8 s before caption N, renumber the steps, no stills or stage cut")
     output_args(t)
     t.set_defaults(fn=cmd_story)
 

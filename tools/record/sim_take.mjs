@@ -12,8 +12,9 @@
 // the student follows it there.
 // Run from the repo root (Python, Chrome, Node 22+, ffmpeg; CHROME=<path> if Chrome is elsewhere):
 //   node tools/record/sim_take.mjs [--name sim-route-lesson]
-// Raw clips and the spec (event times, captions) go to recordings/raw/; the composed MP4 and GIF, the whole stage window
-// as NAME-stage, and the stills to recordings/out/. Re-compose without Chrome: python tools/record/compose.py story SPEC.
+// Raw clips and the spec (event times, captions) go to recordings/raw/; the composed MP4 and GIF, the pitch cut from the
+// tutor's reveal on (NAME-pitch), the whole stage window (NAME-stage) and the stills to recordings/out/. Re-compose
+// without Chrome: python tools/record/compose.py story SPEC (add --from-caption 3 for the pitch cut).
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -347,32 +348,28 @@ try {
   const say = (text, after = 0) => { const s = saidLog.find((x) => x.text === text && x.t >= after); if (!s) throw new Error(`no "${text}" in the speech log`); return s.t; };
   const tStart = say('Start: Classroom'), tUpd = say('Line and label added.', m.next), tOffice = say('Office', m.next), tLib = say('Library', m.follow);
   const nextEnd = +Math.max(m.next + 1.8, tUpd + 0.9).toFixed(3);
-  const session = { title: "ON THE TUTOR'S LAPTOP: SESSION PANEL", rect: rects.now };
   const [tl, bd, se, cr, pr, nw] = [rects.tools, rects.board, rects.session, rects.create, rects.present, rects.now];
   const spec = {
     stage: clips.stage, phone: clips.phone, dur: D, board: bd, tools: tl, session: se, session_rect: nw, marks: m,
     headers: { stage: ["Tutor's laptop (live stage)", 'A sighted tutor draws and talks'],
       phone: ["Student's phone", 'Screen stays dark on purpose: touch, buzz, voice'] },
-    tags: { stage: ['DESKTOP SIMULATION', "Tutor's clicks and strokes replayed by a script; in class a person does this and talks."],
-      phone: ['DESKTOP SIMULATION', 'Scripted finger; buzz and voice stubbed. Real screen stays dark; finger dot and rings drawn on top.'],
+    // One qualifier line each. The stage's also says the tutor is scripted: a crop of the board alone must not pass a
+    // script's clicks and strokes off as a person's.
+    tags: { stage: ['DESKTOP SIMULATION', 'Scripted tutor and touch · simulated vibration and speech.'],
+      phone: ['DESKTOP SIMULATION', 'Scripted touch · simulated vibration and speech.'],
       whole: ['DESKTOP SIMULATION', 'Scripted tutor and finger; no phone; buzz and speech stubbed.'] },
+    // One short sentence per beat: the bubble under the phone already shows what it said. The finger stays "scripted".
     captions: [
-      { t0: 0, t1: m.onLine, who: 'student', cause: 'A blind student learns a school route from a sighted tutor. After Connect, a script moves the finger toward the line.',
-        effect: 'The phone taps faster near the line (guide taps, not yet tried on a real phone).' },
-      { t0: m.onLine, t1: m.corner, who: 'student', cause: 'The scripted finger reaches the line and moves up to the start.',
-        effect: 'The phone buzzes on the ink and says “Start: Classroom”.' },
-      { t0: m.corner, t1: m.penGlide, who: 'tutor', cause: 'The scripted finger stops at the corner. The tutor sees it on the laptop and clicks Next.',
-        effect: 'The next leg appears (“Line and label added”); the finger follows it to “Office”.' },
-      { t0: m.penGlide, t1: m.follow, who: 'tutor', cause: 'The tutor draws the last leg live and names it Library.',
-        effect: 'The phone says “Line added”, then “Label added”.' },
-      { t0: m.follow, t1: D, who: 'student', cause: 'The scripted finger follows the new leg to its end.', effect: 'The phone says “Library”.' },
+      { t0: 0, t1: m.onLine, who: 'student', text: 'A simulated tutor–student route lesson.' },
+      { t0: m.onLine, t1: m.corner, who: 'student', text: 'The scripted finger traces the first segment.' },
+      { t0: m.corner, t1: m.penGlide, who: 'tutor', text: 'Tutor clicks Next to reveal the next segment.' },
+      { t0: m.penGlide, t1: m.follow, who: 'tutor', text: 'Tutor extends the route live while the student waits.' },
+      { t0: m.follow, t1: D, who: 'student', text: 'The scripted finger follows the new segment to Library.' },
     ],
+    // A live inset of the tutor's control only while it is in use.
     insets: [
-      { t0: 0, t1: m.nextGlide - 0.3, ...session },
-      { t0: m.nextGlide - 0.3, t1: nextEnd, title: "ON THE TUTOR'S LAPTOP: THE NEXT BUTTON", rect: pr },
-      { t0: nextEnd, t1: m.penGlide - 0.3, ...session },
-      { t0: m.penGlide - 0.3, t1: m.labelEnter + 1, title: "ON THE TUTOR'S LAPTOP: DRAW AND LABEL TOOLS", rect: cr },
-      { t0: m.labelEnter + 1, t1: D, ...session },
+      { t0: m.nextGlide - 0.3, t1: nextEnd, title: "TUTOR'S LAPTOP: NEXT BUTTON", rect: pr },
+      { t0: m.penGlide - 0.3, t1: m.labelEnter + 1, title: "TUTOR'S LAPTOP: DRAW AND LABEL", rect: cr },
     ],
     speech: saidLog.map((s, i) => ({ t0: s.t, t1: +Math.min(s.end + 0.3, saidLog[i + 1]?.t ?? D).toFixed(3), text: s.text })),
     stills: [{ t: tStart + 0.4, name: '1-start' }, { t: Math.min(tUpd + 0.4, nextEnd - 0.2), name: '2-next' }, { t: tOffice + 0.4, name: '3-office' },
@@ -390,8 +387,11 @@ try {
   const specPath = join(raw, `${stamp}-${NAME}-spec.json`);
   writeFileSync(specPath, JSON.stringify(spec, null, 1));
   console.log('spec:', specPath);
-  if (process.argv.includes('--skip-compose')) console.log('compose skipped; run: python tools/record/compose.py story', specPath, '--name', NAME, '--gif-width', GIF_W);
-  else py(['story', specPath, '--name', NAME, '--gif-width', GIF_W]);
+  // The full take, then the pitch cut: from just before the tutor's reveal (caption 3) to the end.
+  const runs = [['story', specPath, '--name', NAME, '--gif-width', GIF_W],
+    ['story', specPath, '--name', NAME + '-pitch', '--gif-width', GIF_W, '--from-caption', '3']];
+  if (process.argv.includes('--skip-compose')) for (const r of runs) console.log('compose skipped; run: python tools/record/compose.py', ...r);
+  else for (const r of runs) py(r);
 } catch (e) {
   console.error('sim_take:', e.message || e);
   process.exitCode = 1;

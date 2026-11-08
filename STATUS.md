@@ -2,10 +2,10 @@
 
 One screen, current state only; replace lines, never append. Updated at milestones (tag, newly working interaction, blocker). History: `research/status-history-2026-11-06-07.md`. Decisions: `DECISIONS.md`.
 
-## Snapshot (Sat Nov 7, 21:45 PT)
+## Snapshot (Sat Nov 7, 23:13 PT)
 - **Product:** FeelInk. A sighted tutor draws on the laptop stage (`/stage`); a blind student feels the drawing as vibration on an ordinary Android phone (`/feel`) and hears label names and the tutor's spoken instructions. Human-led, in-person. Pitch Sunday: 4-minute slides, no live demo, recorded takes (plan `.plans/feelink-demo-plan-2026-11-07.md`; its process notes are superseded by CLAUDE.md).
 - **Build:** FeelInk code on main is `66d9ef2` (felt-share wording) on top of `bbec5eb` (grouped tutor tools #145, label fix #148, Coordinate plane preset #147). Known-good: **tag `demo-2` = `54e8d50`**; `demo-1` = `c64269c`.
-- **Lead:** Fable session `reeve-41` on Reeve's laptop. It owns `feelink/`, the relay, the keepalive and the Pixel.
+- **Lead:** one Fable session on Reeve's laptop; handoff in `.tmp/lead-handoff.md`. Mission (Reeve, late Sat): product and demonstration assets only; the deck is assembled separately. It owns `feelink/`, the relay, the keepalive and the Pixel.
 - **Services (main checkout, logs in `.tmp/`):** relay `python -I -u feelink/server.py` pid 56416 (log `relay-20341107.log`), keepalive `tools/pixel_keepalive.py` pid 58376. Before any test, `netstat -ano | findstr :8765` shows one PID. Kill with PowerShell `Stop-Process -Id <pid> -Force`; `taskkill` from Git Bash never kills. Reload the Pixel tab: `adb forward tcp:9222 localabstract:chrome_devtools_remote`, then `node tools/pixel_tab.mjs location.href reload`.
 
 ## Can demonstrate
@@ -20,12 +20,12 @@ One screen, current state only; replace lines, never append. Updated at mileston
 ## Broken or unverified
 - Pixel off USB since 21:17:11 (adb and Windows both lost it); it drops a few times an hour, cause unknown, and `tools/usb_watch.ps1` (b1346dc) should log the next drop (unverified: its first version missed the 21:17 drop). The Coordinate plane real-device check and the recording wait on it.
 - TalkBack compatibility: untested. Educational effectiveness: unverified, a testable hypothesis. Same-network (non-USB) deployment: not demonstrated.
-- Outside feedback: substantive critical feedback from Ricardo (ACB Students, email reply to outreach) and public Reddit respondents (Reeve, 21:20). It is critique, not validation; no user trial is logged in `USERS.md`.
+- Outside feedback: one critical email reply logged anonymously in `USERS.md` (critique, not validation; no user trial). The r/AskABlindPerson replies could not be fetched automatically (reddit.com 403, old.reddit 404, mirror 502); Reeve pastes them.
 
 ## Next
-1. Pixel back on USB, then the real-Pixel Coordinate plane check (axis bumps, "Start: Origin", a plotted label spoken); tag `demo-3` if it passes. Needs the Pixel.
-2. Reeve and Nathan record takes (`tools/record/README.md`, compose `tools/record/compose.py`). Needs the Pixel.
-3. Nathan: deck, organizer questions, fact sheet. Doesn't need the Pixel.
+1. Product-first: a polished FeelInk plus clearly labelled screenshots, GIFs and MP4 clips (`tools/record/`, `tools/stage_tools_check.mjs` for headless stage runs). In progress: phone "Guide back to the line" cue (Geiger-style taps that speed up toward the nearest ink when the finger is off the line), Opus agent on branch `worktree-agent-a6e164fdaf17876df`, Emulated only; the lead reviews and squash-merges.
+2. When the Pixel is back on USB: one focused device check (demo-2 flow, Coordinate plane, guide cue), tag `demo-3` if it passes, then the real takes.
+3. Deck: Reeve and Nathan, separately; outline `.plans/feelink-deck-2026-11-07.md`, Google Slides "FeelInk Presentation" in Reeve's Drive.
 
 ## Open
 - Reeve's 19:56 message was cut off after "We want to demonstrate that user"; the rest is still wanted.

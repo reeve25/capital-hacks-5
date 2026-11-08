@@ -598,10 +598,34 @@ test('reveal: arrival numbers survive re-posts, syncs and the undo that restores
   a.clear(); // a second clear on an empty board keeps what the first one saved
   a.sync([{ id: 's1' }, { id: 's3' }], [{ id: 'm1' }, { id: 'm2' }]);
   assert.deepEqual([a.of('stroke', 's1'), a.of('landmark', 'm1'), a.of('stroke', 's3'), a.of('landmark', 'm2')], [0, 1, 3, 4]);
-  // A late joiner's first sync: an off-stroke landmark of unknown age counts as after every stroke (hidden while any is).
+  // A late joiner's first sync from a relay without seq: an off-stroke landmark of unknown age counts as after every
+  // stroke (hidden while any is).
   const late = new B.Arrivals();
   late.sync([{ id: 's1' }, { id: 's2' }], [{ id: 'm' }]);
   assert.ok(late.of('landmark', 'm') > late.of('stroke', 's2'));
+});
+
+test("reveal: the relay's seq gives a late joiner the true order of strokes and landmarks", () => {
+  const { s, m, marks, view } = route();
+  // The relay's stamps for the same route, listed apart as a sync lists them.
+  const seq = { s1: 0, 'm-school': 1, 'm-gate': 2, s2: 3, 'm-corner': 4, 'm-library': 5, s3: 6, 'm-park': 7, 'm-sign': 8 };
+  const stamped = (x) => ({ ...x, seq: seq[x.id] });
+  const late = new B.Arrivals();
+  late.add('stroke', 'old'); // whatever it numbered before is replaced by the relay's numbers
+  late.sync(s.map(stamped), marks.map(stamped));
+  const v = (upto) => B.revealView(s, marks, upto, (k, id) => late.of(k, id)).mark;
+  for (const upto of [null, 0, 1, 2]) assert.deepEqual(v(upto), view(upto).mark, 'same as a stage that watched it live, upto ' + upto);
+  assert.equal(v(1)[Object.keys(m).indexOf('gate')], true, 'the gate, placed before s2, shows at step 1');
+  // An item the relay has not stamped (the stroke being drawn) goes after everything it has; live items follow on.
+  late.sync(s.map(stamped).concat([{ id: 'mine' }]), marks.map(stamped));
+  assert.equal(late.of('stroke', 'mine'), 9);
+  late.add('landmark', 'new');
+  assert.equal(late.of('landmark', 'new'), 10);
+  assert.equal(late.of('stroke', 'old'), Infinity, 'gone from the board');
+  // bySeq puts a sync's list in arrival order when every item is stamped, and leaves an unstamped list alone.
+  assert.deepEqual(B.bySeq([{ id: 'b', seq: 3 }, { id: 'a', seq: 0 }]).map((x) => x.id), ['a', 'b']);
+  assert.deepEqual(B.bySeq([{ id: 'b' }, { id: 'a', seq: 0 }]).map((x) => x.id), ['b', 'a']);
+  assert.deepEqual(B.bySeq(undefined), []);
 });
 
 test('reveal: next, previous and all step through the strokes from the default', () => {

@@ -407,13 +407,14 @@ es.onmessage = (m) => {
   }
   if (ev.type === 'sync') {
     synced = true;
-    // The stroke being drawn keeps the relay's place for it (reveal steps count in that order), or goes last if the
-    // relay has not got it yet.
-    const list = !mine ? ev.strokes : ev.strokes.some((s) => s.id === mine.id) ? ev.strokes.map((s) => (s.id === mine.id ? mine : s))
-      : ev.strokes.concat([mine]);
-    arrivals.sync(list, ev.landmarks);
+    // In the relay's arrival order (seq). The stroke being drawn keeps the relay's place for it (reveal steps count in
+    // that order), or goes last if the relay has not got it yet.
+    const relayStrokes = B.bySeq(ev.strokes), relayMarks = B.bySeq(ev.landmarks);
+    const list = !mine ? relayStrokes : relayStrokes.some((s) => s.id === mine.id) ? relayStrokes.map((s) => (s.id === mine.id ? mine : s))
+      : relayStrokes.concat([mine]);
+    arrivals.sync(relayStrokes, relayMarks); // the relay's numbers; setStrokes then adds a stroke it has not got yet
     setStrokes(list);
-    setLandmarks(ev.landmarks);
+    setLandmarks(relayMarks);
     reveal = B.cleanReveal(ev.reveal); // absent = all
     if (ev.instruction) onInstruction(ev.instruction);
   }

@@ -326,26 +326,40 @@
     return { total, shown, hiding: true, stroke, mark };
   }
 
-  // First-arrival numbers across strokes and landmarks, which the off-stroke landmark rule needs. A sync lists the two
-  // kinds apart, so the interleaving is known only from live events: items first met in a sync are numbered strokes
-  // first, then landmarks, which puts an off-stroke landmark of unknown age after them (hidden while anything is, the
-  // cautious side). Re-posting an item keeps its number. Clear keeps the old numbers for the one undo that restores it.
+  // First-arrival numbers across strokes and landmarks, which the off-stroke landmark rule needs. Live events come in
+  // arrival order, so add() numbers them as they come; re-posting an item keeps its number. A sync lists the two kinds
+  // apart, but the relay stamps each item with `seq`, its own arrival counter: those numbers are taken as they are, and
+  // an item without one (the stroke being drawn, not yet at the relay) goes after them. A sync without seq (an older
+  // relay) cannot say, so items first met there are numbered strokes first, then landmarks: an off-stroke landmark of
+  // unknown age is hidden while anything is, the cautious side. Clear keeps the old numbers for the undo that restores it.
   class Arrivals {
     constructor() { this.seq = new Map(); this.cleared = new Map(); this.n = 0; }
     add(kind, id) { const k = kind + ':' + id; if (!this.seq.has(k)) this.seq.set(k, this.n++); }
     sync(strokes, landmarks) {
+      const items = [];
+      for (const st of strokes || []) if (st && st.id != null) items.push(['stroke:' + st.id, st.seq]);
+      for (const l of landmarks || []) if (l && l.id != null) items.push(['landmark:' + l.id, l.seq]);
       const next = new Map();
-      const take = (kind, id) => {
-        const k = kind + ':' + id;
-        next.set(k, this.seq.has(k) ? this.seq.get(k) : this.cleared.has(k) ? this.cleared.get(k) : this.n++);
-      };
-      for (const st of strokes || []) if (st && st.id != null) take('stroke', st.id);
-      for (const l of landmarks || []) if (l && l.id != null) take('landmark', l.id);
+      if (items.some(([, seq]) => Number.isFinite(seq))) {
+        let top = -1;
+        for (const [k, seq] of items) if (Number.isFinite(seq)) { next.set(k, seq); top = Math.max(top, seq); }
+        this.n = top + 1;
+        for (const [k, seq] of items) if (!Number.isFinite(seq)) next.set(k, this.n++);
+      } else {
+        for (const [k] of items) next.set(k, this.seq.has(k) ? this.seq.get(k) : this.cleared.has(k) ? this.cleared.get(k) : this.n++);
+      }
       this.seq = next;
     }
     clear() { if (this.seq.size) this.cleared = this.seq; this.seq = new Map(); }
     of(kind, id) { const v = this.seq.get(kind + ':' + id); return v == null ? Infinity : v; }
   }
+
+  // A sync's list in the relay's arrival order when every item carries seq (the relay already lists them so; this keeps
+  // the stroke index true whatever the list order). Without seq, the list as it came.
+  const bySeq = (list) => {
+    const xs = Array.isArray(list) ? list : [];
+    return xs.length && xs.every((x) => x && Number.isFinite(x.seq)) ? xs.slice().sort((a, b) => a.seq - b.seq) : xs;
+  };
 
   // The tutor's step buttons. Reveal next shows one more stroke; showing the last one returns to null (all), so the
   // board is back to the default and a stroke drawn afterwards is felt at once. With everything shown it does nothing
@@ -544,7 +558,7 @@
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
-    cleanReveal, strokeShown, revealView, Arrivals, revealStep, revealLegend,
+    cleanReveal, strokeShown, revealView, Arrivals, bySeq, revealStep, revealLegend,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;

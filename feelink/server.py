@@ -39,7 +39,15 @@ class Relay:
         # Step-through reveal (#111): how many strokes, in first-arrival order, the student may feel. None = all, the
         # default, so freehand drawing works as before. Landmarks follow their strokes on each client.
         self.reveal = None
+        # Arrival numbers (#111): each stored stroke and landmark carries `seq`, so a sync, which lists the two kinds apart,
+        # still says which came first. A landmark on no stroke needs that to know whether it came before a hidden stroke.
+        self.next_seq = 0
         self.clients = []
+
+    def take_seq(self):
+        """The next arrival number. Call with the lock held."""
+        self.next_seq += 1
+        return self.next_seq - 1
 
     def sync(self):
         """The whole board, for a client that just joined or after an undo. Call with the lock held."""
@@ -65,12 +73,16 @@ class Relay:
         with self.lock:
             kind = event.get("type")
             if kind == "stroke":
-                self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"]}
+                old = self.strokes.get(event["id"])  # a growing stroke is re-posted and keeps its number
+                self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"],
+                                             "seq": old["seq"] if old else self.take_seq()}
                 self.order.setdefault(("stroke", event["id"]))
             elif kind == "landmark":
                 mark = {"id": event["id"], "x": event["x"], "y": event["y"], "name": event.get("name", ""), "by": event.get("by")}
                 if event.get("start"):
                     mark["start"] = True  # the tutor's start point (#107); re-posting the landmark without it unmarks it
+                old = self.landmarks.get(event["id"])  # a rename or start flag keeps its number
+                mark["seq"] = old["seq"] if old else self.take_seq()
                 self.landmarks[event["id"]] = mark
                 self.order.setdefault(("landmark", event["id"]))
             elif kind == "instruction":
@@ -88,18 +100,20 @@ class Relay:
                 # Clear empties the board, not the instruction (#107): what the student was asked to do still stands,
                 # and the tutor often clears to redraw for that same instruction. Undo leaves it alone too.
                 if self.order:
-                    self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order))
+                    self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order), self.next_seq)
                 self.strokes.clear()
                 self.landmarks.clear()
                 self.order.clear()
                 self.reveal = None  # a fresh board starts fully shown; the undo that restores it does too
+                self.next_seq = 0
             elif kind == "undo" and self.order:
                 (newest, item_id), _ = self.order.popitem()  # a dict pops its last-inserted key
                 (self.strokes if newest == "stroke" else self.landmarks).pop(item_id)
             elif kind == "undo" and self.cleared:
                 # An empty board after a clear: undo restores the whole cleared board, once.
-                self.strokes, self.landmarks, self.order = self.cleared
+                self.strokes, self.landmarks, self.order, saved_seq = self.cleared
                 self.cleared = None
+                self.next_seq = max(self.next_seq, saved_seq)  # the restored items keep their numbers; new ones come after
             if kind == "undo" and self.reveal is not None and self.reveal > len(self.strokes):
                 # Undoing a shown stroke keeps the pointer at the end, never past it; undoing a hidden one moves nothing.
                 self.reveal = len(self.strokes)
@@ -193,13 +207,14 @@ def selftest():
     for ev in (s1, lib, s2):
         relay.publish(ev)
     assert drain() == [s1, lib, s2]  # relayed unchanged, in order
-    stored = lambda ev: {k: v for k, v in ev.items() if k != "type"}
-    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [stored(s1), stored(s2)], "landmarks": [stored(lib)]}
+    stored = lambda ev, seq: {**{k: v for k, v in ev.items() if k != "type"}, "seq": seq}  # as kept, with its arrival number
+    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [stored(s1, 0), stored(s2, 2)], "landmarks": [stored(lib, 1)]}
 
     # A growing stroke and a renamed landmark are re-posted with the same id and keep their places.
     relay.publish({**s1, "pts": s1["pts"] + [{"x": 6, "y": 84}]})
     relay.publish({**lib, "name": "Main library"})
     assert ids() == (["s1", "s2"], ["m1"]) and relay.landmarks["m1"]["name"] == "Main library"
+    assert (relay.strokes["s1"]["seq"], relay.landmarks["m1"]["seq"], relay.strokes["s2"]["seq"]) == (0, 1, 2)
     drain()
 
     # Undo pops the newest item of either kind: s2, then the landmark, then s1.
@@ -219,9 +234,11 @@ def selftest():
     for ev in (s1, lib):
         relay.publish(ev)
     relay.publish({"type": "clear"})
-    assert ids() == ([], [])
+    assert ids() == ([], []) and relay.next_seq == 0
     relay.publish({"type": "undo"})
     assert ids() == (["s1"], ["m1"]) and drain()[-1]["type"] == "sync"
+    # The restored items keep their numbers (s1 3, m1 4: undo never reuses one), and new ones come after them.
+    assert (relay.strokes["s1"]["seq"], relay.landmarks["m1"]["seq"], relay.next_seq) == (3, 4, 5)
     relay.publish({"type": "undo"})
     assert ids() == (["s1"], [])
     relay.publish({"type": "clear"})
@@ -265,10 +282,10 @@ def selftest():
     relay.publish(lib)
     relay.publish(s2)
     relay.publish({**lib, "start": True})
-    assert relay.landmarks["m1"] == {**stored(lib), "start": True} and list(relay.order) == [("landmark", "m1"), ("stroke", "s2")]
-    assert relay.sync()["landmarks"] == [{**stored(lib), "start": True}]
+    assert relay.landmarks["m1"] == {**stored(lib, 0), "start": True} and list(relay.order) == [("landmark", "m1"), ("stroke", "s2")]
+    assert relay.sync()["landmarks"] == [{**stored(lib, 0), "start": True}]
     relay.publish({**lib, "start": False})
-    assert relay.landmarks["m1"] == stored(lib)
+    assert relay.landmarks["m1"] == stored(lib, 0)
 
     # Step-through reveal (#111): upto is stored and relayed unchanged, and in sync only when it is not None (all).
     relay.publish({"type": "clear"})
@@ -277,6 +294,9 @@ def selftest():
         relay.publish(ev)
     drain()
     assert "reveal" not in relay.sync()
+    # A late joiner learns the interleaving from seq: the landmark sits between s1 and s2, though listed apart.
+    fresh = relay.subscribe().get_nowait()
+    assert [it["id"] for it in sorted(fresh["strokes"] + fresh["landmarks"], key=lambda it: it["seq"])] == ["s1", "m1", "s2", "s3"]
     show1 = {"type": "reveal", "upto": 1, "by": "tutor"}
     relay.publish(show1)
     assert drain() == [show1] and relay.reveal == 1 and relay.sync()["reveal"] == 1

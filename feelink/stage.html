@@ -14,10 +14,11 @@
 <aside class="panel left" aria-label="Tutor tools">
   <header class="brand">
     <svg viewBox="0 0 20 26" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="25" rx="4" fill="#fbfaf6"/><path d="M6 20.5V12h8V6.5" fill="none" stroke="#0d7064" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="6.5" r="3" fill="#ffb020" stroke="#1b222b" stroke-width="1.2"/></svg>
-    <div><h1>FeelInk <span>Studio</span></h1><p>Spatial lessons by touch</p></div>
+    <h1>FeelInk <span>Studio</span></h1>
   </header>
   <div class="panel-body">
-    <section class="group" aria-label="Drawing tools">
+    <section class="group" aria-labelledby="lessonTitle">
+      <h2 id="lessonTitle">Shape the lesson</h2>
       <div class="seg" role="group" aria-label="Tool">
         <button class="tool" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l4 4L8.5 19.5h-4v-4z"/><path d="M13 7l4 4"/></svg><span>Draw</span><kbd>D</kbd></button>
@@ -45,16 +46,6 @@
       <button class="tool quiet" id="revealAll" type="button" aria-keyshortcuts="Shift+N">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>Reveal all</span><kbd>Shift</kbd><kbd>N</kbd></button>
       <p class="say" id="stepNote" aria-live="polite"></p>
-    </section>
-    <section class="key" aria-labelledby="keyTitle">
-      <h2 id="keyTitle">On the board</h2>
-      <ul>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M5 7h9" stroke="#b3b9c1" stroke-width="2.4" stroke-linecap="round"/><path d="M14 7h9" stroke="#0d7064" stroke-width="2.4" stroke-linecap="round"/></svg>Teal where the student has felt it</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M4 9.5c4-4 8 1 13-2.5" fill="none" stroke="#6ac9bd" stroke-width="2" stroke-linecap="round"/><circle cx="19.5" cy="6.5" r="3.6" fill="#1b222b"/><circle cx="19.5" cy="6.5" r="2.9" fill="#ffffff"/><circle cx="19.5" cy="6.5" r="2.1" fill="#ffb020"/></svg>Their finger and its path</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><circle cx="14" cy="7" r="5.2" fill="none" stroke="#ffb020" stroke-width="1.4"/><circle cx="14" cy="7" r="2.2" fill="#ffb020"/></svg>A buzz on their phone</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><circle cx="9" cy="7" r="3" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/><circle cx="19.5" cy="7" r="3.3" fill="#0d7064" stroke="#1b222b" stroke-width="0.8"/><circle cx="19.5" cy="7" r="1.1" fill="#fbfaf6"/></svg>A named point, filled once spoken</li>
-        <li><svg viewBox="0 0 28 14" aria-hidden="true"><rect width="28" height="14" rx="4" fill="#fbfaf6"/><path d="M14 10V2.4l5 2.2-5 2.2" fill="#1b222b" stroke="#1b222b" stroke-width="0.9" stroke-linejoin="round"/><circle cx="14" cy="10.6" r="2.2" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/></svg><span>Start point: <kbd>S</kbd> over a point</span></li>
-      </ul>
     </section>
   </div>
 </aside>
@@ -90,7 +81,7 @@
     </form>
   </div>
 </aside>
-<div id="guide" aria-hidden="true"><div><b>Draw here</b><p>The student feels every line on their phone.</p></div></div>
+<div id="guide" aria-hidden="true"><div><b>Draw here</b></div></div>
 <div id="namebox" role="group" aria-label="Named point">
   <input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Point name" placeholder="Name this point">
   <div class="row"><label><input id="nameStart" type="checkbox">Start point</label><span>Enter saves</span></div>

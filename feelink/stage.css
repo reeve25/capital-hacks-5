@@ -57,9 +57,9 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .brand svg { width: 20px; height: 26px; flex: none; }
 h1 { font-size: var(--t-xl); line-height: 1.2; font-weight: 700; }
 h1 span { font-weight: 400; color: var(--muted); }
-.brand p { margin-top: 1px; font-size: var(--t-xs); color: var(--faint); }
 
-/* Tools. Keys are on every control, quiet until a key is the thing to learn. */
+/* The tutor's tools for shaping the lesson: what is on the board, then how much of it the student may feel. Keys are on
+   every control, quiet until a key is the thing to learn. */
 .group { display: flex; flex-direction: column; gap: var(--s-2); }
 .group + .group { margin-top: var(--s-5); padding-top: var(--s-5); border-top: 1px solid var(--line); }
 .group h2 { margin-bottom: var(--s-1); }
@@ -114,13 +114,6 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .pips:empty { display: none; }
 .meter span { font-size: var(--t-sm); line-height: 1.2; color: var(--muted); text-align: center; }
 .meter.hiding span { color: var(--text); font-weight: 700; }
-
-/* What the marks on the paper mean, drawn with the board's own colours, at the foot of the tools. */
-.key { margin-top: auto; padding-top: var(--s-5); }
-.key ul { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: 10px; }
-.key li { display: flex; align-items: center; gap: var(--s-3); font-size: var(--t-sm); line-height: 1.3; color: var(--muted); }
-.key li svg { width: 28px; height: 14px; flex: none; overflow: visible; }
-.key kbd { min-width: 18px; height: 18px; }
 
 /* The student's session: the link in the header, then the student right now, then what their phone has said. */
 .status i { position: relative; width: 10px; height: 10px; flex: none; box-sizing: border-box; border-radius: 50%;
@@ -223,7 +216,6 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
   align-items: center; justify-content: center; pointer-events: none; transition: opacity 200ms ease-out; }
 #guide div { width: 78%; margin-top: -14%; text-align: center; color: var(--ink); }
 #guide b { display: block; font-size: var(--t-2xl); line-height: 1.2; }
-#guide p { margin-top: var(--s-2); font-size: 15px; line-height: 1.45; color: var(--ink-soft); text-wrap: balance; }
 body.board-busy #guide { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .row.enter, .status[data-tone="live"] i::after { animation: none; }

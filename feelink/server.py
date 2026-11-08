@@ -5,6 +5,7 @@ Usage: python feelink/server.py [port]
        python -I feelink/server.py --selftest   offline check of the relay store
 Anyone on the same network can open these pages, so run it only while testing.
 """
+import errno
 import json
 import queue
 import socket
@@ -126,6 +127,26 @@ class Relay:
                 sync = self.sync()
                 for q in self.clients:
                     q.put(sync)
+
+
+class RelayServer(ThreadingHTTPServer):
+    """One relay per port. ThreadingHTTPServer sets SO_REUSEADDR, and on Windows that lets a second and third relay bind
+    0.0.0.0:8765 beside a stale one, so clients were split across processes holding different boards (found live,
+    Nov 7). On Windows the relay binds with SO_EXCLUSIVEADDRUSE instead, which also keeps an older relay that still sets
+    SO_REUSEADDR from binding beside it. Elsewhere SO_REUSEADDR never lets two listeners share a port and saves the
+    TIME_WAIT wait after a restart, so it stays."""
+    allow_reuse_address = sys.platform != "win32"
+
+    def server_bind(self):
+        if sys.platform == "win32":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def port_taken(e):
+    """Bind failed because something already holds the port: EADDRINUSE, or on Windows WSAEADDRINUSE (10048), or
+    WSAEACCES (10013), what Windows returns when the holder bound it exclusively."""
+    return e.errno == errno.EADDRINUSE or getattr(e, "winerror", None) in (10048, 10013)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -344,7 +365,13 @@ def main():
     if sys.argv[1:] == ["--selftest"]:
         return selftest()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    try:
+        server = RelayServer(("0.0.0.0", port), Handler)
+    except OSError as e:
+        if not port_taken(e):
+            raise
+        print(f"relay: port {port} is already in use; stop the other relay first (netstat -ano | findstr :{port})", file=sys.stderr)
+        sys.exit(1)
     print(f"Laptop canvas: http://localhost:{port}/draw")
     for ip in lan_addresses():
         print(f"Pixel, in Chrome: http://{ip}:{port}/feel")

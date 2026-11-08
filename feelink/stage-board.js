@@ -278,7 +278,7 @@ function drawLandmarks(rv) {
   const ink = [];
   for (const st of strokes) if (st.pts.length) for (const p of inkState(st).samples) ink.push(p);
   for (let n = 0; n < landmarks.length; n++) {
-    const l = landmarks[n], ink = rv.mark[n] ? COL.ink : COL.hidden;
+    const l = landmarks[n], tone = rv.mark[n] ? COL.ink : COL.hidden;
     ctx.lineWidth = 0.35;
     ctx.strokeStyle = rv.mark[n] ? COL.unfelt : COL.hidden;
     ctx.beginPath();
@@ -290,7 +290,7 @@ function drawLandmarks(rv) {
     ctx.fillStyle = found ? COL.felt : COL.paper;
     ctx.fill();
     ctx.lineWidth = 0.6;
-    ctx.strokeStyle = ink;
+    ctx.strokeStyle = tone;
     ctx.stroke();
     if (found) {
       ctx.beginPath();
@@ -298,7 +298,7 @@ function drawLandmarks(rv) {
       ctx.fillStyle = COL.paper;
       ctx.fill();
     }
-    if (l.start) drawFlag(l, ink);
+    if (l.start) drawFlag(l, tone);
     const name = B.cleanName(l.name);
     if (!name) continue;
     const w = ctx.measureText(name).width, gap = B.LANDMARK_MM + 0.8;
@@ -307,7 +307,7 @@ function drawLandmarks(rv) {
     ctx.lineWidth = 1.4;
     ctx.strokeStyle = COL.paper;
     ctx.strokeText(name, at.x, at.y);
-    ctx.fillStyle = ink;
+    ctx.fillStyle = tone;
     ctx.fillText(name, at.x, at.y);
   }
 }

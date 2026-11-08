@@ -274,6 +274,34 @@
     };
   }
 
+  // The drawing as a student would notice a change, for "Drawing changed.": the tutor's strokes (id, point count,
+  // ends) and the landmarks, sorted by id so arrival order doesn't matter. A phone stroke counts by id only, so the
+  // student's own stroke growing as they draw is no change, but the tutor removing it is.
+  function drawingKey(strokes, landmarks) {
+    const byId = (a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0);
+    const s = (strokes || []).map((k) => {
+      const p = k.pts || [];
+      return k.by === 'phone' ? [k.id] : [k.id, p.length, p[0], p[p.length - 1]];
+    }).sort(byId);
+    const m = (landmarks || []).map((l) => [l.id, l.x, l.y, l.name]).sort(byId);
+    return JSON.stringify([s, m]);
+  }
+
+  // Two-finger double tap: two touches of exactly two fingers, each down and up within tapMs with no ink drawn, the
+  // second starting within gapMs of the first one's end. Feed it every finished touch {start, end, fingers, drew}
+  // (ms, fingers = most at once); it returns true on the touch that completes a double tap. 500 ms each is a chosen
+  // default (Android's own double-tap gap is 300 ms; a blind student gets more), not measured.
+  function doubleTapper(opts = {}) {
+    const tapMs = opts.tapMs ?? 500, gapMs = opts.gapMs ?? 500;
+    let lastEnd = -Infinity;
+    return (touch) => {
+      const tap = touch.fingers === 2 && !touch.drew && touch.end - touch.start <= tapMs;
+      if (tap && touch.start - lastEnd <= gapMs) { lastEnd = -Infinity; return true; }
+      lastEnd = tap ? touch.end : -Infinity;
+      return false;
+    };
+  }
+
   // Test shapes, 46 mm across, centred on the board.
   const C = { x: BOARD.w / 2, y: BOARD.h / 2 }, R = 23;
   const at = (u, v) => ({ x: C.x + u * R, y: C.y + v * R });
@@ -293,7 +321,7 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue };
+  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue, drawingKey, doubleTapper };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

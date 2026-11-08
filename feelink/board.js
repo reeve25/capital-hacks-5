@@ -292,6 +292,84 @@
     return best;
   }
 
+  // Step-through reveal (#111). The relay holds `upto`: how many strokes, in first-arrival order, the student may feel,
+  // null for all (the default). The same rule runs on the phone (tactile.js): a stroke is shown when its index < upto.
+  // A landmark within LANDMARK_MM of a shown stroke is shown; one near only hidden strokes is hidden; one on no stroke
+  // at all is shown when it arrived before the first hidden stroke. Hidden means faint on the stage, blank on the phone.
+  const cleanReveal = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+  const strokeShown = (i, upto) => cleanReveal(upto) == null || i < cleanReveal(upto);
+
+  function nearStroke(p, pts, radius) {
+    if (pts.length === 1) return Math.hypot(p.x - pts[0].x, p.y - pts[0].y) <= radius;
+    for (let i = 1; i < pts.length; i++) if (distPointSeg(p, pts[i - 1], pts[i]) <= radius) return true;
+    return false;
+  }
+
+  // strokes in first-arrival order (the relay's sync order); seqOf(kind, id) is the arrival number of a stroke or
+  // landmark (Arrivals.of). Returns {total, shown, hiding, stroke: [bool by index], mark: [bool by index]}.
+  function revealView(strokes, landmarks, upto, seqOf = () => Infinity, radius = LANDMARK_MM) {
+    const total = strokes.length, u = cleanReveal(upto);
+    const shown = u == null ? total : Math.min(total, u);
+    const stroke = strokes.map((_, i) => i < shown);
+    if (shown >= total) return { total, shown, hiding: false, stroke, mark: landmarks.map(() => true) };
+    const cut = seqOf('stroke', strokes[shown].id); // the first hidden stroke
+    const mark = landmarks.map((l) => {
+      let onHidden = false;
+      for (let i = 0; i < total; i++) {
+        const pts = strokes[i].pts || [];
+        if (!pts.length || !nearStroke(l, pts, radius)) continue;
+        if (stroke[i]) return true;
+        onHidden = true;
+      }
+      return !onHidden && seqOf('landmark', l.id) < cut;
+    });
+    return { total, shown, hiding: true, stroke, mark };
+  }
+
+  // First-arrival numbers across strokes and landmarks, which the off-stroke landmark rule needs. A sync lists the two
+  // kinds apart, so the interleaving is known only from live events: items first met in a sync are numbered strokes
+  // first, then landmarks, which puts an off-stroke landmark of unknown age after them (hidden while anything is, the
+  // cautious side). Re-posting an item keeps its number. Clear keeps the old numbers for the one undo that restores it.
+  class Arrivals {
+    constructor() { this.seq = new Map(); this.cleared = new Map(); this.n = 0; }
+    add(kind, id) { const k = kind + ':' + id; if (!this.seq.has(k)) this.seq.set(k, this.n++); }
+    sync(strokes, landmarks) {
+      const next = new Map();
+      const take = (kind, id) => {
+        const k = kind + ':' + id;
+        next.set(k, this.seq.has(k) ? this.seq.get(k) : this.cleared.has(k) ? this.cleared.get(k) : this.n++);
+      };
+      for (const st of strokes || []) if (st && st.id != null) take('stroke', st.id);
+      for (const l of landmarks || []) if (l && l.id != null) take('landmark', l.id);
+      this.seq = next;
+    }
+    clear() { if (this.seq.size) this.cleared = this.seq; this.seq = new Map(); }
+    of(kind, id) { const v = this.seq.get(kind + ':' + id); return v == null ? Infinity : v; }
+  }
+
+  // The tutor's step buttons. Reveal next shows one more stroke; showing the last one returns to null (all), so the
+  // board is back to the default and a stroke drawn afterwards is felt at once. With everything shown it does nothing
+  // and says so, rather than hiding the whole drawing as a surprise: the tutor steps back with Previous step (from all,
+  // that hides the newest stroke). Reveal all returns to null. Returns {upto, changed, note}; note names a hint.
+  function revealStep(upto, total, action) {
+    const u = cleanReveal(upto), all = u == null || u >= total;
+    if (action === 'all') return u == null ? { upto: null, changed: false, note: 'all' } : { upto: null, changed: true, note: '' };
+    if (action === 'next') {
+      if (all) return { upto: u, changed: false, note: 'all' };
+      return { upto: u + 1 >= total ? null : u + 1, changed: true, note: '' };
+    }
+    if (action === 'prev') {
+      if (!total) return { upto: u, changed: false, note: 'empty' };
+      const cur = all ? total : u;
+      if (cur <= 0) return { upto: u, changed: false, note: 'none' };
+      return { upto: cur - 1, changed: true, note: '' };
+    }
+    return { upto: u, changed: false, note: '' };
+  }
+
+  // The legend line, only while something is hidden.
+  const revealLegend = (shown, total) => (shown < total ? `Shown ${shown} of ${total} stroke${total === 1 ? '' : 's'}` : '');
+
   // Where a landmark's label goes: right, left, above or below the dot. Spots that run off the board are
   // out; of the rest, the one crossing the fewest ink samples wins (so the route leaving a landmark doesn't
   // sit under its name), in that preference order on a tie. Returns {side, x, y, align} with (x, y) the
@@ -466,6 +544,7 @@
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
+    cleanReveal, strokeShown, revealView, Arrivals, revealStep, revealLegend,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;

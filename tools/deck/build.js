@@ -70,7 +70,7 @@ function label(slide, text, x, y, w, color = MUTED) {
   s.addText(runs([
     { t: "A sighted tutor draws on a laptop. A blind student feels the drawing as vibration on an ordinary Android phone and hears the labels.", size: 15, color: TEXT, after: 10 },
     { t: "Health + Accessibility track \u00B7 Capital Hacks 5.0, Nov 6\u20138, 2026", size: 13, color: MUTED },
-    { t: "Reeveson Masilamani and Nathan Jeevamani", size: 13, color: MUTED },
+    { t: "Reeve Masilamani and Nathan Jeevamani", size: 13, color: MUTED },
   ]), { x: 0.7, y: 3.95, w: 5.5, h: 2.2, fontFace: FONT, isTextBox: true, margin: 0, valign: "top" });
   const w = 6.4, x = W - 0.6 - w, y = 1.35;
   const h = image16x9(s, asset("sim-route-lesson-still-5-library.png"), x, y, w);
@@ -305,7 +305,7 @@ function label(slide, text, x, y, w, color = MUTED) {
 {
   const s = pres.addSlide({ masterName: "DARK" });
   title(s, "Team and disclosure");
-  const people = [["Reeveson Masilamani", "Product, device and engineering"], ["Nathan Jeevamani", "Presentation and design"]];
+  const people = [["Reeve Masilamani", "Product, device and engineering"], ["Nathan Jeevamani", "Presentation and design"]];
   people.forEach(([n, r], i) => {
     const x = 0.6 + i * 4.0;
     card(s, x, 1.4, 3.8, 1.5);

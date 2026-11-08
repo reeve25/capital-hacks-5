@@ -90,7 +90,15 @@ No other problem statistics are in the repo. The two above are deliberately few.
 - **USB only** at the venue; no Wi-Fi path found. Measured.
 - **One phone, one laptop, no blind user yet.** Read (STATUS, `USERS.md`).
 
+## Validation, by category (lead, Sat Nov 7, 17:50; keep these apart on every slide)
+1. **Verified device and engineering behaviour (Measured):** stroke delivery and latency on the Pixel 8 over USB, corner cues, the `vibrate(0)` finding, USB-drop recovery, landmark arrival and speech heard by Reeve (17:10), the #107 emulated run.
+2. **Blindfolded or prototype usability testing (Measured):** blind run 1, Sat 14:49-14:54, tester RM, 5 trials, 4 of 5 shapes named, median 49.9 s, on the OLDER build (core 14 mm, fade 6). Tester's visual status not recorded; confirm with Reeve. It does not validate the current 4 mm build, route learning or any educational effect.
+3. **Feedback from actual target users:** none logged. 38 outreach emails sent by Nathan (`.plans/outreach-2026-11-07.md`); no reply recorded in `USERS.md`.
+4. **Evidence that FeelInk improves educational understanding:** none. A testable hypothesis, never a result.
+Also state as limits: TalkBack compatibility is deferred and unverified (#91 parked); the phone reaches the laptop over USB/adb only, so ordinary classroom deployment over a network is not demonstrated.
+
 ## Never claim
+- TalkBack compatibility, or that the 4/5 blind run validates the current 4 mm build or shows an educational effect.
 - Webcam whiteboard, draw-it-back, touch-to-hear working (not built).
 - Any user, teacher or blind student validation, quote or name not logged in `USERS.md` with consent (it is empty).
 - The 1/10 warm-up as a recognition rate, or any recognition rate before #33's blind run.

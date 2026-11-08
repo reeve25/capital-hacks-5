@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 **Verdicts: LAST MUSCLE—CROWDED; STILL HERE—KILLED; TONGUE X-RAY—CROWDED; FACE THE VOICE—KILLED; HALF A SMILE—CROWDED; EPLEY COACH—CROWDED.**
 
 Searches covered Devpost, GitHub, app stores, startups/YC, Apple/Google/Microsoft features and papers, including recent 2026 variants. **All 18 rival sources listed below were opened.** Prizes are unstated unless named; project descriptions establish overlap, not clinical effectiveness.

@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # One-second round (Claude), Nov 6, 2026, about 21:10 PT
 
 Bar: top update in `.plans/winning-idea-bar-spec.md`. **Claude-only. No different-vendor check has run on these.** Nothing here has been built, run, bought or tried. Names are placeholders. Codex's independent list is separate: `codex-one-second-round-2026-11-06.md`. Validation is left out at their request.

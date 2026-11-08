@@ -748,8 +748,15 @@ test('session panel: how long ago a point was spoken, and how much of the drawin
   assert.equal(B.feltLine([1, 0.4, 0]), 'Felt 1 of 3 lines in full', 'a part-felt line is not counted');
   assert.equal(B.feltLine([0.99, 0.2]), 'Felt 0 of 2 lines in full');
   assert.equal(B.feltLine([1, 1, 1]), 'Felt all 3 lines');
+  assert.equal(B.feltLine([1, 1]), 'Felt both lines');
   assert.equal(B.feltLine([1]), 'Felt the whole line');
   assert.equal(B.feltLine([0.5]), 'Felt 0 of 1 line in full');
+  // Mid-reveal the count is of the shown lines, and says so.
+  assert.equal(B.feltLine([1, 1], true), 'Felt both shown lines');
+  assert.equal(B.feltLine([1, 0.3], true), 'Felt 1 of 2 shown lines in full');
+  assert.equal(B.feltLine([1], true), 'Felt the whole shown line');
+  assert.equal(B.feltLine([], true), 'Nothing shown yet');
+  assert.equal(B.feltLine([0], true), 'Nothing felt yet');
   // As the stage feeds it: the felt share of each shown line's samples, here a route felt along its first line.
   const samples = B.resample([{ x: 5, y: 10 }, { x: 5, y: 60 }]), felt = new Float64Array(samples.length);
   B.markFelt(samples, felt, { x: 5, y: 10 }, { x: 5, y: 60 });

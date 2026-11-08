@@ -604,14 +604,15 @@
 
   // What the student has felt of the tutor's shown lines, from the teal the board draws: `fractions` holds each line's
   // felt share (felt samples over all of its 1 mm samples). A line counts only once all of it is teal, so the words never
-  // claim more than the board shows; the session panel's bars carry the partial lines.
-  function feltLine(fractions) {
+  // claim more than the board shows; the session panel's bars carry the partial lines. While a step-through reveal hides
+  // some (`hiding`), the count is of the shown lines and says so, so it never reads as the whole drawing.
+  function feltLine(fractions, hiding = false) {
     const n = (fractions || []).length;
-    if (!n) return 'Nothing drawn yet';
+    if (!n) return hiding ? 'Nothing shown yet' : 'Nothing drawn yet';
     if (!fractions.some((f) => f > 0)) return 'Nothing felt yet';
-    const full = fractions.filter((f) => f >= 1).length;
-    if (full === n) return n === 1 ? 'Felt the whole line' : `Felt all ${n} lines`;
-    return `Felt ${full} of ${n} line${n === 1 ? '' : 's'} in full`;
+    const full = fractions.filter((f) => f >= 1).length, shown = hiding ? 'shown ' : '';
+    if (full === n) return n === 1 ? `Felt the whole ${shown}line` : n === 2 ? `Felt both ${shown}lines` : `Felt all ${n} ${shown}lines`;
+    return `Felt ${full} of ${n} ${shown}line${n === 1 ? '' : 's'} in full`;
   }
 
   // Studio side panels (D10). The GIF pipeline (tools/record/compose.py detect_board) crops the stage video to the board

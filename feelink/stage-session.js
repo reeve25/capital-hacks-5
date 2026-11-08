@@ -115,7 +115,7 @@ function showSession(now, rv) {
     for (const f of s.felt) if (f) n++;
     shares.push(s.samples.length ? n / s.samples.length : 0);
   });
-  const text = B.feltLine(shares);
+  const text = B.feltLine(shares, rv.hiding);
   const pct = shares.length > BARS_MAX ? [shares.reduce((a, b) => a + b, 0) / shares.length] : shares;
   const widths = pct.map((f) => Math.round(f * 100));
   setRow(rows.felt, shares.some((f) => f > 0) ? 'on' : 'none', text, text + '|' + widths.join(','), () => {

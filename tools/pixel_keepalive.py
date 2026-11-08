@@ -50,7 +50,7 @@ def has_reverse(listing, port):
     return any(line.split()[-2:] == want for line in listing.splitlines())
 
 
-def watch(cmd, port, adb=adb_run, sleep=time.sleep):
+def watch(cmd, port, adb=adb_run, sleep=time.sleep, devtools=0):
     up, since = None, time.monotonic()  # up: None before the first answer, then True or False
     while True:
         # One call covers both cases: it fails while the device is gone, offline or unauthorized,
@@ -61,6 +61,10 @@ def watch(cmd, port, adb=adb_run, sleep=time.sleep):
             ok, out = adb(cmd, "reverse", f"tcp:{port}", f"tcp:{port}")
             if ok:
                 say(f"{was or 'reverse was cleared'}; reverse tcp:{port} {'applied' if up is None else 'restored'}")
+                # A reconnect also clears `adb forward`, which the DevTools reload path on the laptop needs (Nov 7: lost
+                # at 14:45 and 15:57). Quiet on purpose, so the selftest's expected lines stay the same.
+                if devtools:
+                    adb(cmd, "forward", f"tcp:{devtools}", "localabstract:chrome_devtools_remote")
             else:
                 out = f"adb reverse failed: {out}"
         elif ok and up is not True:
@@ -115,6 +119,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--serial", default=os.environ.get("ANDROID_SERIAL"), help="device serial (default: $ANDROID_SERIAL or the only device)")
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--devtools", type=int, default=9222, help="also restore adb forward tcp:PORT to Chrome DevTools (0 = off)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -122,7 +127,7 @@ def main():
     cmd = [find_adb()] + (["-s", args.serial] if args.serial else [])
     say(f"watching {args.serial or 'the attached device'} for tcp:{args.port}; Ctrl+C to stop")
     try:
-        watch(cmd, args.port)
+        watch(cmd, args.port, devtools=args.devtools)
     except KeyboardInterrupt:
         say("stopped; reverse left as it was")
 

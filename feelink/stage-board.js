@@ -342,22 +342,23 @@ function drawCaption(now) {
   const text = '“' + caption.name + '”';
   const pad = 2, w = ctx.measureText(text).width + pad * 2, h = CAP_FONT_MM + pad * 1.6;
   const off = CURSOR_MM + CURSOR_BORDER_MM + 2.5;
-  const right = finger.cur.x + off + w <= BOARD.w + 6;
-  const ax = finger.cur.x + (right ? off : -off), ay = finger.cur.y - off;
+  // Kept inside the board (#136): a long caption used to flip left and run under the tools panel.
+  const { x0, tail } = B.captionPlace(finger.cur.x, w, BOARD, off);
+  const ay = finger.cur.y - off;
   ctx.save();
-  ctx.translate(ax, ay);
+  ctx.translate(tail, ay); // the pop scales about the tail, which stays by the fingertip
   ctx.scale(k, k);
-  const x0 = right ? 0 : -w;
-  roundRect(x0, -h, w, h, 1.6);
+  roundRect(x0 - tail, -h, w, h, 1.6);
   ctx.fillStyle = COL.ink;
   ctx.fill();
   ctx.beginPath(); // tail toward the fingertip
-  ctx.moveTo(right ? 1.2 : -1.2, -0.2);
-  ctx.lineTo(right ? -1.4 : 1.4, 1.6);
-  ctx.lineTo(right ? 4.2 : -4.2, -0.2);
+  const dx = Math.min(Math.max(finger.cur.x - tail, -2.6), 2.6);
+  ctx.moveTo(-1.5, -0.2);
+  ctx.lineTo(dx, 1.6);
+  ctx.lineTo(1.5, -0.2);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = COL.white;
-  ctx.fillText(text, x0 + pad, -h / 2);
+  ctx.fillText(text, x0 - tail + pad, -h / 2);
   ctx.restore();
 }

@@ -73,7 +73,7 @@ said.querySelector('summary').addEventListener('mousedown', (e) => e.preventDefa
 // touches the DOM only when its words change; the "ago" ticks once a second at most.
 const rows = {};
 for (const k of ['touch', 'spoke', 'felt']) rows[k] = { el: document.getElementById(k + 'Row'), text: document.getElementById(k + 'Text'), key: '' };
-const touchSub = document.getElementById('touchSub'), spokeSub = document.getElementById('spokeSub'), feltBars = document.getElementById('feltBars');
+const spokeSub = document.getElementById('spokeSub'), feltBars = document.getElementById('feltBars');
 const BARS_MAX = 12; // more lines than this read as one bar, as the reveal pips do
 function setRow(row, state, text, key, extra) {
   if (key === row.key) return false;
@@ -86,12 +86,10 @@ function setRow(row, state, text, key, extra) {
 let spokeAt = '';
 function showSession(now, rv) {
   const live = B.phoneLink(now - lastPhoneAt, phoneLeft) === 'connected';
-  const shownMarks = landmarks.filter((_, i) => rv.mark[i]);
-  const on = live && finger.down && finger.last ? B.landmarkAt(shownMarks, finger.last) : null;
-  const inked = strokes.some((st, i) => rv.stroke[i] && st.pts.length);
+  // One line, no sub-line (#138): where the finger is against the ink is the board's to show. A short lift holds the line.
   const t = B.touchState({ live, ever: Number.isFinite(lastPhoneAt), down: finger.down, stillMs: now - finger.movedAt,
-    level: finger.level, top: phoneTop, at: on ? B.cleanName(on.name) : '', inked });
-  setRow(rows.touch, t.state, t.text, t.state + '|' + t.text + '|' + t.sub, () => { touchSub.textContent = t.sub; });
+    liftMs: Number.isFinite(finger.upAt) ? now - finger.upAt : Infinity });
+  setRow(rows.touch, t.state, t.text, t.state + '|' + t.text);
 
   const mark = log.items.find((x) => x.kind === 'landmark');
   if (mark) {

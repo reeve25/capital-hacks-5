@@ -230,8 +230,9 @@ const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(bo
 
 // Strokes plus their found-by-touch state: id -> {stroke, samples, felt}.
 let strokes = [];
-// Step-through reveal (#111): `reveal` is the relay's upto, how many strokes in first-arrival order the student may
-// feel (null = all, the default). Arrival numbers place a landmark that lies on no stroke (board.js revealView).
+// Step-through reveal (#111): `reveal` is the relay's upto, how many of the tutor's strokes in first-arrival order the
+// student may feel (null = all, the default); the student's own strokes are never hidden. Arrival numbers place a
+// landmark that lies on no stroke (board.js revealView).
 let reveal = null;
 const arrivals = new B.Arrivals();
 const seqOf = (kind, id) => arrivals.of(kind, id);
@@ -246,7 +247,7 @@ function inkState(st) {
   s = { pts: st.pts, samples, felt };
   feltById.set(st.id, s);
   // Ink that appears under a resting finger is found straight away, unless the student cannot feel it yet (#111).
-  if (finger.down && finger.last && B.strokeShown(strokes.indexOf(st), reveal)) B.markFelt(samples, felt, finger.last, finger.last, feltMm, stamp(performance.now()));
+  if (finger.down && finger.last && B.revealStrokes(strokes, reveal).stroke[strokes.indexOf(st)] !== false) B.markFelt(samples, felt, finger.last, finger.last, feltMm, stamp(performance.now()));
   return s;
 }
 function setStrokes(list) {
@@ -279,8 +280,9 @@ function onFinger(ev) {
   const p = { x: ev.x, y: ev.y };
   const from = finger.down && finger.last ? finger.last : p;
   // Hidden strokes (#111) are blank glass on the phone, so the finger never finds them.
+  const shown = B.revealStrokes(strokes, reveal).stroke;
   strokes.forEach((st, i) => {
-    if (!B.strokeShown(i, reveal)) return;
+    if (!shown[i]) return;
     const s = inkState(st);
     B.markFelt(s.samples, s.felt, from, p, feltMm, stamp(now));
   });
@@ -605,7 +607,7 @@ const undo = () => { showToast(false); post({ type: 'undo' }); };
 // Step-through reveal (#111): Reveal next (N), Previous step (P), Reveal all (Shift+N). Applied here at once and posted;
 // the relay stores it and every phone and stage follows. The usual flow: draw, step back with P, then forward with N.
 function stepReveal(action) {
-  const r = B.revealStep(reveal, strokes.length, action);
+  const r = B.revealStep(reveal, strokes, action);
   flashNote(r.note);
   if (!r.changed) return;
   reveal = r.upto;

@@ -36,8 +36,9 @@ class Relay:
         # The tutor's latest spoken instruction (#107), {id, text, by, heard?}. Only the newest is kept: it is what the
         # student should do now, and what a phone that joins late or reconnects is told.
         self.instruction = None
-        # Step-through reveal (#111): how many strokes, in first-arrival order, the student may feel. None = all, the
-        # default, so freehand drawing works as before. Landmarks follow their strokes on each client.
+        # Step-through reveal (#111): how many of the tutor's strokes, in first-arrival order, the student may feel. None =
+        # all, the default, so freehand drawing works as before. Only by:'tutor' strokes are steps; the student's are
+        # always shown. Landmarks follow their strokes on each client.
         self.reveal = None
         # Arrival numbers (#111): each stored stroke and landmark carries `seq`, so a sync, which lists the two kinds apart,
         # still says which came first. A landmark on no stroke needs that to know whether it came before a hidden stroke.
@@ -114,9 +115,11 @@ class Relay:
                 self.strokes, self.landmarks, self.order, saved_seq = self.cleared
                 self.cleared = None
                 self.next_seq = max(self.next_seq, saved_seq)  # the restored items keep their numbers; new ones come after
-            if kind == "undo" and self.reveal is not None and self.reveal > len(self.strokes):
-                # Undoing a shown stroke keeps the pointer at the end, never past it; undoing a hidden one moves nothing.
-                self.reveal = len(self.strokes)
+            steps = sum(1 for s in self.strokes.values() if s.get("by") == "tutor") if kind == "undo" else 0
+            if kind == "undo" and self.reveal is not None and self.reveal > steps:
+                # Undoing a shown tutor stroke keeps the pointer at the end, never past it; undoing a hidden one, or anyone
+                # else's stroke, moves nothing.
+                self.reveal = steps
             for q in self.clients:
                 q.put(event)
             if kind == "undo":
@@ -325,6 +328,15 @@ def selftest():
     relay.publish({"type": "undo"})
     assert ids() == (["s1", "s2"], []) and relay.reveal is None
     assert relay.instruction == {"id": "i3", "text": say1["text"], "by": "tutor"}, "reveal never touches the instruction"
+    # Only the tutor's strokes are steps: the student's stroke between s1 and s2 does not count toward the clamp.
+    kid = {"type": "stroke", "id": "k1", "by": "student", "pts": [{"x": 20, "y": 20}, {"x": 30, "y": 30}]}
+    steps = Relay()
+    for ev in (s1, kid, s2, {"type": "reveal", "upto": 2, "by": "tutor"}, {"type": "undo"}):
+        steps.publish(ev)
+    assert list(steps.strokes) == ["s1", "k1"] and steps.reveal == 1, "one tutor stroke is left, not two strokes"
+    steps.publish({**kid, "id": "k2"})
+    steps.publish({"type": "undo"})  # the student's k2: the tutor's steps are unchanged
+    assert steps.reveal == 1
     print("server selftest: ok")
 
 

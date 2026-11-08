@@ -98,7 +98,7 @@
     <p id="warn" role="alert"></p>
   </header>
   <button class="primary" id="live">Connect to tutor</button>
-  <p id="help">Explore with one finger. Back returns here, and a two-finger double tap repeats what was said.</p>
+  <p id="help">Explore with one finger. Back returns here, and a two-finger double tap repeats the tutor's instruction, or else what was said last.</p>
   <!-- Development and validation, shown only at /dev: same page, same test mode and results.jsonl fields. -->
   <section id="dev" hidden aria-labelledby="dev-title">
     <h2 id="dev-title">Development and validation</h2>
@@ -138,7 +138,7 @@
 
 <script src="/tactile.js"></script>
 <script>
-const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper } = Tactile;
+const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper, landmarkLine, startMark, replayLine, landmarkVoice, speechCut } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -175,31 +175,61 @@ const canVibrate = typeof navigator.vibrate === 'function';
 // Landmark names and short status lines in the browser's own voice. Chrome speaks only after a user gesture on the
 // page; the Connect tap is one, and it lasts. Without speechSynthesis, or if it throws, the buzz alone marks a
 // landmark and nothing is reported as spoken.
-// A name is about where the finger is now, so it cuts off anything still talking; a status line never cuts off a
-// name (it waits behind it), only an older status line. The stage gets {type:'spoken', text, kind, t} from onend,
-// so its log shows what the phone finished saying, not what it asked for; speech that was cut off is never sent.
+// Who cuts whom is tactile.js speechCut: a name is about where the finger is now, so it cuts off anything still
+// talking, but a tutor's instruction it cuts is said again right after it (#107). An instruction or a status line
+// never cuts off another kind (it waits behind it), only an older line of its own kind. The stage gets
+// {type:'spoken', text, kind, t} (plus the instruction's id) from onend, so its log shows what the phone finished
+// saying, not what it asked for; speech that was cut off is never sent.
 // Each utterance stays referenced until it ends: Chrome can collect an unreferenced one and never fire onend.
 const canSpeak = typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance === 'function';
 const talking = new Set();
-let lastSaid = null; // what a two-finger double tap repeats
+let lastSaid = null; // what a two-finger double tap repeats when the tutor has sent no instruction
+// The tutor's latest instruction {id, text} from the relay (#107), and the id last said through to its end.
+let instruction = null, instructionDone = null;
 function hush() {
   for (const u of talking) u.cut = true;
   talking.clear();
   if (canSpeak) try { speechSynthesis.cancel(); } catch {}
 }
-function say(text, kind) {
+function speak(text, kind, id) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.kind = kind;
+  u.lineId = id;
+  u.onend = () => {
+    talking.delete(u);
+    if (u.cut) return;
+    if (kind === 'instruction') instructionDone = id;
+    haptics.push({ type: 'spoken', text, kind, ...(id ? { id } : {}), t: Date.now() });
+  };
+  u.onerror = () => { talking.delete(u); };
+  talking.add(u);
+  speechSynthesis.speak(u);
+}
+function say(text, kind, id) {
   if (!text) return;
-  lastSaid = { text, kind };
+  lastSaid = { text, kind, id };
   if (!canSpeak) return;
   try {
-    if (kind === 'landmark' || ![...talking].some((u) => u.kind === 'landmark')) hush();
-    const u = new SpeechSynthesisUtterance(text);
-    u.kind = kind;
-    u.onend = () => { talking.delete(u); if (!u.cut) haptics.push({ type: 'spoken', text, kind, t: Date.now() }); };
-    u.onerror = () => { talking.delete(u); };
-    talking.add(u);
-    speechSynthesis.speak(u);
+    const queued = [...talking];
+    const plan = speechCut(queued.map((u) => u.kind), kind);
+    const again = queued[plan.resay];
+    if (plan.cancel) hush();
+    speak(text, kind, id);
+    if (again) speak(again.text, again.kind, again.lineId);
   } catch {}
+}
+// An instruction is said once: on arrival in Live, on entering Live, or after a reconnect's sync. Every undo sends a
+// sync too, so the id guards against saying it again; the student asks for a repeat with a two-finger double tap.
+function sayInstructionIfNew() {
+  if (mode !== 'live' || !instruction) return;
+  if (instruction.id === instructionDone || [...talking].some((u) => u.lineId === instruction.id)) return;
+  say(instruction.text, 'instruction', instruction.id);
+}
+function onInstruction(ins) {
+  const text = ins && typeof ins.text === 'string' ? ins.text.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return;
+  instruction = { id: String(ins.id), text };
+  sayInstructionIfNew();
 }
 
 // In live mode every call is reported to the stage, re-arms included, so a take can be matched against
@@ -232,7 +262,7 @@ function setBuzz(next) {
 function apply(cmd) {
   // Off the landmark (moved away, lifted, or it was removed) the line comes back, unless the command that comes
   // with it starts a cue of its own. The renderer keeps its node across a resent scene by value, so compare by value.
-  if (atMark && !stillAtMark()) { atMark = null; if (!cmd || cmd.type === 'tick') return setBuzz(renderer.level); }
+  if (atMark && !stillAtMark()) { leaveMark(); if (!cmd || cmd.type === 'tick') return setBuzz(renderer.level); }
   if (!cmd) return;
   if (cmd.type === 'node' && cmd.kind === 'landmark') return enterMark(cmd);
   if (atMark) { if (cmd.type === 'level') level = cmd.level; return; } // on a landmark: only its heartbeat
@@ -253,19 +283,27 @@ function stillAtMark() {
   const n = renderer.node;
   return !!n && n.kind === 'landmark' && n.id === atMark.id && n.x === atMark.x && n.y === atMark.y && n.name === atMark.name;
 }
-// Arrival: stop, the name, silence, the triple, then the heartbeat for as long as the finger stays. The whole chain
-// runs on `rearm`, so setBuzz (leaving) or another arrival cancels it.
+// The name is not said again when the finger comes back to the same landmark within 3 s of leaving it (#107): the
+// 5 mm leave edge stops a resting finger repeating it, and this stops a finger wobbling across that edge, or lifting
+// and landing on it again, from hearing it over and over. The buzzes still play every time.
+const voice = landmarkVoice({ reMs: 3000 });
+const markKey = (n) => n.id + '|' + n.name;
+function leaveMark() { voice.leave(markKey(atMark), performance.now()); atMark = null; }
+// Arrival: stop, the name ("Start: <name>" on the tutor's start point), silence, the triple, then the heartbeat for
+// as long as the finger stays. The whole chain runs on `rearm`, so setBuzz (leaving) or another arrival cancels it.
+// A quiet arrival's buzz report carries no name, so the stage shows no caption for words the phone did not say.
 function enterMark(cmd) {
   clearTimeout(rearm);
   clearTimeout(resume);
   atMark = renderer.node;
   level = cmd.level;
+  const named = !!cmd.name && voice.enter(markKey(atMark), performance.now());
   if (canVibrate) vibrate('stop', 1);
-  say(cmd.name, 'landmark');
+  if (named) say(landmarkLine(cmd.name, cmd.start), 'landmark');
   if (!canVibrate) return;
   const beat = () => { vibrate('landmark-rest', MARK.beatMs); rearm = setTimeout(beat, MARK.everyMs); };
   rearm = setTimeout(() => {
-    vibrate('landmark', MARK.cue, { name: cmd.name });
+    vibrate('landmark', MARK.cue, named ? { name: cmd.name } : undefined);
     rearm = setTimeout(beat, MARK.cue.reduce((a, b) => a + b, 0) + MARK.everyMs - MARK.beatMs);
   }, MARK.quietMs);
 }
@@ -333,9 +371,10 @@ const post = poster('/event');
 // Stamped: a unique t lets the stage skip a retried duplicate, age lets it skip a buzz that waited too long to
 // draw live, and dropped tells it reports were lost, so the take is incomplete.
 const haptics = sendQueue(post, { cap: 200, stamp: true });
-// Only the newest config matters: one in flight plus the latest waiting.
+// Only the newest config matters: one in flight plus the latest waiting. `live` tells the stage whether the student
+// can feel the board (#107): a config from the menu is not presence, and leaving Live sends one at once.
 const configs = sendQueue(post, { cap: 1 });
-const sendConfig = () => configs.push({ type: 'phoneconfig', coreMm: widthMm(), fadeMm: fadeMm(), steps: FADE.length, screenWidthMm: SCREEN_WIDTH_MM });
+const sendConfig = () => configs.push({ type: 'phoneconfig', live: mode === 'live', coreMm: widthMm(), fadeMm: fadeMm(), steps: FADE.length, screenWidthMm: SCREEN_WIDTH_MM });
 // A phone stroke is re-posted whole on every move, so a failed post is caught and counted like the queues'
 // `failed`, not retried: the next move resends it, and only a failed last post loses the stroke's tail.
 let strokeFailed = 0;
@@ -388,7 +427,7 @@ function connect() {
   };
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; synced = true; }
+    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; synced = true; if (ev.instruction) onInstruction(ev.instruction); }
     else if (ev.type === 'stroke') {
       const i = remote.findIndex((s) => s.id === ev.id);
       if (i >= 0) remote[i] = ev; else remote.push(ev);
@@ -396,6 +435,7 @@ function connect() {
       const i = remoteMarks.findIndex((l) => l.id === ev.id);
       if (i >= 0) remoteMarks[i] = ev; else remoteMarks.push(ev);
     } else if (ev.type === 'clear') { remote = []; remoteMarks = []; }
+    else if (ev.type === 'instruction') return onInstruction(ev);
     else return;
     if (mode === 'live') {
       strokes = remote;
@@ -476,6 +516,7 @@ function startLive() {
   heard = synced ? drawingKey(remote, remoteMarks) : null;
   welcomed = link === 'on';
   say(welcomed ? WELCOME : 'Connecting to tutor.', 'status');
+  sayInstructionIfNew(); // waits behind the welcome
   // Android Back returns to the menu: Live is its own history entry.
   if (!(history.state && history.state.feelLive)) history.pushState({ feelLive: true }, '');
 }
@@ -486,7 +527,7 @@ function goHome() {
   apply(renderer.lift()); setBuzz(0); // before leaving live mode, so the stage hears the stop
   clearTimeout(changeTimer); changeTimer = null;
   mode = 'home'; hint(''); showInk = false; strokes = []; show('home'); draw();
-  if (wasLive) { hush(); say('Back to menu.', 'status'); }
+  if (wasLive) { hush(); say('Back to menu.', 'status'); sendConfig(); }
 }
 addEventListener('popstate', () => { if (mode === 'live') goHome(); });
 // Chrome on Android may spend a Back press in fullscreen on leaving fullscreen only, without touching history
@@ -504,11 +545,15 @@ function feel(p) { fingerAt = p; apply(renderer.move(p)); }
 // ink. The stroke then starts where the finger was when the second finger landed, so no ink is lost.
 const DRAW_START_MM = 3;
 let penFrom = null;
-// A two-finger double tap in Live repeats the last thing said. A touch runs from the first finger down to the last
-// one up; doubleTapper decides from whole touches (tactile.js).
+// A two-finger double tap in Live repeats the tutor's instruction, led by the start point if one is marked, or with
+// no instruction the last thing said (#107). A touch runs from the first finger down to the last one up;
+// doubleTapper decides from whole touches (tactile.js).
 const isDoubleTap = doubleTapper();
 let touch = null;
-function repeatLast() { if (lastSaid) say(lastSaid.text, lastSaid.kind); }
+function repeatLast() {
+  const line = replayLine(instruction, startMark(remoteMarks), lastSaid);
+  if (line) say(line.text, line.kind, line.id);
+}
 // Chrome's long-press fires a click about 0.5 s into a resting touch, and that click replaced the 5 s hold
 // (measured on the Pixel, Nov 7: 11 of 11 held touches lost the buzz after about 0.3 s). Cancelling touchstart
 // stops the click and the compatibility mouse events; pointer events still fire. touch-action alone did not.
@@ -608,7 +653,7 @@ $('again').onclick = goHome;
 // A hidden page must not keep re-arming the hold. Chrome refuses vibrate() once the page is hidden
 // (Blink checks visibility before the visibilitychange event runs), so that stop may report ok: false.
 // Lifting the renderer makes the next touch buzz again. A hidden page stops talking too.
-function stopForHide() { renderer.lift(); atMark = null; setBuzz(0); hush(); }
+function stopForHide() { renderer.lift(); if (atMark) leaveMark(); setBuzz(0); hush(); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); });
 addEventListener('pagehide', stopForHide);
 // The relay replays only the drawing (strokes and landmarks), so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.

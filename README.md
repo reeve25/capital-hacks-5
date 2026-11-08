@@ -10,13 +10,13 @@ Built in a weekend at Capital Hacks 5.0 (Sac State, Nov 6-8, 2026) by Reeve and 
 
 A teacher sketches a route, a graph or a circuit on the board. Sighted students see it at once. A blind student gets a verbal description, or waits until someone prepares a tactile graphic. And when the teacher changes the drawing mid-lesson, the student has to wait all over again. Dedicated refreshable tactile displays exist, but they are expensive: APH's Monarch lists at $15,500.
 
-FeelInk is meant as a **supplementary channel**. It does not replace tactile graphics, braille, orientation and mobility instruction or dedicated hardware, and it is **not a navigation app**: no location, no obstacles, and it is never safe for real navigation. The first demonstration is route learning (a classroom-to-library route with named landmarks). The same pieces (lines, landmarks, spoken labels, instructions, step-by-step reveal) are meant for diagrams, graphs and circuits too.
+FeelInk is meant as a **supplementary channel**. It does not replace tactile graphics, braille, orientation and mobility instruction or dedicated hardware, and it is **not a navigation app**: no location, no obstacles, and it is never safe for real navigation. The first demonstration is route learning (a classroom-to-library route with named landmarks). The same pieces (lines, labels spoken by name, a start point, step-by-step reveal) are meant for diagrams, graphs and circuits too. A one-click coordinate plane is the first of those on the stage.
 
 ## How a lesson goes
 
 The tutor controls the lesson. The student controls their own exploration.
 
-1. **Tutor:** opens the FeelInk Studio page (`/stage`) on a laptop and draws freehand (hold Shift for a straight line). `L` then a click places a named label, and `S` over a label makes it the start point.
+1. **Tutor:** opens the FeelInk Studio page (`/stage`) on a laptop and draws freehand (hold Shift for a straight line). `L` then a click places a named label, and `S` over a label makes it the start point. **Coordinate plane** lays out axes with unit ticks in one click.
 2. **Student:** opens `/feel` in Chrome on an Android phone and taps **Connect**. The screen goes black and the whole board (56 x 120 mm) maps onto it at true scale, by our calculation from the screen's specs.
 3. **Student:** slides one finger across the glass. Lines buzz under the finger, getting fainter toward the edge of a line. Corners and line ends have their own short cues. On a label the phone gives a distinct triple pulse and says its name ("Start: Classroom").
 4. **Tutor:** talks to the student, as in any lesson, and watches the stage's student panel: their finger, the last label spoken and how much of the drawing they have felt. (Labels are `landmark` events in the protocol.)
@@ -25,11 +25,12 @@ The tutor controls the lesson. The student controls their own exploration.
 
 ## Screenshots
 
-| Tutor stage, mid-lesson | Step-through reveal | Student phone, home |
-|---|---|---|
-| ![FeelInk Studio stage with a route from Classroom to Library, the student's finger partway along it, and the spoken log](docs/stage-route-lesson.png) | ![The same route with one stroke shown and three hidden as dashed lines; the phone has said "Drawing updated."](docs/stage-step-reveal.png) | ![Phone home screen: FeelInk, connected to the laptop, a Connect to tutor button and a short how-to](docs/phone-home.png) |
+| Tutor stage, mid-lesson | Step-through reveal | Coordinate plane | Student phone, home |
+|---|---|---|---|
+| ![FeelInk Studio stage with a four-line route from Classroom, the start point, past Office and Gym to Library; the student's finger is partway up the first line inside an amber buzz ring, and the Session panel says Exploring and "Start: Classroom" spoken](docs/stage-route-lesson.png) | ![The same route with one line shown and three dashed as hidden; Present says "Shown 1 of 4 lines" and the open spoken history shows "Drawing updated." three times](docs/stage-step-reveal.png) | ![The stage's coordinate plane: axes with unit ticks, the Origin as start point, labels A (2, 1) and B (2, 4) on grid points and a straight line between them; the Session panel is waiting for the student](docs/stage-coordinate-plane.png) | ![Phone home screen: FeelInk, connected to the laptop, a Connect to tutor button and a short how-to](docs/phone-home.png) |
+| A route from Classroom (the start point) to Library in four lines. The finger is partway up the first line, teal where felt, with an amber buzz ring; "Start: Classroom" was spoken. Simulated phone events on a test relay. | The same route after `P` three times: one line shown, three dashed and hidden from the student, and the history open at "Drawing updated." ×3. Simulated phone events on a test relay. | A second demonstration: the Coordinate plane button, points A (2, 1) and B (2, 4) placed as spoken labels, and a Shift line between them. No phone connected; not yet felt on the Pixel. | The phone's home screen, connected to the laptop. |
 
-These are headless Chrome renders of the current pages on `main`. The tutor's strokes went through a local relay, and the phone-side events (finger, buzz, spoken lines) were **posted by a script, not by a phone**. Real recorded takes from the Pixel are still to come. On the phone, Live mode is a plain black screen by design, so it is not shown.
+The three stage pictures are headless Chrome renders (1600 x 1000) of the stage on `main` at `bbec5eb`, run against a test relay, not the demo one. **No phone was connected for any of them.** For the first two, a script posted the route to the test relay and also posted every phone-side event (presence, finger, buzzes, spoken lines), so the connected state is simulated, not a real Pixel session. The coordinate plane was made with the stage's own button, Label tool and Shift line, driven through Chrome's DevTools protocol. The phone home picture is an earlier headless render, kept as is. Real recorded takes from the Pixel are still to come. On the phone, Live mode is a plain black screen by design, so it is not shown.
 
 ## Architecture
 
@@ -38,7 +39,7 @@ flowchart LR
     stage["Tutor laptop<br/>/stage in a browser"]
     relay["Relay<br/>feelink/server.py<br/>Python stdlib, port 8765"]
     phone["Student phone<br/>/feel in Android Chrome<br/>USB via adb reverse"]
-    stage -->|"POST /event<br/>stroke, landmark, instruction,<br/>reveal, undo, clear"| relay
+    stage -->|"POST /event<br/>stroke, landmark,<br/>reveal, undo, clear"| relay
     relay -->|"SSE /events<br/>sync on join, then every event"| phone
     phone -->|"POST /event<br/>finger, haptic, spoken,<br/>phoneconfig, stroke"| relay
     relay -->|"SSE /events"| stage
@@ -71,8 +72,8 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 - **Strength is rhythm, because the Web Vibration API has no amplitude.** The strong core of a line is the continuous hold. Beside it, three fade steps use sparser pulses (12/60, 20/35, 30/15 ms on/off) that read as weaker.
 - **Core 4 mm, fade 1.5 x core.** The first prototype test ran on a 14 mm core; afterwards Reeve and Nathan judged 1-5 mm to read best. The default core is 4 mm, and the fade follows it at 1.5 x (6 mm each side), so the tutor sets one number in the phone's Advanced settings instead of two.
 - **Clean strokes before feeling them.** Hand-drawn strokes are simplified (Ramer-Douglas-Peucker, 2 mm) so wobbles don't read as corners. A corner is a turn of 40 degrees or more over a 5 mm window, measured on the raw stroke so circles get no false corners. A finger moving fast enough to skip over a line between touch samples still gets a 25 ms tick.
-- **A landmark is a state, not a one-off cue.** Earlier cues blended into the line's hum when a landmark sat on the path. Now, within 4 mm of a landmark, the hold stops, there are 400 ms of silence while the name starts, then three 220 ms pulses 130 ms apart (the only long triple). While the finger rests there, only a 70 ms heartbeat every 1.2 s plays. The name is not repeated if the finger comes back within 3 s. Reeve, on the Pixel: arrival is clear and spoken.
-- **Sent is not the same as heard.** The phone reports a `spoken` event from the speech engine's end callback, so the stage logs what the phone finished saying, not what it was asked to say. An instruction stays "Sent, not spoken yet" until then, and one replaced before it was spoken says so. Measured on the Pixel: an instruction sent at 17:59:38 was confirmed at 17:59:41.
+- **A label is a state, not a one-off cue.** Earlier cues blended into the line's hum when a label sat on the path. Now, within 4 mm of a label, the hold stops, there are 400 ms of silence while the name starts, then three 220 ms pulses 130 ms apart (the only long triple). While the finger rests there, only a 70 ms heartbeat every 1.2 s plays. The name is not repeated if the finger comes back within 3 s. Reeve, on the Pixel: arrival is clear and spoken.
+- **Sent is not the same as heard.** The phone reports a `spoken` event from the speech engine's end callback, so the stage logs what the phone finished saying, not what it was asked to say. Measured on the Pixel (tag `demo-1`): a line sent at 17:59:38 was reported spoken at 17:59:41.
 - **Step-through reveal, ordered by `seq`.** The relay stamps every stored stroke and landmark with an arrival number. A `sync` lists strokes and landmarks separately, so without `seq` a late-joining phone could not tell whether a landmark came before or after a hidden stroke. `reveal` is a count of tutor strokes; any malformed value means "show everything", the safe default. Undo clamps it and Clear resets it. Emulated: 13 of 13 reveal phases passed; not yet felt on the Pixel.
 - **One relay per port.** Windows let three relays bind port 8765 side by side (`SO_REUSEADDR`), which split the clients across different boards during a test (Measured). The relay now binds with `SO_EXCLUSIVEADDRUSE` on Windows and exits with an error if the port is taken.
 
@@ -80,7 +81,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 
 ## What we have shown, and what we have not
 
-1. **Device and engineering behaviour, Measured** on one Pixel 8: the numbers above, landmark arrival and speech heard on the phone, recovery after a USB drop.
+1. **Device and engineering behaviour, Measured** on one Pixel 8: the numbers above, label arrival and speech heard on the phone, recovery after a USB drop.
 2. **Prototype usability, one session:** a sighted tester with eyes closed named 4 of 5 shapes, median 49.9 s per shape. This was an older build (14 mm core). It does not validate the current build, route learning or any educational effect.
 3. **Feedback from blind students or teachers: none yet.** Outreach emails have gone out; no replies are recorded, and no one from the target group has tried FeelInk.
 4. **Evidence that FeelInk helps students learn: none.** It is a hypothesis to test, not a result.
@@ -93,7 +94,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 - **TalkBack is unverified.** Reading the Android sources suggests one-finger exploring may never reach the page with the screen reader on; nobody has tested it. Do not assume FeelInk works with TalkBack.
 - **No target-user validation and no evidence of educational effect** (see above).
 - **Far lower fidelity than a tactile display:** one fingertip, no raised dots, no braille.
-- **Not yet checked on the Pixel:** the step-through reveal, the redesigned Studio stage and the new phone home screen. The last build that passed a check on the Pixel is tag `demo-1`.
+- **Not yet checked on the Pixel:** the step-through reveal, the redesigned Studio stage, the Coordinate plane and the new phone home screen. The last build that passed a check on the Pixel is tag `demo-1`.
 - **No authentication.** Anyone on the same network can open the pages, so run the relay only while you use it.
 
 ## What we'd do next

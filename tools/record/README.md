@@ -90,7 +90,15 @@ python tools/record/compose.py compose \
 - **If the GIF is over 10 MB**, try these in order: `--denoise` (camera grain is what bloats it), a shorter `--dur` (a GIF should read in one second, so 4-8 s is plenty), `--gif-fps 12`, `--colors 96`, `--gif-width 800`.
 - The script prints the stage and phone details, the window and crop it used, and the MP4 and GIF sizes.
 
-Captions go on the slide, not in the clip.
+Captions go on the slide, not in the clip. The one exception is `--label TEXT`, a small tag burned in at the bottom (centred between the panels in `compose`, bottom-left in `single`): a take that is not device footage carries "Desktop simulation" in the picture, so it stays labelled when the GIF is passed around without its slide.
 
 ## 7. Check before the deck
 Open the GIF in a browser and watch it loop. Insert it into a scratch Google Slides or PowerPoint deck and play the slide. Plan acceptance is a real-take GIF playing in Slides or PowerPoint.
+
+## 8. Desktop simulation take (no phone, no camera)
+While the Pixel is away, `node tools/record/sim_take.mjs` (about 80 s, from the repo root) records the route lesson in the same layout a real take will have, so the deck has a clip to replace later:
+- It starts its own test relay on a free port (never 8765) and its own headless Chrome, and loads the real `/stage` (1920x1080) and `/feel` (Pixel 8 size).
+- A scripted tutor clicks Next, draws the last leg and labels Library with the mouse, shown with a drawn pointer. An emulated finger finds the start (guided onto the line from 22 mm away), traces the revealed steps and follows the new leg.
+- Both pages are screencast with wall-clock times. `compose.py frames` turns each into a 30 fps clip in `recordings/raw/`. `compose.py compose --label "Desktop simulation"` then makes `recordings/out/sim-route-lesson.mp4/.gif`, with the board on the left and the emulated phone on the right, and `compose.py single` makes the whole stage window as `sim-route-lesson-stage.mp4/.gif`.
+- **What is emulated:** the phone page's `navigator.vibrate` and speech are stubbed and logged. Speech "ends" after a length-based delay, so the stage's spoken reports are emulated too. The phone panel's fingertip, amber vibration rings (ring strength = the share of the last 120 ms the requested pattern was on) and speech caption are drawn by the script over the page's real screen, which stays dark for the student. Nothing in it is device behaviour or evidence that a buzz is felt.
+- It exits non-zero if the phone did not say Start: Classroom, Drawing updated, Office, Drawing changed and Library, or if the board did not end as three lines with Classroom (start), Office and Library.

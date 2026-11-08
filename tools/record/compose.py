@@ -113,12 +113,24 @@ def cmd_probe(a):
 
 # ---------- contact strip ----------
 
-def font_file():
-    for f in ("C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/arial.ttf",
-              "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"):
+def font_file(faces=("C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/arial.ttf",
+                      "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf")):
+    for f in faces:
         if os.path.isfile(f):
             return f.replace(":", "\\:")
     return None
+
+
+def label_filter(text, x="32"):
+    """A tag burned in at the bottom, e.g. "Desktop simulation": a GIF travels without its slide caption, so a take that
+    is not device footage says so in the picture itself. Bottom-left by default; compose centres it between the panels."""
+    ff = font_file(("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+    if not ff:
+        sys.exit("--label needs a font and none was found")
+    safe = text.replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:").replace("%", "\\%")
+    return (f"drawtext=fontfile='{ff}':text='{safe}':fontsize=34:fontcolor=0xe8edf2:"
+            f"box=1:boxcolor=0x172230@0.92:boxborderw=16:x={x}:y=h-th-32")
 
 
 def cmd_strip(a):
@@ -279,7 +291,8 @@ def cmd_compose(a):
             "1:v": panel_chain("1:v", a.phone_crop, rot_fix, tm, a.phone_hflip, a.denoise) + "[ph]",
         }
         fc = ";".join([chains["0:v"], chains["1:v"]]) + ";"
-        fc += ("[st][ph]" if left == "0:v" else "[ph][st]") + f"hstack=inputs=2,trim=duration={dur},setpts=PTS-STARTPTS[v]"
+        fc += ("[st][ph]" if left == "0:v" else "[ph][st]") + f"hstack=inputs=2,trim=duration={dur},setpts=PTS-STARTPTS"
+        fc += ("," + label_filter(a.label, "(w-tw)/2") if a.label else "") + "[v]"
         cmd = [ffmpeg, "-hide_banner", "-y",
                "-ss", f"{s_start:.3f}", "-t", f"{dur + 1:.3f}", "-i", a.stage,
                *phone_in, "-ss", f"{p_start:.3f}", "-t", f"{dur + 1:.3f}", "-i", a.phone,
@@ -293,7 +306,11 @@ def cmd_compose(a):
         print(f"compose failed{' with ' + mode if mode else ''}:\n{r.stderr[-1500:]}", file=sys.stderr)
     else:
         sys.exit("compose failed")
+    make_gif(mp4, gif, a)
 
+
+def make_gif(mp4, gif, a):
+    ffmpeg, _ = tools()
     gif_h = round(a.gif_width * OUT_H / OUT_W / 2) * 2
     gvf = (f"fps={a.gif_fps},scale={a.gif_width}:{gif_h}:flags=lanczos,split[a][b];"
            f"[a]palettegen=max_colors={a.colors}:stats_mode=full:reserve_transparent=0[p];"
@@ -310,6 +327,52 @@ def cmd_compose(a):
     if g > GIF_LIMIT_MB:
         print(f"WARNING: GIF over {GIF_LIMIT_MB:.0f} MB target. Try --denoise, a shorter --dur, --gif-fps 12, "
               f"--gif-width 800, --colors 96, or --dither none.")
+
+
+def cmd_single(a):
+    """One clip on its own, e.g. the whole stage window of a take: fitted to 1920x1080, then the same MP4 and GIF."""
+    ffmpeg, _ = tools()
+    info = probe(a.clip)
+    print("clip:", describe(info))
+    dur = min(a.dur, info["duration"] - a.start) if a.dur else info["duration"] - a.start
+    vf = (f"fps={OUT_FPS},scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=decrease:flags=lanczos,"
+          f"pad={OUT_W}:{OUT_H}:(ow-iw)/2:(oh-ih)/2:color={SURROUND},setsar=1,format=yuv420p")
+    if a.label:
+        vf += "," + label_filter(a.label)
+    os.makedirs(a.out_dir, exist_ok=True)
+    mp4 = os.path.join(a.out_dir, a.name + ".mp4")
+    r = run([ffmpeg, "-hide_banner", "-y", "-ss", f"{a.start:.3f}", "-t", f"{dur:.3f}", "-i", a.clip, "-vf", vf, "-an",
+             "-c:v", "libx264", "-preset", "medium", "-crf", str(a.crf), "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
+             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", mp4],
+            quiet=not a.verbose)
+    if r.returncode != 0:
+        sys.exit(f"single failed:\n{r.stderr[-1500:]}")
+    make_gif(mp4, os.path.join(a.out_dir, a.name + ".gif"), a)
+
+
+def cmd_frames(a):
+    """Frames captured at uneven times (a headless browser's screencast) -> a constant 30 fps MP4. LIST is an ffconcat
+    file naming each frame with how long it stayed on screen, as tools/record/sim_take.mjs writes it."""
+    ffmpeg, _ = tools()
+    r = run([ffmpeg, "-hide_banner", "-y", "-f", "concat", "-safe", "0", "-i", a.list,
+             "-vf", f"fps={OUT_FPS},scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p", "-an",
+             "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-pix_fmt", "yuv420p",
+             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", a.out])
+    if r.returncode != 0:
+        sys.exit(f"frames failed:\n{r.stderr[-1500:]}")
+    print(f"{a.out}: {describe(probe(a.out))}")
+
+
+def output_args(c):
+    c.add_argument("--label", help='text burned into the bottom-left corner, e.g. "Desktop simulation"')
+    c.add_argument("--crf", type=int, default=18)
+    c.add_argument("--gif-width", type=int, default=960)
+    c.add_argument("--gif-fps", type=int, default=15)
+    c.add_argument("--colors", type=int, default=128)
+    c.add_argument("--dither", default="bayer", choices=["bayer", "none", "floyd_steinberg", "sierra2_4a"])
+    c.add_argument("--name", default="take", help="output basename (default take)")
+    c.add_argument("--out-dir", default="recordings/out")
+    c.add_argument("-v", "--verbose", action="store_true")
 
 
 def main():
@@ -348,15 +411,20 @@ def main():
     c.add_argument("--denoise", action="store_true", help="smooth phone-camera grain (smaller GIF)")
     c.add_argument("--hdr", choices=["auto", "on", "off"], default="auto", help="tone-map the phone clip")
     c.add_argument("--swap", action="store_true", help="phone on the left")
-    c.add_argument("--crf", type=int, default=18)
-    c.add_argument("--gif-width", type=int, default=960)
-    c.add_argument("--gif-fps", type=int, default=15)
-    c.add_argument("--colors", type=int, default=128)
-    c.add_argument("--dither", default="bayer", choices=["bayer", "none", "floyd_steinberg", "sierra2_4a"])
-    c.add_argument("--name", default="take", help="output basename (default take)")
-    c.add_argument("--out-dir", default="recordings/out")
-    c.add_argument("-v", "--verbose", action="store_true")
+    output_args(c)
     c.set_defaults(fn=cmd_compose)
+
+    g = sub.add_parser("single", help="one clip alone (e.g. the whole stage window) -> MP4 + GIF")
+    g.add_argument("clip")
+    g.add_argument("--start", type=float, default=0.0, help="seconds into the clip (default 0)")
+    g.add_argument("--dur", type=float, help="seconds (default: to the end)")
+    output_args(g)
+    g.set_defaults(fn=cmd_single)
+
+    f = sub.add_parser("frames", help="unevenly timed frames (ffconcat list) -> constant 30 fps MP4")
+    f.add_argument("list")
+    f.add_argument("out")
+    f.set_defaults(fn=cmd_frames)
 
     a = p.parse_args()
     a.fn(a)

@@ -87,6 +87,14 @@ button.no:active { background: var(--wrong-pressed); }
 .field output { font-size: 20px; font-variant-numeric: tabular-nums; }
 .scale { display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .settings .note { margin-top: 12px; }
+/* An on/off setting: the checkbox drawn as a switch; role="switch" makes a screen reader say on or off. */
+.toggle { align-items: center; gap: 16px; min-height: 48px; margin-top: 20px; }
+input[role=switch] { flex: none; position: relative; width: 52px; height: 32px; margin: 0; border-radius: 16px; background: var(--off);
+  -webkit-appearance: none; appearance: none; cursor: pointer; transition: background-color 150ms ease-out; }
+input[role=switch]::after { content: ''; position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--text); transition: transform 150ms var(--ease-out); }
+input[role=switch]:checked { background: var(--teal); }
+input[role=switch]:checked::after { transform: translateX(20px); background: var(--ink); }
 label { display: block; margin: 0 0 18px; font-size: 17px; }
 label:last-child { margin-bottom: 0; }
 input[type=range] { display: block; width: 100%; height: 48px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; }
@@ -109,7 +117,7 @@ input[type=text]:focus { color: var(--ink); background: var(--paper); border-col
 }
 @media (prefers-reduced-motion: reduce) {
   .dot::after { animation: none !important; }
-  button, .chev, .status { transition: none; }
+  button, .chev, .status, input[role=switch], input[role=switch]::after { transition: none; }
 }
 
 /* Test flow. The reveal sits over the drawn shape, so its text stays above the board's shapes and its buttons below. */

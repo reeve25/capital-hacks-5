@@ -538,8 +538,10 @@ addEventListener('pagehide', stopForHide);
 // here beside the guide it switches; feel-home.js's store loads after this file, so the storage calls are its own.
 try { guideOn = localStorage.getItem('fi.guide') !== 'off'; } catch {}
 $('guide').checked = guideOn;
+$('guide-help').hidden = !guideOn; // the home screen's help line about the taps, only while there are taps
 $('guide').onchange = () => {
   guideOn = $('guide').checked;
+  $('guide-help').hidden = !guideOn;
   try { localStorage.setItem('fi.guide', guideOn ? 'on' : 'off'); } catch {}
   if (!guideOn) stopGuide();
 };

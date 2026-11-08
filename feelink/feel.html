@@ -38,6 +38,7 @@
       <dl>
         <div><dt>Explore by touch</dt><dd>Slide one finger across the screen. Lines buzz under your finger.</dd></div>
         <div><dt>Find labels</dt><dd>A label gives three long buzzes and says its name. Your start point says “Start” first.</dd></div>
+        <div id="guide-help"><dt>Find the line again</dt><dd>Off a line, light taps speed up as you get closer.</dd></div>
         <div><dt>Leave the drawing</dt><dd>Press Back to return to this screen.</dd></div>
       </dl>
     </section>
@@ -62,8 +63,7 @@
         <input id="width" type="range" min="1" max="5" step="1" aria-describedby="width-note">
         <div class="scale" aria-hidden="true"><span>1 mm</span><span>5 mm</span></div>
         <p class="note" id="width-note">How wide the strongest buzz is along each line, with a softer edge of <b><span id="fval"></span> mm</b> on each side. Most students do best with the default, 4 mm.</p>
-        <!-- No checkbox rule in feel.css yet, so its size and spacing are inline. -->
-        <label class="field" for="guide" style="align-items: center; gap: 16px; min-height: 48px; margin-top: 20px;">Guide back to the line <input id="guide" type="checkbox" checked aria-describedby="guide-note" style="flex: none; width: 28px; height: 28px; margin: 0;"></label>
+        <label class="field toggle" for="guide">Guide back to the line <input id="guide" type="checkbox" role="switch" checked aria-describedby="guide-note"></label>
         <p class="note" id="guide-note">When the finger slips off a line, short taps come faster as it gets closer to the nearest one. Silent more than 20 mm from every line.</p>
       </div>
     </details>

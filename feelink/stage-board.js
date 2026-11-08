@@ -113,7 +113,12 @@ let rings = []; // {t0, strength, burst}
 // One ring per real pulse, at the pattern's own timing. Rings are kept even before the first finger
 // sample arrives (the haptic POST can beat the finger POST); they draw once the cursor exists.
 function spawnRings(list, now) {
-  for (const r of list) rings.push({ t0: now + (r.delay || 0), strength: r.strength, burst: r.burst });
+  for (const r of list) {
+    const t0 = now + (r.delay || 0);
+    // One ring at a time (review, Nov 8): a burst's pulses used to stack two rings across the nearest label.
+    if (rings.some((q) => Math.abs(q.t0 - t0) < B.RING_MS * 0.6)) continue;
+    rings.push({ t0, strength: r.strength, burst: r.burst });
+  }
 }
 
 // Landmarks (#64, #65): named points, kept in relay order. `found` holds ids the phone has announced.

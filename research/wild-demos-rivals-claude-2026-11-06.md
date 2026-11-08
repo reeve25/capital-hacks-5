@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Wild demo rival check (independent second searcher)
 
 Date: 2026-11-06. Event: Capital Hacks 5.0, Sac State, Nov 6-8, 2026.

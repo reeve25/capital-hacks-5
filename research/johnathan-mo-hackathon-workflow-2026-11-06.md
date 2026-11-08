@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Johnathan Mo video: hackathon workflow and Silent Voice application
 
 Prepared November 6, 2026, about 12:50 PT.

@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Hand leash shopping list, Nov 6, 2026, about 18:45 PT
 
 **Superseded about 19:10: the current cart, delivery windows, store list and in-person list are under "Parts" in `.plans/hand-leash-build-2026-11-06.md`. Kept for the earlier reasoning.**

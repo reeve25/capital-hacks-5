@@ -1,3 +1,5 @@
+> Historical: Nov 5-6 option research, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Capital Hacks 5.0 options, researched Nov 5, 2026
 
 No option chosen. Product decision is Reeve's. No target user has confirmed anything. No model call or demo has been tested.

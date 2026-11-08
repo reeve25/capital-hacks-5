@@ -5,6 +5,7 @@ Usage: python feelink/server.py [port]
        python -I feelink/server.py --selftest   offline check of the relay store
 Anyone on the same network can open these pages, so run it only while testing.
 """
+import errno
 import json
 import queue
 import socket
@@ -36,13 +37,27 @@ class Relay:
         # The tutor's latest spoken instruction (#107), {id, text, by, heard?}. Only the newest is kept: it is what the
         # student should do now, and what a phone that joins late or reconnects is told.
         self.instruction = None
+        # Step-through reveal (#111): how many of the tutor's strokes, in first-arrival order, the student may feel. None =
+        # all, the default, so freehand drawing works as before. Only by:'tutor' strokes are steps; the student's are
+        # always shown. Landmarks follow their strokes on each client.
+        self.reveal = None
+        # Arrival numbers (#111): each stored stroke and landmark carries `seq`, so a sync, which lists the two kinds apart,
+        # still says which came first. A landmark on no stroke needs that to know whether it came before a hidden stroke.
+        self.next_seq = 0
         self.clients = []
+
+    def take_seq(self):
+        """The next arrival number. Call with the lock held."""
+        self.next_seq += 1
+        return self.next_seq - 1
 
     def sync(self):
         """The whole board, for a client that just joined or after an undo. Call with the lock held."""
         out = {"type": "sync", "strokes": list(self.strokes.values()), "landmarks": list(self.landmarks.values())}
         if self.instruction:
             out["instruction"] = self.instruction  # absent when none, so older clients see the same sync as before
+        if self.reveal is not None:
+            out["reveal"] = self.reveal  # likewise absent at the default (all shown)
         return out
 
     def subscribe(self):
@@ -60,16 +75,24 @@ class Relay:
         with self.lock:
             kind = event.get("type")
             if kind == "stroke":
-                self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"]}
+                old = self.strokes.get(event["id"])  # a growing stroke is re-posted and keeps its number
+                self.strokes[event["id"]] = {"id": event["id"], "by": event.get("by"), "pts": event["pts"],
+                                             "seq": old["seq"] if old else self.take_seq()}
                 self.order.setdefault(("stroke", event["id"]))
             elif kind == "landmark":
                 mark = {"id": event["id"], "x": event["x"], "y": event["y"], "name": event.get("name", ""), "by": event.get("by")}
                 if event.get("start"):
                     mark["start"] = True  # the tutor's start point (#107); re-posting the landmark without it unmarks it
+                old = self.landmarks.get(event["id"])  # a rename or start flag keeps its number
+                mark["seq"] = old["seq"] if old else self.take_seq()
                 self.landmarks[event["id"]] = mark
                 self.order.setdefault(("landmark", event["id"]))
             elif kind == "instruction":
                 self.instruction = {"id": event.get("id"), "text": event.get("text", ""), "by": event.get("by")}
+            elif kind == "reveal":
+                # Anything but a whole number of strokes means all, the safe default: nothing is kept from the student.
+                upto = event.get("upto")
+                self.reveal = upto if isinstance(upto, int) and not isinstance(upto, bool) and upto >= 0 else None
             elif kind == "spoken" and event.get("kind") == "instruction" and self.instruction \
                     and event.get("id") == self.instruction["id"]:
                 # The phone finished saying it, so a stage that joins later shows it heard, not merely sent.
@@ -79,23 +102,51 @@ class Relay:
                 # Clear empties the board, not the instruction (#107): what the student was asked to do still stands,
                 # and the tutor often clears to redraw for that same instruction. Undo leaves it alone too.
                 if self.order:
-                    self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order))
+                    self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order), self.next_seq)
                 self.strokes.clear()
                 self.landmarks.clear()
                 self.order.clear()
+                self.reveal = None  # a fresh board starts fully shown; the undo that restores it does too
+                self.next_seq = 0
             elif kind == "undo" and self.order:
                 (newest, item_id), _ = self.order.popitem()  # a dict pops its last-inserted key
                 (self.strokes if newest == "stroke" else self.landmarks).pop(item_id)
             elif kind == "undo" and self.cleared:
                 # An empty board after a clear: undo restores the whole cleared board, once.
-                self.strokes, self.landmarks, self.order = self.cleared
+                self.strokes, self.landmarks, self.order, saved_seq = self.cleared
                 self.cleared = None
+                self.next_seq = max(self.next_seq, saved_seq)  # the restored items keep their numbers; new ones come after
+            steps = sum(1 for s in self.strokes.values() if s.get("by") == "tutor") if kind == "undo" else 0
+            if kind == "undo" and self.reveal is not None and self.reveal > steps:
+                # Undoing a shown tutor stroke keeps the pointer at the end, never past it; undoing a hidden one, or anyone
+                # else's stroke, moves nothing.
+                self.reveal = steps
             for q in self.clients:
                 q.put(event)
             if kind == "undo":
                 sync = self.sync()
                 for q in self.clients:
                     q.put(sync)
+
+
+class RelayServer(ThreadingHTTPServer):
+    """One relay per port. ThreadingHTTPServer sets SO_REUSEADDR, and on Windows that lets a second and third relay bind
+    0.0.0.0:8765 beside a stale one, so clients were split across processes holding different boards (found live,
+    Nov 7). On Windows the relay binds with SO_EXCLUSIVEADDRUSE instead, which also keeps an older relay that still sets
+    SO_REUSEADDR from binding beside it. Elsewhere SO_REUSEADDR never lets two listeners share a port and saves the
+    TIME_WAIT wait after a restart, so it stays."""
+    allow_reuse_address = sys.platform != "win32"
+
+    def server_bind(self):
+        if sys.platform == "win32":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def port_taken(e):
+    """Bind failed because something already holds the port: EADDRINUSE, or on Windows WSAEADDRINUSE (10048), or
+    WSAEACCES (10013), what Windows returns when the holder bound it exclusively."""
+    return e.errno == errno.EADDRINUSE or getattr(e, "winerror", None) in (10048, 10013)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -180,13 +231,14 @@ def selftest():
     for ev in (s1, lib, s2):
         relay.publish(ev)
     assert drain() == [s1, lib, s2]  # relayed unchanged, in order
-    stored = lambda ev: {k: v for k, v in ev.items() if k != "type"}
-    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [stored(s1), stored(s2)], "landmarks": [stored(lib)]}
+    stored = lambda ev, seq: {**{k: v for k, v in ev.items() if k != "type"}, "seq": seq}  # as kept, with its arrival number
+    assert relay.subscribe().get_nowait() == {"type": "sync", "strokes": [stored(s1, 0), stored(s2, 2)], "landmarks": [stored(lib, 1)]}
 
     # A growing stroke and a renamed landmark are re-posted with the same id and keep their places.
     relay.publish({**s1, "pts": s1["pts"] + [{"x": 6, "y": 84}]})
     relay.publish({**lib, "name": "Main library"})
     assert ids() == (["s1", "s2"], ["m1"]) and relay.landmarks["m1"]["name"] == "Main library"
+    assert (relay.strokes["s1"]["seq"], relay.landmarks["m1"]["seq"], relay.strokes["s2"]["seq"]) == (0, 1, 2)
     drain()
 
     # Undo pops the newest item of either kind: s2, then the landmark, then s1.
@@ -206,9 +258,11 @@ def selftest():
     for ev in (s1, lib):
         relay.publish(ev)
     relay.publish({"type": "clear"})
-    assert ids() == ([], [])
+    assert ids() == ([], []) and relay.next_seq == 0
     relay.publish({"type": "undo"})
     assert ids() == (["s1"], ["m1"]) and drain()[-1]["type"] == "sync"
+    # The restored items keep their numbers (s1 3, m1 4: undo never reuses one), and new ones come after them.
+    assert (relay.strokes["s1"]["seq"], relay.landmarks["m1"]["seq"], relay.next_seq) == (3, 4, 5)
     relay.publish({"type": "undo"})
     assert ids() == (["s1"], [])
     relay.publish({"type": "clear"})
@@ -252,10 +306,58 @@ def selftest():
     relay.publish(lib)
     relay.publish(s2)
     relay.publish({**lib, "start": True})
-    assert relay.landmarks["m1"] == {**stored(lib), "start": True} and list(relay.order) == [("landmark", "m1"), ("stroke", "s2")]
-    assert relay.sync()["landmarks"] == [{**stored(lib), "start": True}]
+    assert relay.landmarks["m1"] == {**stored(lib, 0), "start": True} and list(relay.order) == [("landmark", "m1"), ("stroke", "s2")]
+    assert relay.sync()["landmarks"] == [{**stored(lib, 0), "start": True}]
     relay.publish({**lib, "start": False})
-    assert relay.landmarks["m1"] == stored(lib)
+    assert relay.landmarks["m1"] == stored(lib, 0)
+
+    # Step-through reveal (#111): upto is stored and relayed unchanged, and in sync only when it is not None (all).
+    relay.publish({"type": "clear"})
+    s3 = {"type": "stroke", "id": "s3", "by": "tutor", "pts": [{"x": 51, "y": 83}, {"x": 51, "y": 110}]}
+    for ev in (s1, lib, s2, s3):
+        relay.publish(ev)
+    drain()
+    assert "reveal" not in relay.sync()
+    # A late joiner learns the interleaving from seq: the landmark sits between s1 and s2, though listed apart.
+    fresh = relay.subscribe().get_nowait()
+    assert [it["id"] for it in sorted(fresh["strokes"] + fresh["landmarks"], key=lambda it: it["seq"])] == ["s1", "m1", "s2", "s3"]
+    show1 = {"type": "reveal", "upto": 1, "by": "tutor"}
+    relay.publish(show1)
+    assert drain() == [show1] and relay.reveal == 1 and relay.sync()["reveal"] == 1
+    assert relay.subscribe().get_nowait()["reveal"] == 1, "a client joining mid-reveal is told"
+    relay.publish({"type": "reveal", "upto": None, "by": "tutor"})
+    assert relay.reveal is None and "reveal" not in relay.sync()
+    for bad in (-1, 1.5, "2", True):
+        relay.publish({"type": "reveal", "upto": 2, "by": "tutor"})
+        relay.publish({"type": "reveal", "upto": bad, "by": "tutor"})
+        assert relay.reveal is None, bad
+    # Undo of a hidden stroke (or a landmark) leaves upto alone; undo past it clamps it to the strokes left.
+    relay.publish({"type": "reveal", "upto": 2, "by": "tutor"})
+    relay.publish({"type": "undo"})  # s3, hidden
+    assert ids() == (["s1", "s2"], ["m1"]) and relay.reveal == 2
+    relay.publish({"type": "undo"})  # s2, shown: 2 > 1 stroke left
+    assert ids() == (["s1"], ["m1"]) and relay.reveal == 1 and drain()[-1]["reveal"] == 1
+    relay.publish({"type": "undo"})  # the landmark
+    assert ids() == (["s1"], []) and relay.reveal == 1
+    relay.publish({"type": "reveal", "upto": 0, "by": "tutor"})
+    relay.publish({"type": "undo"})  # s1, hidden: 0 stays 0
+    assert ids() == ([], []) and relay.reveal == 0
+    # Clear resets to all, and the undo that restores the cleared board brings it back fully shown.
+    for ev in (s1, s2, {"type": "reveal", "upto": 1, "by": "tutor"}, {"type": "clear"}):
+        relay.publish(ev)
+    assert relay.reveal is None and "reveal" not in relay.sync()
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1", "s2"], []) and relay.reveal is None
+    assert relay.instruction == {"id": "i3", "text": say1["text"], "by": "tutor"}, "reveal never touches the instruction"
+    # Only the tutor's strokes are steps: the student's stroke between s1 and s2 does not count toward the clamp.
+    kid = {"type": "stroke", "id": "k1", "by": "student", "pts": [{"x": 20, "y": 20}, {"x": 30, "y": 30}]}
+    steps = Relay()
+    for ev in (s1, kid, s2, {"type": "reveal", "upto": 2, "by": "tutor"}, {"type": "undo"}):
+        steps.publish(ev)
+    assert list(steps.strokes) == ["s1", "k1"] and steps.reveal == 1, "one tutor stroke is left, not two strokes"
+    steps.publish({**kid, "id": "k2"})
+    steps.publish({"type": "undo"})  # the student's k2: the tutor's steps are unchanged
+    assert steps.reveal == 1
     print("server selftest: ok")
 
 
@@ -263,7 +365,13 @@ def main():
     if sys.argv[1:] == ["--selftest"]:
         return selftest()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    try:
+        server = RelayServer(("0.0.0.0", port), Handler)
+    except OSError as e:
+        if not port_taken(e):
+            raise
+        print(f"relay: port {port} is already in use; stop the other relay first (netstat -ano | findstr :{port})", file=sys.stderr)
+        sys.exit(1)
     print(f"Laptop canvas: http://localhost:{port}/draw")
     for ip in lan_addresses():
         print(f"Pixel, in Chrome: http://{ip}:{port}/feel")

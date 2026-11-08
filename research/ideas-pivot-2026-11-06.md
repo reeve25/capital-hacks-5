@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Capital Hacks 5.0: five product ideas
 
 Prepared Fri Nov 6, 2026. Assumes about 44 hours to an 11 AM Sunday submission.

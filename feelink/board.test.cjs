@@ -502,3 +502,192 @@ test('an instruction shows Sent until the phone reports saying it, then Heard; a
   assert.equal(B.cleanInstruction('  Follow   the line. '), 'Follow the line.');
   assert.equal(B.cleanInstruction('w'.repeat(200)).length, B.INSTRUCTION_MAX);
 });
+
+// Step-through reveal (#111): a three-stroke route, School -> corner -> Library -> Park, with a landmark on each.
+const route = () => {
+  const arrivals = new B.Arrivals();
+  const s = [
+    { id: 's1', by: 'tutor', pts: [{ x: 10, y: 20 }, { x: 10, y: 60 }] },
+    { id: 's2', by: 'tutor', pts: [{ x: 10, y: 60 }, { x: 46, y: 60 }] }, // two points: the middle counts by segment, not vertex
+    { id: 's3', by: 'tutor', pts: [{ x: 46, y: 60 }, { x: 46, y: 100 }] },
+  ];
+  const m = {
+    school: { id: 'm-school', x: 10, y: 20 }, // on s1
+    corner: { id: 'm-corner', x: 11, y: 61 }, // where s1 meets s2: within reach of a shown stroke from step 1
+    library: { id: 'm-library', x: 28, y: 62 }, // mid s2, 2 mm off the line
+    park: { id: 'm-park', x: 46, y: 96 }, // on s3
+    gate: { id: 'm-gate', x: 45, y: 10 }, // on no stroke, placed after s1
+    sign: { id: 'm-sign', x: 30, y: 110 }, // on no stroke, placed after s3
+  };
+  for (const [kind, it] of [['stroke', s[0]], ['landmark', m.school], ['landmark', m.gate], ['stroke', s[1]], ['landmark', m.corner],
+    ['landmark', m.library], ['stroke', s[2]], ['landmark', m.park], ['landmark', m.sign]]) arrivals.add(kind, it.id);
+  const marks = Object.values(m);
+  const view = (upto) => {
+    const v = B.revealView(s, marks, upto, (k, id) => arrivals.of(k, id));
+    return { ...v, marks: Object.fromEntries(Object.keys(m).map((k, i) => [k, v.mark[i]])) };
+  };
+  return { s, m, marks, arrivals, view };
+};
+
+test('reveal: strokes are shown by index below upto, null shows all', () => {
+  const { view } = route();
+  assert.deepEqual(view(null).stroke, [true, true, true]);
+  assert.deepEqual([view(null).shown, view(null).total, view(null).hiding], [3, 3, false]);
+  assert.deepEqual(view(1).stroke, [true, false, false]);
+  assert.deepEqual([view(1).shown, view(1).hiding], [1, true]);
+  assert.deepEqual(view(0).stroke, [false, false, false]);
+  assert.deepEqual(view(3).stroke, [true, true, true], 'upto at the end hides nothing');
+  assert.equal(view(3).hiding, false);
+  assert.deepEqual(view(9).stroke, [true, true, true]);
+  for (const bad of [undefined, -1, NaN, '2', Infinity]) assert.equal(view(bad).hiding, false, String(bad));
+  assert.equal(view(1.7).shown, 1);
+  assert.deepEqual(B.revealStrokes(route().s, 1), { stroke: [true, false, false], total: 3, shown: 1 });
+  assert.equal(B.cleanReveal(2), 2);
+  assert.equal(B.cleanReveal(undefined), null);
+});
+
+test('reveal: landmarks on strokes follow their stroke; one at a junction shows with the earlier stroke', () => {
+  const { view } = route();
+  assert.deepEqual(Object.values(view(null).marks), [true, true, true, true, true, true], 'everything shown');
+  const one = view(1).marks;
+  assert.deepEqual([one.school, one.corner, one.library, one.park], [true, true, false, false]);
+  const two = view(2).marks;
+  assert.deepEqual([two.school, two.corner, two.library, two.park], [true, true, true, false], 'library is 2 mm off s2, mid-segment');
+  const none = view(0).marks;
+  assert.deepEqual([none.school, none.corner, none.library, none.park], [false, false, false, false]);
+  // Just past LANDMARK_MM from every stroke is off-stroke, and then arrival order decides.
+  const { s, arrivals } = route();
+  const far = { id: 'far', x: 28, y: 60 + B.LANDMARK_MM + 0.01 }, near = { id: 'near', x: 28, y: 60 + B.LANDMARK_MM };
+  arrivals.add('landmark', 'far');
+  arrivals.add('landmark', 'near');
+  assert.deepEqual(B.revealView(s, [far, near], 2, (k, id) => arrivals.of(k, id)).mark, [false, true]);
+  assert.deepEqual(B.revealView(s, [far, near], 1, (k, id) => arrivals.of(k, id)).mark, [false, false]);
+});
+
+test('reveal: a landmark on no stroke shows when it arrived before the first hidden stroke', () => {
+  const { view } = route();
+  // gate came after s1 and before s2; sign came after s3.
+  assert.deepEqual([view(0).marks.gate, view(0).marks.sign], [false, false], 'gate arrived after s1, the first hidden');
+  assert.deepEqual([view(1).marks.gate, view(1).marks.sign], [true, false]);
+  assert.deepEqual([view(2).marks.gate, view(2).marks.sign], [true, false]);
+  assert.deepEqual([view(null).marks.gate, view(null).marks.sign], [true, true]);
+  // One placed before any stroke is shown even at upto 0; one never seen counts as newest.
+  const a = new B.Arrivals();
+  a.add('landmark', 'first');
+  a.add('stroke', 'k');
+  const k = [{ id: 'k', by: 'tutor', pts: [{ x: 1, y: 1 }, { x: 2, y: 2 }] }];
+  assert.deepEqual(B.revealView(k, [{ id: 'first', x: 40, y: 100 }, { id: 'unseen', x: 40, y: 90 }], 0, (kind, id) => a.of(kind, id)).mark, [true, false]);
+});
+
+test('reveal: arrival numbers survive re-posts, syncs and the undo that restores a clear', () => {
+  const a = new B.Arrivals();
+  a.add('stroke', 's1');
+  a.add('landmark', 'm1');
+  a.add('stroke', 's2');
+  a.add('stroke', 's1'); // a growing stroke re-posted keeps its place
+  assert.deepEqual([a.of('stroke', 's1'), a.of('landmark', 'm1'), a.of('stroke', 's2')], [0, 1, 2]);
+  // A sync keeps known numbers, drops what is gone, and numbers new items strokes first, then landmarks.
+  a.sync([{ id: 's1' }, { id: 's3' }], [{ id: 'm1' }, { id: 'm2' }]);
+  assert.deepEqual([a.of('stroke', 's1'), a.of('landmark', 'm1'), a.of('stroke', 's3'), a.of('landmark', 'm2')], [0, 1, 3, 4]);
+  assert.equal(a.of('stroke', 's2'), Infinity);
+  // Clear, then the relay's undo brings the board back in a sync: the old order comes with it.
+  a.clear();
+  assert.equal(a.of('stroke', 's1'), Infinity);
+  a.clear(); // a second clear on an empty board keeps what the first one saved
+  a.sync([{ id: 's1' }, { id: 's3' }], [{ id: 'm1' }, { id: 'm2' }]);
+  assert.deepEqual([a.of('stroke', 's1'), a.of('landmark', 'm1'), a.of('stroke', 's3'), a.of('landmark', 'm2')], [0, 1, 3, 4]);
+  // A late joiner's first sync from a relay without seq: an off-stroke landmark of unknown age counts as after every
+  // stroke (hidden while any is).
+  const late = new B.Arrivals();
+  late.sync([{ id: 's1' }, { id: 's2' }], [{ id: 'm' }]);
+  assert.ok(late.of('landmark', 'm') > late.of('stroke', 's2'));
+});
+
+test("reveal: the relay's seq gives a late joiner the true order of strokes and landmarks", () => {
+  const { s, m, marks, view } = route();
+  // The relay's stamps for the same route, listed apart as a sync lists them.
+  const seq = { s1: 0, 'm-school': 1, 'm-gate': 2, s2: 3, 'm-corner': 4, 'm-library': 5, s3: 6, 'm-park': 7, 'm-sign': 8 };
+  const stamped = (x) => ({ ...x, seq: seq[x.id] });
+  const late = new B.Arrivals();
+  late.add('stroke', 'old'); // whatever it numbered before is replaced by the relay's numbers
+  late.sync(s.map(stamped), marks.map(stamped));
+  const v = (upto) => B.revealView(s, marks, upto, (k, id) => late.of(k, id)).mark;
+  for (const upto of [null, 0, 1, 2]) assert.deepEqual(v(upto), view(upto).mark, 'same as a stage that watched it live, upto ' + upto);
+  assert.equal(v(1)[Object.keys(m).indexOf('gate')], true, 'the gate, placed before s2, shows at step 1');
+  // An item the relay has not stamped (the stroke being drawn) goes after everything it has; live items follow on.
+  late.sync(s.map(stamped).concat([{ id: 'mine' }]), marks.map(stamped));
+  assert.equal(late.of('stroke', 'mine'), 9);
+  late.add('landmark', 'new');
+  assert.equal(late.of('landmark', 'new'), 10);
+  assert.equal(late.of('stroke', 'old'), Infinity, 'gone from the board');
+  // bySeq puts a sync's list in arrival order when every item is stamped, and leaves an unstamped list alone.
+  assert.deepEqual(B.bySeq([{ id: 'b', seq: 3 }, { id: 'a', seq: 0 }]).map((x) => x.id), ['a', 'b']);
+  assert.deepEqual(B.bySeq([{ id: 'b' }, { id: 'a', seq: 0 }]).map((x) => x.id), ['b', 'a']);
+  assert.deepEqual(B.bySeq(undefined), []);
+});
+
+test('reveal: next, previous and all step through the strokes from the default', () => {
+  const step = (u, total, action) => B.revealStep(u, Array.from({ length: total }, (_, i) => ({ id: 't' + i, by: 'tutor' })), action);
+  // The tutor's usual flow: draw three strokes, step back to none, then forward again.
+  assert.deepEqual(step(null, 3, 'prev'), { upto: 2, changed: true, note: '' }, 'from all, hide the newest');
+  assert.deepEqual(step(2, 3, 'prev'), { upto: 1, changed: true, note: '' });
+  assert.deepEqual(step(1, 3, 'prev'), { upto: 0, changed: true, note: '' });
+  assert.deepEqual(step(0, 3, 'prev'), { upto: 0, changed: false, note: 'none' }, 'nothing left to hide');
+  assert.deepEqual(step(0, 3, 'next'), { upto: 1, changed: true, note: '' });
+  assert.deepEqual(step(1, 3, 'next'), { upto: 2, changed: true, note: '' });
+  assert.deepEqual(step(2, 3, 'next'), { upto: null, changed: true, note: '' }, 'the last one returns to the default');
+  // With everything shown, Reveal next does nothing and says so; it never hides the drawing.
+  assert.deepEqual(step(null, 3, 'next'), { upto: null, changed: false, note: 'all' });
+  assert.deepEqual(step(3, 3, 'next'), { upto: 3, changed: false, note: 'all' }, 'the relay clamped to the end after an undo');
+  assert.deepEqual(step(3, 3, 'prev'), { upto: 2, changed: true, note: '' });
+  assert.deepEqual(step(1, 3, 'all'), { upto: null, changed: true, note: '' });
+  assert.deepEqual(step(3, 3, 'all'), { upto: null, changed: true, note: '' });
+  assert.deepEqual(step(null, 3, 'all'), { upto: null, changed: false, note: 'all' });
+  assert.deepEqual(step(null, 0, 'prev'), { upto: null, changed: false, note: 'empty' });
+  assert.deepEqual(step(null, 0, 'next'), { upto: null, changed: false, note: 'all' });
+  // A stroke drawn mid-reveal arrives at the end, hidden: next now has one more to show.
+  assert.deepEqual(step(1, 4, 'next'), { upto: 2, changed: true, note: '' });
+});
+
+test("reveal: only the tutor's strokes are steps; the student's are always shown and never counted", () => {
+  const t = (id, pts) => ({ id, by: 'tutor', pts });
+  // tutor s1, a line from the phone (by:'phone'), tutor s2, then one from the laptop canvas (draw.html posts by:'laptop')
+  // crossing s2 at x = 40.
+  const strokes = [t('s1', [{ x: 10, y: 20 }, { x: 10, y: 60 }]), { id: 'k', by: 'phone', pts: [{ x: 30, y: 10 }, { x: 30, y: 40 }] },
+    t('s2', [{ x: 10, y: 60 }, { x: 46, y: 60 }]), { id: 'l', by: 'laptop', pts: [{ x: 40, y: 50 }, { x: 40, y: 70 }] }];
+  const marks = [{ id: 'onKid', x: 30, y: 30 }, { id: 'onS2', x: 28, y: 61 }, { id: 'crossed', x: 40, y: 60 }];
+  const a = new B.Arrivals();
+  for (const [kind, id] of [['stroke', 's1'], ['stroke', 'k'], ['landmark', 'onKid'], ['stroke', 's2'], ['landmark', 'onS2'],
+    ['stroke', 'l'], ['landmark', 'crossed']]) a.add(kind, id);
+  const v = (upto) => B.revealView(strokes, marks, upto, (k, id) => a.of(k, id));
+  assert.deepEqual(v(1).stroke, [true, true, false, true], "upto 1 is the tutor's first stroke, not the first two strokes");
+  assert.deepEqual([v(1).shown, v(1).total, v(1).hiding], [1, 2, true]);
+  assert.deepEqual(v(0).stroke, [false, true, false, true]);
+  assert.deepEqual(v(2).stroke, [true, true, true, true]);
+  assert.equal(v(2).hiding, false, "two tutor strokes, both shown: nothing hidden, whatever else is on the board");
+  // "On a stroke" means a tutor stroke: a point on someone else's line follows the arrival rule, and a line crossing a
+  // hidden point does not reveal it.
+  assert.deepEqual(v(0).mark, [false, false, false], 'onKid arrived after s1, the first hidden; crossed sits on hidden s2');
+  assert.deepEqual(v(1).mark, [true, false, false], "onKid arrived before s2; the laptop's line through crossed does not count");
+  assert.deepEqual(v(2).mark, [true, true, true]);
+  assert.equal(B.revealLegend(v(1).shown, v(1).total), 'Shown 1 of 2 strokes');
+  assert.equal(B.revealLegend(v(2).shown, v(2).total), '');
+  // Steps count the tutor's strokes only.
+  assert.deepEqual(B.revealStep(null, strokes, 'prev'), { upto: 1, changed: true, note: '' });
+  assert.deepEqual(B.revealStep(1, strokes, 'next'), { upto: null, changed: true, note: '' });
+  assert.deepEqual(B.revealStep(null, [strokes[1], strokes[3]], 'prev'), { upto: null, changed: false, note: 'empty' },
+    'no tutor strokes: nothing to step through');
+  assert.deepEqual(B.revealStrokes([strokes[1]], 0), { stroke: [true], total: 0, shown: 0 });
+});
+
+test('reveal: the legend line shows only while something is hidden', () => {
+  assert.equal(B.revealLegend(2, 5), 'Shown 2 of 5 strokes');
+  assert.equal(B.revealLegend(0, 3), 'Shown 0 of 3 strokes');
+  assert.equal(B.revealLegend(0, 1), 'Shown 0 of 1 stroke');
+  assert.equal(B.revealLegend(3, 3), '');
+  assert.equal(B.revealLegend(0, 0), '');
+  const { view } = route();
+  const v = view(2);
+  assert.equal(B.revealLegend(v.shown, v.total), 'Shown 2 of 3 strokes');
+  assert.equal(B.revealLegend(view(null).shown, view(null).total), '');
+});

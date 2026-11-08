@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Health + Accessibility round, Nov 6, 2026, about 14:55 PT
 
 Bar from Reeve: Health + Accessibility, blows judges away, clear winner if built, no physical building. Nothing chosen, built or tested. Full rival and evidence detail: `health-round-rivals-codex-2026-11-06.md` (Codex opened its sources; the advisor did not re-read them, and Nature redirected the advisor's attempt to open SeeMe). Thresholds are suggestions.

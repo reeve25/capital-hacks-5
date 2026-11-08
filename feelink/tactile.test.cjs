@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue, drawingKey, doubleTapper,
-  landmarkLine, startMark, replayLine, landmarkVoice, speechCut } = require('./tactile.js');
+  landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -397,4 +397,153 @@ test('speech priority: a name cuts anything and re-queues a cut instruction; ins
   assert.deepEqual(speechCut(['landmark'], 'status'), { cancel: false, resay: -1 });
   assert.deepEqual(speechCut(['status'], 'status'), { cancel: true, resay: -1 }, 'as before: a status line replaces an older one');
   assert.deepEqual(speechCut([], 'status'), { cancel: true, resay: -1 });
+});
+
+// Step-through reveal (#111). A route drawn as three straight two-point strokes (as the stage's straight tool sends
+// them), with landmarks on them and off them. seq is the relay's arrival order: n0, s1, m0, n1, s2, m1, s3, m3, n2.
+const tutor = (id, seq, a, b) => ({ id, by: 'tutor', seq, pts: [a, b] });
+const s1 = tutor('s1', 1, { x: 10, y: 20 }, { x: 10, y: 60 });
+const s2 = tutor('s2', 4, { x: 10, y: 60 }, { x: 46, y: 60 });
+const s3 = tutor('s3', 6, { x: 46, y: 60 }, { x: 46, y: 100 });
+const n0 = { id: 'n0', seq: 0, x: 30, y: 10, name: 'North' }; // off every line, placed before any stroke
+const m0 = { id: 'm0', seq: 2, x: 10, y: 60, name: 'School' }; // where s1 meets s2
+const n1 = { id: 'n1', seq: 3, x: 30, y: 30, name: 'Pond' }; // off every line, placed after s1
+const m1 = { id: 'm1', seq: 5, x: 28, y: 60, name: 'Library' }; // half way along s2: 18 mm from both its points
+const m3 = { id: 'm3', seq: 7, x: 46, y: 80, name: 'Park' };
+const n2 = { id: 'n2', seq: 8, x: 30, y: 90, name: 'Lake' }; // off every line, placed last
+const route = [s1, s2, s3], marks = [n0, m0, n1, m1, m3, n2];
+const bare = (x) => { const { seq, ...rest } = x; return rest; }; // as an older relay's sync sends it
+const ids = (v) => [v.strokes.map((s) => s.id), v.landmarks.map((l) => l.id)];
+
+test('reveal: anything but a whole upto >= 0 shows everything, the same lists, so the phone is unchanged (#111)', () => {
+  for (const upto of [null, undefined, 'all', '2', NaN, Infinity, 2.5, -1, 3, 7]) {
+    const v = revealed(route, marks, upto);
+    assert.ok(v.strokes === route && v.landmarks === marks, `upto ${upto}`);
+  }
+  assert.deepEqual([revealUpto(0), revealUpto(2), revealUpto(2.5), revealUpto(-1), revealUpto('2'), revealUpto(null)], [0, 2, null, null, null, null]);
+  assert.deepEqual(revealed(undefined, undefined, 1), { strokes: [], landmarks: [] });
+});
+
+test('reveal: tutor strokes show in seq order; a landmark follows its stroke\'s segments, or its seq on none (#111)', () => {
+  assert.deepEqual(ids(revealed(route, marks, 0)), [[], ['n0']], 'only the landmark placed before any stroke');
+  assert.deepEqual(ids(revealed(route, marks, 1)), [['s1'], ['n0', 'm0', 'n1']], 'School is on s1; Pond came before s2');
+  assert.deepEqual(ids(revealed(route, marks, 2)), [['s1', 's2'], ['n0', 'm0', 'n1', 'm1']], 'Library is on s2\'s segment, far from its points');
+  // seq decides, not the list: listed out of order, s1 is still the first step.
+  assert.deepEqual(ids(revealed([s3, s1, s2], marks, 1)), [['s1'], ['n0', 'm0', 'n1']]);
+  // A landmark on a hidden stroke stays hidden even if it arrived first.
+  assert.deepEqual(ids(revealed(route, [{ id: 'e', seq: 0, x: 46, y: 90, name: 'Gate' }], 2)), [['s1', 's2'], []]);
+  // Within 4 mm of a shown segment counts as on it; just past that it lies on none, and it arrived last.
+  assert.deepEqual(ids(revealed(route, [{ id: 'k', seq: 9, x: 14, y: 40 }, { id: 'f', seq: 9, x: 14.1, y: 40 }], 1)), [['s1'], ['k']]);
+});
+
+test('reveal: only tutor strokes are steps; anyone else\'s are always shown and count toward nothing (#111)', () => {
+  const own = { id: 'phone-1', by: 'phone', seq: 5.5, pts: [{ x: 20, y: 100 }, { x: 40, y: 100 }] }; // the student's
+  const laptop = { id: 'laptop-1', by: 'laptop', seq: 0.5, pts: [{ x: 5, y: 5 }, { x: 50, y: 5 }] };
+  const drawn = [s1, laptop, s2, own, s3];
+  assert.deepEqual(ids(revealed(drawn, marks, 0)), [['laptop-1', 'phone-1'], ['n0']]);
+  assert.deepEqual(ids(revealed(drawn, marks, 1)), [['s1', 'laptop-1', 'phone-1'], ['n0', 'm0', 'n1']], 'upto counts tutor strokes only');
+  assert.deepEqual(ids(revealed(drawn, marks, 2)), [['s1', 'laptop-1', 's2', 'phone-1'], ['n0', 'm0', 'n1', 'm1']]);
+  const all = revealed(drawn, marks, 3);
+  assert.ok(all.strokes === drawn && all.landmarks === marks, '3 tutor strokes shown: nothing hidden');
+  // A student stroke over a hidden landmark does not give it away: landmarks follow the tutor's geometry.
+  const over = { ...own, pts: [{ x: 40, y: 80 }, { x: 52, y: 80 }] };
+  assert.deepEqual(ids(revealed([s1, s2, s3, over], [m3], 2)), [['s1', 's2', 'phone-1'], []]);
+  assert.equal(revealChanged([s1, own], [], 1, null), false, 'the student drawing is not a step: nothing to reveal');
+});
+
+test('reveal: with no seq (an older relay) strokes keep sync order and a landmark of unknown order waits (#111)', () => {
+  const old = route.map(bare), oldMarks = marks.map(bare);
+  assert.deepEqual(ids(revealed(old, oldMarks, 1)), [['s1'], ['m0']], 'North and Pond wait: their order is unknown');
+  assert.deepEqual(ids(revealed(old, oldMarks, 2)), [['s1', 's2'], ['m0', 'm1']]);
+  assert.equal(revealed(old, oldMarks, null).landmarks, oldMarks, 'all shown: nothing waits');
+  // Live events after that sync get the next seq after the highest known (none here, so from 0), so their order is
+  // known: a landmark placed live still waits for a hidden stroke from the sync, but not for a later live one.
+  const s4 = tutor('s4', nextSeq(old, oldMarks), { x: 5, y: 110 }, { x: 50, y: 110 });
+  const pin = { id: 'pin', seq: nextSeq([...old, s4], oldMarks), x: 30, y: 45, name: 'Bench' }; // on no stroke
+  const s5 = tutor('s5', nextSeq([...old, s4], [...oldMarks, pin]), { x: 5, y: 115 }, { x: 50, y: 115 });
+  assert.deepEqual([s4.seq, pin.seq, s5.seq], [0, 1, 2]);
+  assert.deepEqual(ids(revealed([...old, s4, s5], [pin], 2)), [['s1', 's2'], []], 's3, the first hidden, came in the sync');
+  assert.deepEqual(ids(revealed([...old, s4, s5], [pin], 4)), [['s1', 's2', 's3', 's4'], ['pin']], 'placed before s5');
+  // With the relay's seqs, a live item goes after the highest, landmarks included.
+  assert.equal(nextSeq(route, marks), 9);
+  assert.equal(nextSeq(undefined, []), 0);
+});
+
+test('reveal: "Drawing updated." once per change that can be felt; never again for the same upto (#111)', () => {
+  let upto = null;
+  const said = [];
+  // As feel.html runs it: every reveal event or sync moves upto, and only a felt change speaks.
+  const arrive = (next, strokes = route, landmarks = marks) => {
+    const to = revealUpto(next);
+    if (revealChanged(strokes, landmarks, upto, to)) said.push(to);
+    upto = to;
+  };
+  arrive(1);
+  arrive(1); // the same upto again, as a resent event
+  arrive(1); // an undo's sync that reproduces the current state
+  arrive(2);
+  arrive(null); // revealing the last stroke arrives as null
+  arrive(null);
+  arrive(3); // 3 of 3: everything was shown already
+  arrive(1);
+  arrive(2.5); // not a whole number: everything
+  arrive(undefined); // a sync with no reveal: everything, as it already is
+  assert.deepEqual(said, [1, 2, null, 1, null]);
+  // A hidden stroke undone, or a new one drawn while hidden, leaves the felt drawing as it was: no "Drawing changed." either.
+  const felt = (strokes, landmarks, u) => { const v = revealed(strokes, landmarks, u); return drawingKey(v.strokes, v.landmarks); };
+  // Undo pops the newest first: Lake, then Park, then s3, all hidden at upto 2.
+  assert.equal(felt(route, [n0, m0, n1, m1, m3], 2), felt(route, marks, 2));
+  assert.equal(felt(route, [n0, m0, n1, m1], 2), felt(route, marks, 2));
+  assert.equal(felt([s1, s2], [n0, m0, n1, m1], 2), felt(route, marks, 2));
+  assert.equal(felt([...route, tutor('s4', 9, { x: 5, y: 5 }, { x: 50, y: 5 })], marks, 2), felt(route, marks, 2));
+  assert.notEqual(felt([s1], marks, 2), felt(route, marks, 2), 'undoing a shown stroke is a change');
+});
+
+test('reveal: hidden geometry is blank glass, and a part hidden under a resting finger goes quiet (#111)', () => {
+  const at = (upto) => {
+    const v = revealed(route, marks, upto);
+    const r = rendererWith(v.strokes);
+    r.setLandmarks(v.landmarks);
+    return r;
+  };
+  // On hidden s3 and its landmark Park: no hum, no landmark, and a fast swipe across it gives no tick.
+  const one = at(1);
+  assert.equal(one.move({ x: 46, y: 80 }), null);
+  assert.equal(one.level, 0);
+  assert.equal(one.move({ x: 30, y: 80 }), null);
+  assert.equal(one.move({ x: 54, y: 80 }), null, 'no tick crossing a hidden line');
+  const all = at(null);
+  all.move({ x: 30, y: 80 });
+  assert.deepEqual(all.move({ x: 54, y: 80 }), { type: 'tick' }, 'the same swipe ticks once s3 is shown');
+  // A T whose stem is hidden: the bar has no junction corner where the stem would join, only its two ends.
+  const [bar, stem] = SHAPES.T.map((s, i) => ({ id: 't' + i, by: 'tutor', seq: i, ...s }));
+  const bars = (upto) => trace(rendererWith(revealed([bar, stem], [], upto).strokes), bar.pts);
+  assert.deepEqual(bars(null), ['end', 'corner', 'end']);
+  assert.deepEqual(bars(1), ['end', 'end']);
+  // Hidden Library half way along hidden s2: nothing at all.
+  assert.equal(at(1).move({ x: 28, y: 60 }), null);
+  assert.deepEqual(at(2).move({ x: 28, y: 60 }), { type: 'node', kind: 'landmark', level: at(2).top, name: 'Library' });
+  // Resting on s2, then Previous step hides it: the same stop as moving off the line.
+  const r = rendererWith(revealed(route, marks, 2).strokes);
+  r.move({ x: 20, y: 60 });
+  assert.equal(r.level, r.top);
+  r.setStrokes(revealed(route, marks, 1).strokes);
+  r.setLandmarks(revealed(route, marks, 1).landmarks);
+  const moved = rendererWith(revealed(route, marks, 2).strokes);
+  moved.move({ x: 20, y: 60 });
+  assert.deepEqual(r.refresh(), moved.move({ x: 20, y: 70 }));
+  assert.deepEqual(r.refresh(), null);
+  // Resting on Library when it is hidden: the landmark state ends and the line under it is gone too.
+  const lib = at(2);
+  lib.move({ x: 28, y: 60 });
+  assert.equal(lib.node.name, 'Library');
+  const v1 = revealed(route, marks, 1);
+  lib.setStrokes(v1.strokes);
+  lib.setLandmarks(v1.landmarks);
+  assert.deepEqual(lib.refresh(), { type: 'level', level: 0 });
+  assert.equal(lib.node, null);
+  // The start point is not named while hidden.
+  const start = { ...m3, start: true };
+  assert.equal(startMark(revealed(route, [start], 2).landmarks), null);
+  assert.equal(startMark(revealed(route, [start], null).landmarks), start);
 });

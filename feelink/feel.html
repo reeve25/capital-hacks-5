@@ -138,7 +138,8 @@
 
 <script src="/tactile.js"></script>
 <script>
-const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper, landmarkLine, startMark, replayLine, landmarkVoice, speechCut } = Tactile;
+const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper, landmarkLine, startMark, replayLine, landmarkVoice, speechCut,
+  revealUpto, nextSeq, revealed, revealChanged } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -325,6 +326,11 @@ const toPx = (p) => [originX + p.x * pxPerMm, originY + p.y * pxPerMm];
 
 // App state
 let mode = 'home', strokes = [], remote = [], remoteMarks = [], path = [], showInk = false;
+// Step-through reveal (#111): `reveal` is the relay's upto (null shows everything). Hidden strokes and landmarks are
+// blank glass: the renderer, "Drawing changed." and the start point all work from what is shown.
+let reveal = null;
+const shownNow = () => revealed(remote, remoteMarks, reveal);
+const shownKey = () => { const v = shownNow(); return drawingKey(v.strokes, v.landmarks); };
 let renderer = new Renderer({});
 let queueShapes = [], current = null, startedAt = null, results = [];
 let fingers = new Map(), primary = null, pen = null;
@@ -336,7 +342,7 @@ function fadeMm() { return Math.min(8, Math.max(2, Math.round(widthMm() * 1.5)))
 function makeRenderer() {
   renderer = new Renderer({ halfWidth: widthMm() / 2, fade: fadeMm(), steps: FADE.length });
   renderer.setStrokes(strokes);
-  renderer.setLandmarks(mode === 'live' ? remoteMarks : []); // only the tutor's board has landmarks
+  renderer.setLandmarks(mode === 'live' ? shownNow().landmarks : []); // only the tutor's board has landmarks
 }
 
 function drawPoly(pts, style, width) {
@@ -408,13 +414,23 @@ function setLink(next) {
 const CHANGE_MS = 1500;
 let heard = null, changeTimer = null, synced = false;
 function noteDrawing(ev) {
-  if (heard === null || (ev.type === 'stroke' && ev.by === 'phone' && !changeTimer)) { heard = drawingKey(remote, remoteMarks); return; }
+  if (heard === null || (ev.type === 'stroke' && ev.by === 'phone' && !changeTimer)) { heard = shownKey(); return; }
   clearTimeout(changeTimer);
   changeTimer = setTimeout(() => {
     changeTimer = null;
-    const now = drawingKey(remote, remoteMarks);
+    const now = shownKey();
     if (now !== heard) { heard = now; say('Drawing changed.', 'status'); }
   }, CHANGE_MS);
+}
+// "Drawing updated." when a reveal changes what the student can feel (#111): said at once, as a status line, and it
+// stands in for "Drawing changed." on that change (heard moves on, a waiting one is dropped), so the student never
+// hears both. With no baseline yet the reveal is part of the starting drawing, as a first sync is above.
+function noteReveal() {
+  clearTimeout(changeTimer);
+  changeTimer = null;
+  const first = heard === null;
+  heard = shownKey();
+  if (!first) say('Drawing updated.', 'status');
 }
 function connect() {
   if (es) return;
@@ -427,23 +443,35 @@ function connect() {
   };
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; synced = true; if (ev.instruction) onInstruction(ev.instruction); }
+    const was = reveal;
+    // A sync carries the relay's reveal (absent means all shown) and each item's seq; after Undo or Clear it is the
+    // relay's word, so it is trusted as is. Live events carry no seq: a new item goes after the highest known one and
+    // an update keeps its own.
+    if (ev.type === 'sync') { remote = ev.strokes; remoteMarks = ev.landmarks || []; reveal = revealUpto(ev.reveal); synced = true; if (ev.instruction) onInstruction(ev.instruction); }
     else if (ev.type === 'stroke') {
       const i = remote.findIndex((s) => s.id === ev.id);
-      if (i >= 0) remote[i] = ev; else remote.push(ev);
+      const item = { ...ev, seq: i >= 0 ? remote[i].seq : nextSeq(remote, remoteMarks) };
+      if (i >= 0) remote[i] = item; else remote.push(item);
     } else if (ev.type === 'landmark') {
       const i = remoteMarks.findIndex((l) => l.id === ev.id);
-      if (i >= 0) remoteMarks[i] = ev; else remoteMarks.push(ev);
-    } else if (ev.type === 'clear') { remote = []; remoteMarks = []; }
+      const item = { ...ev, seq: i >= 0 ? remoteMarks[i].seq : nextSeq(remote, remoteMarks) };
+      if (i >= 0) remoteMarks[i] = item; else remoteMarks.push(item);
+    } else if (ev.type === 'clear') { remote = []; remoteMarks = []; reveal = null; } // the relay resets the reveal too
+    else if (ev.type === 'reveal') reveal = revealUpto(ev.upto);
     else if (ev.type === 'instruction') return onInstruction(ev);
     else return;
+    // A reveal that changes nothing the student can feel (the same upto again, a step past the end) is no event.
+    const updated = revealChanged(remote, remoteMarks, was, reveal);
+    if (ev.type === 'reveal' && !updated) return;
     if (mode === 'live') {
-      strokes = remote;
+      const shown = shownNow();
+      strokes = shown.strokes;
       renderer.setStrokes(strokes);
-      renderer.setLandmarks(remoteMarks);
+      renderer.setLandmarks(shown.landmarks);
+      // A part hidden under a resting finger goes quiet exactly as if the finger had moved off it.
       apply(renderer.refresh());
       draw();
-      noteDrawing(ev);
+      if (updated) noteReveal(); else noteDrawing(ev);
     }
   };
 }
@@ -509,11 +537,11 @@ function finishTest() {
 function startLive() {
   mode = 'live'; showInk = false; show(null);
   connect();
-  strokes = remote;
+  strokes = shownNow().strokes;
   makeRenderer();
   sendConfig();
   draw();
-  heard = synced ? drawingKey(remote, remoteMarks) : null;
+  heard = synced ? shownKey() : null;
   welcomed = link === 'on';
   say(welcomed ? WELCOME : 'Connecting to tutor.', 'status');
   sayInstructionIfNew(); // waits behind the welcome
@@ -551,7 +579,7 @@ let penFrom = null;
 const isDoubleTap = doubleTapper();
 let touch = null;
 function repeatLast() {
-  const line = replayLine(instruction, startMark(remoteMarks), lastSaid);
+  const line = replayLine(instruction, startMark(shownNow().landmarks), lastSaid); // a hidden start point is not named
   if (line) say(line.text, line.kind, line.id);
 }
 // Chrome's long-press fires a click about 0.5 s into a resting touch, and that click replaced the 5 s hold

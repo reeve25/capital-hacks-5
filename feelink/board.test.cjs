@@ -310,3 +310,105 @@ test('landmark label avoids the board edge and the ink; caption pops, holds and 
   assert.ok(B.captionScale(B.CAPTION_MS - 10) < 1);
   assert.equal(B.captionScale(B.CAPTION_MS), 0);
 });
+
+test('Shift snaps the tutor stroke to the straight line from its first point (#92)', () => {
+  const raw = Array.from({ length: 30 }, (_, i) => ({ x: 8 + i, y: 40 + Math.sin(i) * 2 + i * 0.5 }));
+  const line = B.strokePoints(raw, true);
+  assert.deepEqual(line, [raw[0], raw[raw.length - 1]], 'first point to the latest, nothing in between');
+  assert.ok(raw.slice(1, -1).every((p) => !line.includes(p)), 'the wobble is gone');
+  // Moving on with Shift still held keeps the start and follows the pointer.
+  const more = raw.concat([{ x: 50, y: 100 }]);
+  assert.deepEqual(B.strokePoints(more, true), [raw[0], { x: 50, y: 100 }]);
+  // Releasing Shift mid-stroke goes back to the smoothed freehand path of the same samples.
+  assert.deepEqual(B.strokePoints(raw, false), B.smooth(raw));
+  assert.deepEqual(B.strokePoints([{ x: 3, y: 4 }], true), [{ x: 3, y: 4 }], 'a click stays a dot');
+  assert.deepEqual(B.strokePoints([{ x: 3, y: 4 }, { x: 3, y: 4 }], true), [{ x: 3, y: 4 }]);
+  assert.deepEqual(B.strokePoints([], true), []);
+  // The snapped copy is new objects, so later edits to raw cannot move a sent stroke.
+  assert.notEqual(line[0], raw[0]);
+});
+
+test('haptic reports: a retried (kind, t) is used once, reports without t always pass (#92)', () => {
+  const r = new B.PhoneReports();
+  const hold = { type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true, t: 1000, age: 12, dropped: 0 };
+  assert.equal(r.haptic(hold).level, 4);
+  assert.equal(r.haptic({ ...hold, age: 1012 }), null, 'the retry of a published report');
+  assert.equal(r.haptic({ ...hold }), null, 'an exact repeat');
+  assert.equal(r.haptic({ ...hold, t: 1001 }).level, 4, 'the next report has a new t');
+  // The key is (kind, t): a different kind at the same t is a different report.
+  assert.equal(r.haptic({ type: 'haptic', kind: 'corner', level: 4, top: 4, pattern: [30, 40, 30], ok: true, t: 1000, age: 5 }).burst, true);
+  // Older phone builds send no t: nothing to dedupe on, so every report is drawn.
+  const bare = { type: 'haptic', kind: 'tick', level: 0, top: 4, pattern: 25, ok: true };
+  assert.ok(r.haptic(bare) && r.haptic(bare));
+  assert.equal(r.haptic({ ...hold, t: 2000, ok: false }), null, 'a refused buzz still draws nothing');
+  assert.equal(r.haptic({ type: 'finger', t: 3000 }), null);
+  // The memory is bounded: the oldest keys are forgotten first.
+  const small = new B.PhoneReports({ keep: 3 });
+  for (let t = 1; t <= 5; t++) small.haptic({ ...hold, t });
+  assert.equal(small.seen.size, 3);
+  assert.equal(small.haptic({ ...hold, t: 5 }), null, 'recent keys are still remembered');
+});
+
+test('haptic reports older than 1000 ms draw nothing, but a late stop still ends the buzz (#92)', () => {
+  const r = new B.PhoneReports();
+  assert.equal(B.REPORT_MAX_AGE_MS, 1000);
+  const ev = (kind, t, age, extra = {}) => ({ type: 'haptic', kind, level: 4, top: 4, pattern: [30, 40, 30], ok: true, t, age, dropped: 0, ...extra });
+  assert.equal(r.haptic(ev('corner', 1, 1000)).burst, true, '1000 ms is still live');
+  assert.equal(r.haptic(ev('corner', 2, 1001)), null, 'a buzz that waited over a second is not drawn');
+  assert.equal(r.haptic(ev('hold', 3, 4000, { pattern: 5000 })), null, 'nor is a late hold');
+  assert.equal(r.haptic(ev('landmark', 4, 2500, { name: 'Gate', level: 0 })), null, 'nor a late landmark cue');
+  // A late stop or fade-to-zero draws nothing anyway; it ends the held state, so stale rings stop.
+  const stop = r.haptic(ev('stop', 5, 3000, { pattern: 1 }));
+  assert.equal(stop.kind, 'stop');
+  assert.equal(stop.level, 0);
+  assert.equal(r.haptic(ev('fade', 6, 3000, { level: 0 })).level, 0);
+  const rings = new B.HapticRings();
+  rings.onHaptic(r.haptic(ev('hold', 7, 20, { pattern: 5000 })), 0);
+  rings.onHaptic(r.haptic(ev('stop', 8, 1800, { pattern: 1 })), 100);
+  assert.equal(rings.state, null, 'the late stop cleared the held line');
+  assert.ok(r.haptic(ev('corner', 9, undefined)), 'no age field: treated as live');
+});
+
+test('spoken reports: only real spoken lines are logged, once each (#90, #92)', () => {
+  assert.deepEqual(B.parseSpoken({ type: 'spoken', text: '  Main   library ', kind: 'landmark', t: 5 }), { text: 'Main library', kind: 'landmark' });
+  assert.deepEqual(B.parseSpoken({ type: 'spoken', text: 'Drawing changed', kind: 'status', t: 6 }), { text: 'Drawing changed', kind: 'status' });
+  assert.equal(B.parseSpoken({ type: 'spoken', text: 'x', kind: 'other' }).kind, 'status');
+  assert.equal(B.parseSpoken({ type: 'spoken', text: '   ' }), null);
+  assert.equal(B.parseSpoken({ type: 'spoken', text: 42 }), null);
+  assert.equal(B.parseSpoken({ type: 'spoken', text: 'y'.repeat(200) }).text.length, B.SPOKEN_MAX);
+  // A landmark haptic carries a name, but it is not proof the phone spoke: it never becomes a spoken line.
+  assert.equal(B.parseSpoken({ type: 'haptic', kind: 'landmark', name: 'Gate', t: 7 }), null);
+  const r = new B.PhoneReports();
+  const said = { type: 'spoken', text: 'Gate', kind: 'landmark', t: 9 };
+  assert.deepEqual(r.spoken(said), { text: 'Gate', kind: 'landmark' });
+  assert.equal(r.spoken({ ...said }), null, 'a retried line is logged once');
+  assert.ok(r.spoken({ ...said, t: 10, age: 5000 }), 'a late line is still logged: the student did hear it');
+  assert.equal(r.spoken({ type: 'haptic', kind: 'landmark', name: 'Gate', t: 11 }), null);
+});
+
+test('connection status is in words, board link first, then the phone and its finger (#92)', () => {
+  assert.deepEqual(B.connectionStatus(false, true, true), { tone: 'off', text: 'Board offline', sub: 'Reconnecting…' });
+  assert.equal(B.connectionStatus(true, false, false).text, "Waiting for the student's phone");
+  assert.equal(B.connectionStatus(true, false, true).tone, 'wait', 'a stale finger is not a live phone');
+  assert.equal(B.connectionStatus(true, true, false).sub, 'Not touching the board');
+  assert.deepEqual(B.connectionStatus(true, true, true), { tone: 'on', text: "Student's phone connected", sub: 'Touching the board' });
+});
+
+test('landmark-rest heartbeat is a small one-off ring that leaves a held line alone (#90)', () => {
+  // As feel.html sends it: vibrate('landmark-rest', 70) every 1200 ms while the finger rests on a landmark.
+  const h = B.parseHaptic({ type: 'haptic', kind: 'landmark-rest', level: 4, top: 4, pattern: [70], ok: true, t: 1, age: 4 });
+  assert.equal(h.burst, true);
+  assert.equal(h.soft, true);
+  assert.ok(h.strength > 0 && h.strength < 0.5);
+  const r = new B.HapticRings();
+  r.onHaptic(B.parseHaptic({ type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true }), 0);
+  const rings = r.onHaptic(h, 100);
+  assert.deepEqual(rings, [{ strength: h.strength, burst: false, delay: 0 }]);
+  assert.equal(r.state && r.state.level, 4, 'not read as a level: the held line is untouched');
+  const small = B.ringAt(150, rings[0].strength, rings[0].burst, 3.4), full = B.ringAt(150, 1, true, 3.4);
+  assert.ok(small.r < full.r && small.w < full.w, 'smaller and thinner than a corner');
+  assert.equal(new B.PhoneReports().haptic({ type: 'haptic', kind: 'landmark-rest', pattern: 70, ok: true, t: 2, age: 1300 }), null, 'a late beat draws nothing');
+  // The arrival cue since #90: three 220 ms buzzes, one ring each, with the name for the caption.
+  const cue = B.parseHaptic({ type: 'haptic', kind: 'landmark', name: 'Gate', level: 4, top: 4, pattern: [220, 130, 220, 130, 220], ok: true });
+  assert.deepEqual([cue.pulses, cue.name, cue.soft], [[0, 350, 700], 'Gate', undefined]);
+});

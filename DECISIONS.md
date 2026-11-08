@@ -6,9 +6,6 @@ Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human 
 
 ## Open (Sat Nov 7, 18:05). Development decisions and actions for the agents only (Reeve, 17:59): recording, consent, organizer questions, fact sheet and the deck are handled by Reeve and Nathan outside this board.
 
-### D10. Decide: what still looks incomplete (Reeve, 17:59: "it worked, it's decent. It still overall looks incomplete")
-The lead's plan unless Reeve names specifics: after #111 lands, one UI agent per page does a completeness and professional-look pass with the impeccable skill, no new features: phone home and Live surface (title, status wording, Advanced settings panel, reconnect copy), stage (panel hierarchy, legend and hint copy, empty states, button and input styling, the Earlier fold, the start flag), and the same type scale and colours on both. Needed from Reeve: the two or three things that read as unfinished to him, in his words, so the agents aim at those first.
-
 ### FYI
 - The Pixel stays on the USB cable. While an agent check runs, nobody touches it. Media vibration must stay at 3 (at 1 long buzzes play at half strength).
 - The relay (restarted 17:44 on `c64269c`) and keep-alive run under nohup from the main checkout (logs in `.tmp/`); the lead watches port 8765 every 60 s and restarts the relay after any `server.py` change.
@@ -17,6 +14,7 @@ The lead's plan unless Reeve names specifics: after #111 lands, one UI agent per
 - Both leads' time stamps ran fast earlier today; the lead now runs `date` before writing a time.
 
 ## Decided (newest first)
+- Sat 18:10, Reeve: tutor UI redesign brief 'FeelInk Studio' (`.plans/feelink-studio-brief-2026-11-07.md`, his words): a real UX pass of /stage into an interactive spatial teaching workspace; engineering, protocol and recording untouched. The stage D10 agent was redirected to it at 18:16; the phone D10 agent continues. Footage consent: Nathan (at Reeve's keyboard) 'yes fine' for his hand on the Pixel in takes; Reeve agrees.
 - Sat 17:59, Reeve: A5 PASSED on the real Pixel (#107 build c64269c): "it worked, it's decent. It still overall looks incomplete." Tagged `demo-1` (200ca4b, code c64269c) at 18:02. Measured by the lead at 17:59: an instruction posted 17:59:38 was confirmed heard 17:59:41; Reeve's own instructions at 17:55-17:56 heard, one shown "Replaced, never heard"; Connected and Back-to-menu states logged.
 - Sat 17:59, Reeve: tester RM = Reeve (sighted, eyes closed per the blind-test protocol). Stop test-run bookkeeping and validation questions; priority is finishing the product: basic functionality complete, professional look on phone and stage.
 - Sat 17:59, Reeve: DECISIONS.md is development planning for the agents only; recording logistics, consent, organizer questions, fact sheet and deck come off it (Reeve and Nathan handle them).

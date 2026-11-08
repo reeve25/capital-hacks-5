@@ -6,7 +6,8 @@ const B = Board;
 const HEADER_PX = 52, PAD_PX = 12;
 const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', inkSoft: '#545e6b', unfelt: '#b3b9c1', felt: '#0d7064', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff',
   hidden: B.mixHex('#1b222b', '#fbfaf6', 0.75), // 25% ink, flat (#c3c4c3), for what the student cannot feel yet (#111)
-  key: B.mixHex('#fbfaf6', '#1b222b', 0.05) }; // the key's panel: a step off the paper, so it never reads as drawing
+  key: B.mixHex('#fbfaf6', '#1b222b', 0.035), // the key's panel: a step off the paper, so it never reads as drawing
+  keyText: B.mixHex('#1b222b', '#fbfaf6', 0.35) }; // the key's words, quieter than soft ink: #696e72, 4.6:1 on its panel
 // Hidden ink is also dashed (butt caps, mm): solid 25% ink would read as the unfelt grey of ink the student can feel.
 const HIDDEN_DASH = [3, 2];
 // Sizes in board millimetres (about 8.4 px/mm on a 1080 px tall stage, about 4.2 px/mm in its 960 px wide GIF).
@@ -177,24 +178,29 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 // The board's key (review, Nov 8: teal, grey, dashed and the amber rings went unexplained in the footage), on its own
-// panel inside the paper's foot, so any crop of the board keeps it. Soft ink, under the trail and the ink: the lowest
-// thing on the board. Ink states on the left, the student's marks on the right. A ring says what the stage knows, that
-// the phone page asked to buzz, never that the student felt it.
-// 2.5 mm type is about 10 px in the GIF, the least that reads there; three rows keep it out of the drawing's way.
-const LEGEND = { font: 2.5, pitch: 3.2, swatch: 4, gap: 1, col: 2.6, pad: 0.8, foot: 1, rows: 3 };
-const legendTop = () => BOARD.h - LEGEND.foot - LEGEND.rows * LEGEND.pitch - 2 * LEGEND.pad;
+// panel inside the paper's foot, so any crop of the board keeps it. Under the trail and the ink: the lowest thing on
+// the board. Quiet (Reeve's review of the empty stage, Nov 8: five lines of 2.5 mm bold crowded the drawing's foot and
+// "Phone asked to buzz" read as debugging): two short centred rows of 1.8 mm regular type in grey, the ink's states over
+// the student's marks. A ring says what the stage knows, that the phone page requested a vibration, never that the
+// student felt it.
+const LEGEND = { font: 1.8, pitch: 2.6, swatch: 3, gap: 0.8, col: 2.2, padX: 1.2, padY: 0.5, foot: 1, margin: 1.5 };
+const LEGEND_ROWS = [
+  [['felt', 'Covered'], ['unfelt', 'Unexplored'], ['hidden', 'Hidden by tutor']],
+  [['finger', 'Student’s finger (live)'], ['ring', 'Vibration requested']]];
+const legendTop = () => BOARD.h - LEGEND.foot - LEGEND_ROWS.length * LEGEND.pitch - 2 * LEGEND.padY;
+// Each mark at swatch size `s`, its left edge at x, centred on y.
 function legendSwatch(kind, x, y) {
   const s = LEGEND.swatch, cx = x + s / 2;
   if (kind === 'finger') { // the cursor in small
-    for (const [r, fill] of [[1.5, COL.ink], [1.2, COL.white], [0.85, COL.amber]]) { ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); }
+    for (const [r, fill] of [[0.375, COL.ink], [0.3, COL.white], [0.21, COL.amber]]) { ctx.beginPath(); ctx.arc(cx, y, r * s, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); }
     return;
   }
   ctx.beginPath();
-  if (kind === 'ring') { ctx.arc(cx, y, 1.5, 0, Math.PI * 2); ctx.lineWidth = 0.6; ctx.strokeStyle = COL.amber; ctx.stroke(); return; }
-  ctx.lineWidth = 1.5;
+  if (kind === 'ring') { ctx.arc(cx, y, 0.33 * s, 0, Math.PI * 2); ctx.lineWidth = 0.3; ctx.strokeStyle = COL.amber; ctx.stroke(); return; }
+  ctx.lineWidth = 0.3 * s;
   ctx.strokeStyle = COL[kind];
   ctx.lineCap = kind === 'hidden' ? 'butt' : 'round';
-  ctx.setLineDash(kind === 'hidden' ? [1.4, 0.9] : []); // the board's 3/2 dash at swatch size
+  ctx.setLineDash(kind === 'hidden' ? [0.375 * s, 0.25 * s] : []); // the board's 3/2 dash to its 2.4 mm width, scaled
   const inset = kind === 'hidden' ? 0 : ctx.lineWidth / 2;
   ctx.moveTo(x + inset, y);
   ctx.lineTo(x + s - inset, y);
@@ -204,26 +210,29 @@ function legendSwatch(kind, x, y) {
 function drawLegend() {
   const L = LEGEND;
   ctx.save();
-  ctx.font = FONT(L.font);
+  ctx.font = FONT(L.font, 400);
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  const left = [['felt', 'Covered'], ['unfelt', 'Not yet'], ['hidden', 'Hidden by tutor']];
-  const right = [['finger', 'Student’s finger (live)'], ['ring', 'Phone asked to buzz']];
-  const width = (items) => L.swatch + L.gap + Math.max(...items.map(([, t]) => ctx.measureText(t).width));
-  // The third left line runs on under the right column, which has two.
-  const lw = width(left.slice(0, 2)), w = Math.max(lw + L.col + width(right), width(left.slice(2)));
-  const x0 = (BOARD.w - w) / 2, y0 = legendTop();
-  roundRect(x0 - L.pad, y0, w + 2 * L.pad, L.rows * L.pitch + 2 * L.pad, 1.6);
+  const itemW = ([, text]) => L.swatch + L.gap + ctx.measureText(text).width;
+  const rowW = LEGEND_ROWS.map((row) => row.reduce((w, it) => w + itemW(it), 0) + (row.length - 1) * L.col);
+  const w = Math.max(...rowW) + 2 * L.padX, h = LEGEND_ROWS.length * L.pitch + 2 * L.padY;
+  // Whatever font loaded, the key keeps a margin inside the paper: a wider one shrinks about the foot's centre.
+  const k = Math.min(1, (BOARD.w - 2 * L.margin) / w);
+  ctx.translate(BOARD.w / 2, BOARD.h - L.foot);
+  ctx.scale(k, k);
+  roundRect(-w / 2, -h, w, h, 1.2);
   ctx.fillStyle = COL.key;
   ctx.fill();
-  const rowY = (i) => y0 + L.pad + (i + 0.5) * L.pitch;
-  const put = (items, x) => items.forEach(([kind, text], i) => {
-    legendSwatch(kind, x, rowY(i));
-    ctx.fillStyle = COL.inkSoft;
-    ctx.fillText(text, x + L.swatch + L.gap, rowY(i));
+  LEGEND_ROWS.forEach((row, i) => {
+    const y = -h + L.padY + (i + 0.5) * L.pitch;
+    let x = -rowW[i] / 2;
+    for (const it of row) {
+      legendSwatch(it[0], x, y);
+      ctx.fillStyle = COL.keyText;
+      ctx.fillText(it[1], x + L.swatch + L.gap, y);
+      x += itemW(it) + L.col;
+    }
   });
-  put(left, x0);
-  put(right, x0 + lw + L.col);
   ctx.restore();
 }
 function drawTrail(now) {
@@ -310,7 +319,7 @@ function drawCursor(now) {
 // Names 4.4 mm and captions 4.8 mm (18 and 20 px in the GIF, critic's pass, Nov 8): names are what the student hears,
 // and 3.6 mm was the smallest text on the board. A caption's longest lesson line still fits the 56 mm board.
 const LM_DOT_MM = 1.9, LM_FONT_MM = 4.4, CAP_FONT_MM = 4.8;
-const FONT = (mm) => `700 ${mm}px 'Atkinson Hyperlegible', system-ui, sans-serif`;
+const FONT = (mm, weight = 700) => `${weight} ${mm}px 'Atkinson Hyperlegible', system-ui, sans-serif`;
 // The start point (#107) carries a small ink pennant on its dot, a map's start flag. Its outline counts as ink when the
 // name's side is chosen, so the name never sits on the flag.
 const FLAG = { pole: 4.6, w: 3.6, h: 2.8 };

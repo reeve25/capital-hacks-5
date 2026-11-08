@@ -61,8 +61,10 @@
   </div>
 </aside>
 <aside class="panel right" aria-label="Student">
-  <header class="status" id="status" data-tone="wait"><i></i><div><b id="statusText" role="status">Connecting…</b><small id="statusSub"></small></div></header>
+  <!-- One line in the header band, centred as the brand is; what to do about it opens the body (review, Nov 8). -->
+  <header class="status" id="status" data-tone="wait"><i></i><b id="statusText" role="status">Connecting…</b></header>
   <div class="panel-body">
+    <p class="status-sub" id="statusSub"></p>
     <h2 class="eyebrow" id="sessionTitle">Session</h2>
     <!-- The student right now, each line marked with the board's own glyph for it: their finger, a spoken point, ink the finger has covered. -->
     <ul class="now" aria-labelledby="sessionTitle">
@@ -85,6 +87,7 @@
     </details>
   </div>
 </aside>
+<p id="surface"><svg viewBox="0 0 10 16" aria-hidden="true"><rect x="0.75" y="0.75" width="8.5" height="14.5" rx="2"/><path d="M3.8 13h2.4"/></svg>Student’s touch surface (phone screen)</p>
 <div id="guide" aria-hidden="true"><div><b>Draw here</b></div></div>
 <div id="paused" role="alert" hidden><div><b id="pausedTitle"></b><span id="pausedText"></span></div></div>
 <div id="namebox" role="group" aria-label="Named point">

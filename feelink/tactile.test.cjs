@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, guideInterval, poster, sendQueue, drawingKey, doubleTapper,
-  landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine } = require('./tactile.js');
+  landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine, CHANGE_LINE } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -304,19 +304,48 @@ test('drawingKey: the tutor drawing or a landmark changing is a change; a stroke
   assert.equal(drawingKey(undefined, undefined), drawingKey([], []));
 });
 
-test('changeLine: Clear says "Drawing cleared.", adding or undoing a line "Drawing changed.", no change nothing (review, Nov 8)', () => {
+test('changeLine: says what changed, "Drawing cleared." on blank glass, "Drawing changed." for anything else (critic review, Nov 8)', () => {
   const t1 = { id: 't1', by: 'tutor', pts: [{ x: 5, y: 60 }, { x: 30, y: 60 }] };
   const t2 = { id: 't2', by: 'tutor', pts: [{ x: 30, y: 60 }, { x: 30, y: 90 }] };
+  const t3 = { id: 't3', by: 'tutor', pts: [{ x: 30, y: 90 }, { x: 50, y: 90 }] };
   const mark = { id: 'm1', x: 30, y: 60, name: 'Library' };
+  const gym = { id: 'm2', x: 30, y: 90, name: 'Gym' };
+  const mine = { id: 'phone-1', by: 'phone', pts: [{ x: 1, y: 1 }, { x: 9, y: 9 }] };
   const key = (strokes, landmarks = [mark]) => drawingKey(strokes, landmarks);
-  assert.equal(changeLine(key([t1]), key([t1, t2])), 'Drawing changed.', 'a line added');
-  assert.equal(changeLine(key([t1, t2]), key([t1])), 'Drawing changed.', 'Undo of one line of two');
-  assert.equal(changeLine(key([t1, t2]), drawingKey([], [])), 'Drawing cleared.', 'Clear');
-  assert.equal(changeLine(drawingKey([], []), key([t1, t2])), 'Drawing changed.', 'the Undo that brings a cleared board back');
-  assert.equal(changeLine(key([t1], []), drawingKey([], [])), 'Drawing cleared.', 'Undo of the last line leaves blank glass too');
-  assert.equal(changeLine(key([t1, t2]), drawingKey([], [mark])), 'Drawing changed.', 'a label left on the glass is not cleared');
-  assert.equal(changeLine(key([t1]), key([t1])), null, 'cleared and redrawn the same within the pause: nothing');
-  assert.equal(changeLine(drawingKey([], []), drawingKey(undefined, undefined)), null);
+  const cases = [
+    [key([t1]), key([t1, t2]), 'Line added.', 'a line drawn, or Next'],
+    [key([t1]), key([t1, t2, t3]), '2 lines added.', 'two lines in one pause'],
+    [key([t1, t2]), key([t1]), 'Line removed.', 'Undo of one line of two, or Previous'],
+    [key([t1, t2, t3]), key([t1]), '2 lines removed.', 'two lines gone'],
+    [key([t1]), key([t1], [mark, gym]), 'Label added.', 'a label, never its name'],
+    [key([t1], [mark, gym]), key([t1]), 'Label removed.', 'Undo of a label'],
+    [key([t1]), key([t1, t2], [mark, gym]), 'Line and label added.', 'a leg drawn and its end named in one pause'],
+    [key([t1, t2], [mark, gym]), key([t1]), 'Line and label removed.', 'Previous hides a line and the label on it'],
+    [key([t1], []), key([t1, t2, t3], [mark, gym]), '2 lines and 2 labels added.', 'counted when either is more than one'],
+    [key([t1], []), key([t1, t2, t3], [mark]), '2 lines and 1 label added.', 'counted, one label'],
+    [drawingKey([], []), key([t1, t2]), '2 lines and 1 label added.', 'the Undo that brings a cleared board back'],
+    [key([t1, t2]), drawingKey([], []), 'Drawing cleared.', 'Clear'],
+    [key([t1], []), drawingKey([], []), 'Drawing cleared.', 'Undo of the last line leaves blank glass too'],
+    [key([t1, t2]), drawingKey([], [mark]), '2 lines removed.', 'a label left on the glass is not cleared'],
+    [key([t1]), key([t1], [{ ...mark, name: 'Gym' }]), 'Drawing changed.', 'a rename'],
+    [key([t1]), key([t1], [{ ...mark, x: 31 }]), 'Drawing changed.', 'a label moved'],
+    [key([t1], [mark, gym]), key([t1], [mark, { ...gym, start: true }]), 'Drawing changed.', 'the start point moved'],
+    [key([t1]), key([{ ...t1, pts: [...t1.pts, { x: 40, y: 60 }] }]), 'Drawing changed.', 'a line redrawn'],
+    [key([t1]), key([t2]), 'Drawing changed.', 'a line added while another went'],
+    [key([t1]), key([t1, t2], []), 'Drawing changed.', 'a line added while a label went'],
+    [key([t1]), key([t1, mine]), null, "the student's own stroke is never told back to them"],
+    [key([t1]), key([t1, t2, mine]), 'Line added.', "the tutor's line, not the student's own alongside it"],
+    [key([t1, mine]), key([t1]), 'Line removed.', "the tutor removing the student's stroke"],
+    [key([t1]), key([t1]), null, 'cleared and redrawn the same within the pause: nothing'],
+    [drawingKey([], []), drawingKey(undefined, undefined), null, 'empty both ways'],
+  ];
+  for (const [heard, now, line, why] of cases) {
+    assert.equal(changeLine(heard, now), line, why);
+    if (line) assert.match(line, CHANGE_LINE, `the stage captions "${line}"`);
+  }
+  for (const other of ['Start: Classroom', 'Back to menu.', 'Connected again.', 'Connection lost. You can keep feeling the drawing.', 'Drawing updated.']) {
+    assert.doesNotMatch(other, CHANGE_LINE, other);
+  }
 });
 
 test('doubleTapper: two quick still two-finger taps repeat; drawing, a third finger, a slow tap or a long gap do not', () => {
@@ -484,7 +513,7 @@ test('reveal: with no seq (an older relay) strokes keep sync order and a landmar
   assert.equal(nextSeq(undefined, []), 0);
 });
 
-test('reveal: "Drawing updated." once per change that can be felt; never again for the same upto (#111)', () => {
+test('reveal: spoken once per change that can be felt; never again for the same upto (#111)', () => {
   let upto = null;
   const said = [];
   // As feel.html runs it: every reveal event or sync moves upto, and only a felt change speaks.
@@ -504,7 +533,7 @@ test('reveal: "Drawing updated." once per change that can be felt; never again f
   arrive(2.5); // not a whole number: everything
   arrive(undefined); // a sync with no reveal: everything, as it already is
   assert.deepEqual(said, [1, 2, null, 1, null]);
-  // A hidden stroke undone, or a new one drawn while hidden, leaves the felt drawing as it was: no "Drawing changed." either.
+  // A hidden stroke undone, or a new one drawn while hidden, leaves the felt drawing as it was: no change line either.
   const felt = (strokes, landmarks, u) => { const v = revealed(strokes, landmarks, u); return drawingKey(v.strokes, v.landmarks); };
   // Undo pops the newest first: Lake, then Park, then s3, all hidden at upto 2.
   assert.equal(felt(route, [n0, m0, n1, m1, m3], 2), felt(route, marks, 2));

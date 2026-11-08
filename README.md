@@ -18,9 +18,9 @@ The tutor controls the lesson. The student controls their own exploration.
 
 1. **Tutor:** opens the FeelInk Studio page (`/stage`) on a laptop and draws freehand (hold Shift for a straight line). `L` then a click places a named label, and `S` over a label makes it the start point. **Coordinate plane** lays out axes with unit ticks in one click.
 2. **Student:** opens `/feel` in Chrome on an Android phone and taps **Connect**. The screen goes black and the whole board (56 x 120 mm) maps onto it at true scale, by our calculation from the screen's specs.
-3. **Student:** slides one finger across the glass. Lines buzz under the finger, getting fainter toward the edge of a line. Corners and line ends have their own short cues. On a label the phone gives a distinct triple pulse and says its name ("Start: Classroom").
+3. **Student:** slides one finger across the glass. The whole phone buzzes while the finger is on a line, fainter toward the edge of the line. Corners and line ends have their own short cues. On a label the phone gives a distinct triple pulse and says its name ("Start: Classroom").
 4. **Tutor:** talks to the student, as in any lesson, and watches the stage's student panel: their finger, the last label spoken and how much of the drawing they have felt. (Labels are `landmark` events in the protocol.)
-5. **Tutor:** can reveal the drawing one stroke at a time (`N` next, `P` previous, `Shift+N` all). Hidden strokes are dashed for the tutor and silent on the phone, which says "Drawing updated." once per step.
+5. **Tutor:** can reveal the drawing one stroke at a time (`N` next, `P` previous, `Shift+N` all). Hidden strokes are dashed for the tutor and silent on the phone, which says at once what each step changed ("Line added.", "Line removed."). Any other edit is said the same way once the tutor pauses for 1.5 s ("Line and label added.", "Label removed.", "Drawing cleared."), never naming a label: the student finds the name.
 6. **Both:** the stage shows the student's finger live, teal where their finger has already covered the ink, and an amber ring for each buzz the phone asked for. Android **Back** takes the student out of the drawing.
 
 ## Screenshots
@@ -95,7 +95,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 - **TalkBack is unverified.** Reading the Android sources suggests one-finger exploring may never reach the page with the screen reader on; nobody has tested it. Do not assume FeelInk works with TalkBack.
 - **No target-user validation and no evidence of educational effect** (see above).
 - **Far lower fidelity than a tactile display:** one fingertip, no raised dots, no braille.
-- **Not yet checked on the Pixel:** the Coordinate plane preset, the grouped tutor tools, the label-placement fix, the felt-share row, the guide-back taps and their switch, label names drawn over the finger and the stage's "Drawing updated" caption (everything on main after tag `demo-2`). The last build that passed a check on the Pixel is `demo-2` (Connect, route trace with spoken labels, step-through reveal), Sat 20:33.
+- **Not yet checked on the Pixel:** the Coordinate plane preset, the grouped tutor tools, the label-placement fix, the felt-share row, the guide-back taps and their switch, label names drawn over the finger, the phone's change lines ("Line added.") and their caption on the stage (everything on main after tag `demo-2`). The last build that passed a check on the Pixel is `demo-2` (Connect, route trace with spoken labels, step-through reveal), Sat 20:33.
 - **No authentication.** Anyone on the same network can open the pages, so run the relay only while you use it.
 
 ## What we'd do next
@@ -104,7 +104,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 2. A classroom network path (shared Wi-Fi or a local hotspot) instead of a USB cable, and find out why the venue network failed.
 3. Test TalkBack on a real device, and test more Android phones.
 4. Lessons beyond routes: graphs, geometry, circuits, built from the same lines, labels and reveal steps.
-5. Show the student what changed when the tutor edits a drawing, not only that it changed.
+5. Tell the student where a change is, not only what it was ("Line added.").
 
 ## Repository map
 

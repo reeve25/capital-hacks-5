@@ -12,16 +12,21 @@ const store = {
 
 // The link to the laptop's relay, in words: connecting (first try), waiting (never connected yet, retrying), on, or
 // lost (was on, now retrying). The page never gives up, so there is no final "disconnected": waiting and lost are it.
-// One table for the screen and the voice, so they always agree: off the link, the phone says the status sentence.
+// One table for the screen and the voice, so they always agree: off the link, the phone says the status sentence, or
+// `said` where the voice needs to say more. The voice is heard only in Live, and losing the link there leaves the
+// drawing on the phone (the strokes stay, the buzz is local), so the student is told they can keep feeling it rather
+// than only that it is reconnecting (critic review, Nov 8); the screen, seen only off Live, says it is reconnecting.
 // In Live a change is spoken once, on the change itself: EventSource fires onerror on every failed retry.
 const LINK = {
   connecting: { text: 'Connecting to the laptop…', sub: '' },
   waiting: { text: 'Waiting for the laptop', sub: 'Ask your tutor to start FeelInk on their laptop. This phone connects by itself.' },
   on: { text: 'Connected to the laptop', sub: 'Tap Connect to feel the drawing.' },
-  lost: { text: 'Reconnecting to the laptop', sub: 'The connection dropped. Keep this page open. It reconnects by itself.' },
+  lost: { text: 'Reconnecting to the laptop', sub: 'The connection dropped. Keep this page open. It reconnects by itself.',
+    said: 'Connection lost. You can keep feeling the drawing.' },
 };
-const linkLine = (s) => LINK[s].text.replace(/…$/, '') + '.';
-const WELCOME = 'Connected to your tutor. Touch the screen to explore.';
+const linkLine = (s) => LINK[s].said || LINK[s].text.replace(/…$/, '') + '.';
+// The phone knows the laptop's relay is up, not that a tutor is there (critic review, Nov 8: was "Connected to your tutor.").
+const WELCOME = 'Connected. Touch the screen to explore.';
 let link = 'connecting', welcomed = false, leftLive = false; // leftLive: home after Back, worded as a return
 function showLink() {
   $('net').textContent = LINK[link].text;

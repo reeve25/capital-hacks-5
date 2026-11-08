@@ -58,9 +58,10 @@ function onSpoken(ev) {
   const s = reports.spoken(ev);
   if (!s) return;
   if (s.kind === 'landmark') markFound(B.markName(s.text));
-  // "Drawing updated." (a reveal step), "Drawing changed." or "Drawing cleared." gets the finger's caption too, so a
-  // silent take shows the student was told. It comes when the phone reports the line spoken, so after the words, never before them.
-  else if (s.kind === 'status' && /^Drawing (updated|changed|cleared)\.$/.test(s.text)) caption = { name: s.text.slice(0, -1), t0: performance.now() };
+  // A change line (tactile.js changeLine: "Line added.", "2 lines removed.", "Line and label added.", "Drawing
+  // changed." or "Drawing cleared.") gets the finger's caption too, so a silent take shows the student was told. It
+  // comes when the phone reports the line spoken, so after the words, never before them.
+  else if (s.kind === 'status' && Tactile.CHANGE_LINE.test(s.text)) caption = { name: s.text.slice(0, -1), t0: performance.now() };
   // Timed when it was said: arrival less the time the report waited on the phone, if it says.
   log.heard(s, Date.now() - (Number(ev.age) > 0 ? Number(ev.age) : 0));
   renderHeard();

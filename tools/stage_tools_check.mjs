@@ -266,20 +266,33 @@ ws.addEventListener('open', async () => {
     await mouse('mouseReleased', x3, y3); mouse.down = false;
     await sleep(1000); const early = await saidSince();
     await sleep(1300); let t = await told();
-    check('a new line: "Drawing changed." after the 1.5 s pause, not before', early.length === 0 && t.phone.join() === 'Drawing changed.'
-      && t.caption === 'Drawing changed', { early, ...t });
+    check('a new line: "Line added." after the 1.5 s pause, not before', early.length === 0 && t.phone.join() === 'Line added.'
+      && t.caption === 'Line added', { early, ...t });
     await mark(); await key('c', 'KeyC'); await sleep(2100); t = await told();
     check('Clear: the phone says "Drawing cleared."', t.phone.join() === 'Drawing cleared.', t);
     check('Clear: the stage caption and history say "Drawing cleared"', t.caption === 'Drawing cleared' && t.history === 'Drawing cleared.', t);
     await mark(); await key('u', 'KeyU'); await sleep(2100); t = await told();
-    check('Undo of the Clear: "Drawing changed."', t.phone.join() === 'Drawing changed.' && t.caption === 'Drawing changed', t);
+    check('Undo of the Clear: all of it back, said as added', t.phone.join() === '3 lines and 2 labels added.' && t.caption === '3 lines and 2 labels added', t);
     await mark(); await key('p', 'KeyP'); await sleep(400); t = await told();
-    check('Previous step: "Drawing updated." at once', t.phone.join() === 'Drawing updated.' && t.caption === 'Drawing updated', t);
+    check('Previous step: "Line removed." at once', t.phone.join() === 'Line removed.' && t.caption === 'Line removed', t);
     await key('N', 'KeyN', 8); await sleep(400);
     await mark(); relayN = await relayLines();
     [x, y] = await px(30, 50); await click(x, y); await sleep(2000);
     t = await told(); const relayAfter = await relayLines();
     check('a click in Draw: the relay gets no line and the phone says nothing', relayAfter === relayN && t.phone.length === 0, { ...t, relayN, relayAfter });
+    // One tutor act, one line (critic review, Nov 8): a line drawn and its end named within the 1.5 s pause used to be
+    // heard as "Drawing changed." twice, the second as the student set off.
+    await mark();
+    [x, y] = await px(20, 85); const [x4, y4] = await px(30, 100);
+    await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y); mouse.down = true;
+    for (let i = 1; i <= 6; i++) await mouse('mouseMoved', x + (x4 - x) * i / 6, y + (y4 - y) * i / 6);
+    await mouse('mouseReleased', x4, y4); mouse.down = false;
+    const tLift = Date.now();
+    await key('l', 'KeyL'); await click(x4, y4); await send('Input.insertText', { text: 'Gym' }); await key('Enter', 'Enter', 0, '\r');
+    const namedIn = Date.now() - tLift;
+    await sleep(2300); t = await told();
+    check('a line drawn and its end named within the pause: one line, "Line and label added."', namedIn < 1500
+      && t.phone.join('|') === 'Line and label added.' && t.caption === 'Line and label added', { namedIn, ...t });
     // Back to the home screen by a reload: the leaving config marks the phone gone at once (#107).
     await loadPhone(); await sleep(800);
     st = { status: await status(), mode: await pev('mode') };

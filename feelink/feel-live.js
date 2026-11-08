@@ -210,7 +210,7 @@ const toPx = (p) => [originX + p.x * pxPerMm, originY + p.y * pxPerMm];
 // App state
 let mode = 'home', strokes = [], remote = [], remoteMarks = [], path = [], showInk = false;
 // Step-through reveal (#111): `reveal` is the relay's upto (null shows everything). Hidden strokes and landmarks are
-// blank glass: the renderer, "Drawing changed." and the start point all work from what is shown.
+// blank glass: the renderer, the change lines ("Line added.") and the start point all work from what is shown.
 let reveal = null;
 const shownNow = () => revealed(remote, remoteMarks, reveal);
 const shownKey = () => { const v = shownNow(); return drawingKey(v.strokes, v.landmarks); };
@@ -275,11 +275,12 @@ function sendFinger(msg) {
   pendingFinger = null;
   post(m).catch(() => {}).finally(() => { fingerBusy = false; if (pendingFinger) sendFinger(pendingFinger); });
 }
-// "Drawing changed." once the tutor has paused for 1.5 s, so a stroke being drawn (re-posted on every move) is one
-// change, not one per move. `heard` is the drawing as the student was last told it, so a change undone within the
-// pause, or a reconnect's sync of the same board, says nothing. The student's own two-finger stroke is their doing:
-// it is absorbed unless a tutor change is already waiting. With no baseline yet (Live opened before the link), the
-// first sync is the starting drawing. A change that leaves nothing to feel says "Drawing cleared." (tactile.js changeLine).
+// What changed ("Line added.", "Label added.", "Line and label added.", "Drawing cleared."; tactile.js changeLine) once
+// the tutor has paused for 1.5 s, so a stroke being drawn (re-posted on every move) is one change, not one per move,
+// and a line named within the pause is one line, not two. `heard` is the drawing as the student was last told it, so
+// a change undone within the pause, or a reconnect's sync of the same board, says nothing. The student's own
+// two-finger stroke is their doing: it is absorbed unless a tutor change is already waiting. With no baseline yet
+// (Live opened before the link), the first sync is the starting drawing.
 const CHANGE_MS = 1500;
 let heard = null, changeTimer = null, synced = false;
 function noteDrawing(ev) {
@@ -291,15 +292,17 @@ function noteDrawing(ev) {
     if (line) { heard = now; say(line, 'status'); }
   }, CHANGE_MS);
 }
-// "Drawing updated." when a reveal changes what the student can feel (#111): said at once, as a status line, and it
-// stands in for "Drawing changed." on that change (heard moves on, a waiting one is dropped), so the student never
-// hears both. With no baseline yet the reveal is part of the starting drawing, as a first sync is above.
+// A reveal that changes what the student can feel (#111) is said at once, as a status line, in the same words as any
+// change ("Line added." for Next, "Line removed." for Previous; it used to be "Drawing updated.", a synonym of
+// "changed" to a listener, review Nov 8). It is worked out from `heard`, so it covers a change still waiting too:
+// heard moves on and the waiting one is dropped, so the student never hears both. With no baseline yet the reveal is
+// part of the starting drawing, as a first sync is above.
 function noteReveal() {
   clearTimeout(changeTimer);
   changeTimer = null;
-  const first = heard === null;
-  heard = shownKey();
-  if (!first) say('Drawing updated.', 'status');
+  const now = shownKey(), line = heard === null ? null : changeLine(heard, now);
+  heard = now;
+  if (line) say(line, 'status');
 }
 function connect() {
   if (es) return;
@@ -403,9 +406,18 @@ function finishTest() {
   const median = times[Math.floor(times.length / 2)] / 1000;
   $('summary').innerHTML = `${right} of ${results.length} right. Median ${median.toFixed(1)} s.<br>` + results.map((r) => `${r.correct ? 'Right' : 'Wrong'}: ${r.shape}, ${(r.ms / 1000).toFixed(1)} s`).join('<br>');
 }
+// Live keeps the screen on (critic review, Nov 8): a phone that dims and locks mid-lesson hides the page, and a hidden
+// page goes quiet and stops reporting the student to the stage. Asked again when the page comes back (the system
+// releases it on hide), let go on leaving Live. Unverified on the Pixel; where the API is missing or refuses, Live
+// runs as before.
+let wake = null;
+function keepAwake() {
+  try { navigator.wakeLock?.request('screen').then((w) => { if (mode === 'live') wake = w; else w.release(); }, () => {}); } catch {}
+}
 // Live is a pure black surface with nothing on it: the spoken welcome replaced the old dim hint line (#90).
 function startLive() {
   mode = 'live'; showInk = false; show(null);
+  keepAwake();
   connect();
   strokes = shownNow().strokes;
   makeRenderer();
@@ -424,6 +436,7 @@ function goHome() {
   const wasLive = mode === 'live';
   apply(renderer.lift()); stopGuide(); setBuzz(0); // before leaving live mode, so the stage hears the stop
   clearTimeout(changeTimer); changeTimer = null;
+  if (wake) { wake.release().catch(() => {}); wake = null; }
   mode = 'home'; hint(''); showInk = false; strokes = []; show('home'); draw();
   if (wasLive) { hush(); say('Back to menu.', 'status'); sendConfig(); leftLive = true; showLink(); }
 }
@@ -532,7 +545,7 @@ if (history.state && history.state.feelLive) history.replaceState(null, '');
 // (Blink checks visibility before the visibilitychange event runs), so that stop may report ok: false.
 // Lifting the renderer makes the next touch buzz again. A hidden page stops talking too.
 function stopForHide() { renderer.lift(); if (atMark) leaveMark(); stopGuide(); setBuzz(0); hush(); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); else if (mode === 'live') keepAwake(); });
 addEventListener('pagehide', stopForHide);
 // "Guide back to the line" in Advanced settings: on unless turned off, kept on this phone like the line width. Wired
 // here beside the guide it switches; feel-home.js's store loads after this file, so the storage calls are its own.

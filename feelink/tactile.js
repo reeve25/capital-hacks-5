@@ -291,28 +291,51 @@
     };
   }
 
-  // The drawing as a student would notice a change, for "Drawing changed.": the tutor's strokes (id, point count,
-  // ends) and the landmarks, sorted by id so arrival order doesn't matter. A phone stroke counts by id only, so the
-  // student's own stroke growing as they draw is no change, but the tutor removing it is.
+  // The drawing as a student would notice a change, for the change lines (changeLine): the tutor's strokes (id, point
+  // count, ends) and the landmarks (id, place, name, whether it is the start), sorted by id so arrival order doesn't
+  // matter. A phone stroke counts by id only, so the student's own stroke growing as they draw is no change, but the
+  // tutor removing it is. The start point moving is a change (critic review, Nov 8): it used to pass unsaid.
   function drawingKey(strokes, landmarks) {
     const byId = (a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0);
     const s = (strokes || []).map((k) => {
       const p = k.pts || [];
       return k.by === 'phone' ? [k.id] : [k.id, p.length, p[0], p[p.length - 1]];
     }).sort(byId);
-    const m = (landmarks || []).map((l) => [l.id, l.x, l.y, l.name]).sort(byId);
+    const m = (landmarks || []).map((l) => [l.id, l.x, l.y, l.name, !!l.start]).sort(byId);
     return JSON.stringify([s, m]);
   }
 
-  // What the phone says once the tutor pauses, from the drawing as last told (heardKey) and as it is now (both
-  // drawingKey): nothing if they match, "Drawing cleared." if nothing is left to feel, else "Drawing changed.". Clear
-  // used to sound the same as adding a line (review, Nov 8). Cleared is the glass, not the button: an Undo of the last
-  // line says it too, since a student told "changed" would search blank glass for the change.
+  // What the phone says once the tutor pauses, or at once for a reveal step (#111), from the drawing as last told
+  // (heardKey) and as it is now (both drawingKey): nothing if they match; "Drawing cleared." if nothing is left to feel
+  // (the glass, not the button: an Undo of the last line says it too); else what changed, when lines and labels only
+  // came or only went: "Line added.", "2 lines removed.", "Label added.", "Line and label added.". Anything else (a
+  // rename, a label or start point moved, a line redrawn, one thing added while another went) is "Drawing changed.".
+  // A label is never named here: its name is the student's to find, said on arrival. One tutor act (a leg drawn, then
+  // its end named) used to be heard as two identical "Drawing changed." lines, and "Drawing updated." for a reveal
+  // step meant the same to a listener (critic review, Nov 8). The student's own stroke (a phone stroke, keyed by id
+  // alone) is their doing, so it is never told back to them as added.
   const EMPTY_KEY = drawingKey([], []);
   function changeLine(heardKey, nowKey) {
     if (nowKey === heardKey) return null;
-    return nowKey === EMPTY_KEY ? 'Drawing cleared.' : 'Drawing changed.';
+    if (nowKey === EMPTY_KEY) return 'Drawing cleared.';
+    const [hs, hm] = JSON.parse(heardKey).map((list) => list.map((x) => JSON.stringify(x)));
+    const [ns, nm] = JSON.parse(nowKey).map((list) => list.map((x) => JSON.stringify(x)));
+    const gone = (from, to) => from.filter((x) => !to.includes(x)); // by value: an edited item has gone and come
+    const linesIn = gone(ns, hs).filter((x) => JSON.parse(x).length > 1).length, linesOut = gone(hs, ns).length;
+    const marksIn = gone(nm, hm).length, marksOut = gone(hm, nm).length;
+    const said = (lines, marks, verb) => {
+      if (!lines && !marks) return null;
+      const counted = lines > 1 || marks > 1; // "Line and label added.", but "2 lines and 1 label added."
+      const part = (n, word) => (counted ? `${n} ${word}${n === 1 ? '' : 's'}` : word);
+      const what = [lines && part(lines, 'line'), marks && part(marks, 'label')].filter(Boolean).join(' and ');
+      return `${what[0].toUpperCase()}${what.slice(1)} ${verb}.`;
+    };
+    if (!linesOut && !marksOut) return said(linesIn, marksIn, 'added');
+    if (!linesIn && !marksIn) return said(linesOut, marksOut, 'removed');
+    return 'Drawing changed.';
   }
+  // Every line changeLine can say, so the stage can caption them (stage-session.js) without its own copy drifting.
+  const CHANGE_LINE = /^(Drawing (changed|cleared)|(\d+ )?[Ll](ine|abel)s?( and (\d+ )?labels?)? (added|removed))\.$/;
 
   // Step-through reveal (#111): the tutor shows the drawing a stroke at a time. `upto` is how many strokes are shown,
   // in arrival order; anything but a whole number >= 0 (null, absent, 2.5, -1) shows all, as on the stage. Revealing
@@ -362,7 +385,8 @@
   }
 
   // Whether moving the reveal from `from` to `to` changes what the student can feel on this drawing: the only time the
-  // phone says "Drawing updated." (#111). The same upto again, or a sync that repeats it, does not.
+  // phone speaks a reveal, at once and in changeLine's words (#111). The same upto again, or a sync that repeats it,
+  // does not.
   function revealChanged(strokes, landmarks, from, to) {
     if (revealUpto(from) === revealUpto(to)) return false;
     const key = (u) => { const v = revealed(strokes, landmarks, u); return drawingKey(v.strokes, v.landmarks); };
@@ -450,7 +474,7 @@
   };
 
   const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, guideInterval, Renderer, poster, sendQueue, drawingKey, doubleTapper,
-    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine };
+    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine, CHANGE_LINE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

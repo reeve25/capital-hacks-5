@@ -69,6 +69,9 @@ button.no:active { background: var(--wrong-pressed); }
 .help dl > div:last-child { border-bottom: 0; }
 .help dt { font-size: 17px; font-weight: 700; color: var(--text); }
 .help dd { margin: 4px 0 0; font-size: 16px; line-height: 1.45; color: var(--muted); }
+/* The repeat gesture is a fallback, not how the lesson runs: a muted heading and smaller type. */
+.help .quiet dt { font-size: 16px; color: var(--muted); }
+.help .quiet dd { margin-top: 2px; font-size: 15px; }
 #dev { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
 #dev p { margin: 8px 0 20px; }
 .settings { margin-top: auto; padding-top: 24px; }

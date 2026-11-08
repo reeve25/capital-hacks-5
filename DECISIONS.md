@@ -4,19 +4,16 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 16:25). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
+## Open, in order of urgency (Sat Nov 7, 16:45). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
-### A1b. Reeve or Nathan, Do (when the lead asks): TalkBack session on the Pixel
-Reeve made TalkBack the top accessibility check. The lead's agent first writes the research and a measuring script (off-phone). Then, for about 10 minutes, a human turns TalkBack on in Settings > Accessibility on Nathan's phone, explores a line with one finger and with two fingers while the lead records what the page receives, and turns TalkBack off again. Nathan's phone, so Nathan's yes for the setting change.
+### D8. Decide: TalkBack approach (research in `research/talkback-2026-11-07.md`)
+Predicted (Reasoned, from AOSP, TalkBack and Chromium sources; not yet measured on the Pixel): with TalkBack on, one-finger exploring never reaches the page, two fingers together arrive as one pointer, and our 2- and 3-finger gestures belong to TalkBack. A web page cannot turn explore-by-touch off. Lead's recommendation: an opt-in TalkBack mode in Advanced settings (any pointer explores, phone drawing and multi-finger gestures off, Android Back exits, instructions teach two-finger exploring and TalkBack's pass-through gesture). Alternatives: ask students to pause TalkBack (rejected by Reeve's brief), or a native wrapper (out of scope for Sunday). Needed: yes to building the opt-in mode now, or wait for the Part B measurement first.
 
-### D6b. Nathan, Do: the stage product pass is filed as an issue in his lane
-Reeve's stage items (controls, Shift straight lines, generic labels, status, undoable Clear, confirmed spoken log, light guide and legend). Nathan assigns himself or hands it to the lead's agent on the team log; nobody edits stage files until he says which.
+### A1b. Reeve or Nathan, Do (10 minutes at the phone): TalkBack measurement (Part B)
+Turn TalkBack on in Settings > Accessibility on Nathan's Pixel (his yes), tell the lead, explore the test route with one finger then with two fingers while the lead runs the probe, say what you heard, then turn TalkBack off. Protocol with exact steps is in the research note.
 
-### A0b. Reeve, Do (1 minute): re-feel the landmark cue
-A0 passed at 15:33 (hold perfect, names spoken on time, stage dots and caption, 2-finger draw). Only miss: the landmark buzz blended into the hold. New cue on the phone after this reload: a 150 ms silence then two long buzzes (650 ms), then the hold resumes. Tap Live on the Pixel again (the reload drops it to the home panel), trace to Classroom or Library, and say whether it now stands out. The core slider (1-5 mm) is live on the home panel; set 4.
-
-### D4. Decide: close the dead hand-leash issues #13 to #23
-They belong to the hand-leash plan dropped on Nov 6 ("a physical project is not going to work"). Closing them cleans the open-issue list the team feed shows. Needs Reeve's yes.
+### A0c. Reeve, Do (after the next phone build ships): re-feel landmark arrival
+Per his 16:23 note the landmark becomes a state: the line hum stops, 400 ms silence while the name is spoken, three long pulses, then only a slow heartbeat while the finger rests on the landmark; the hum returns when the finger leaves. Ships inside the phone product build (#90); the lead posts when the Pixel is reloaded.
 
 ### D5. Decide: who appears in footage (consent)
 Anyone in frame gives their own yes, hands included. The Pixel is Nathan's phone, so his hand on it needs his yes. Reeve's consent covers only Reeve. Needed: who is in frame for the shape run and for the route take, and each person's yes, logged in `USERS.md` if a name or face is used.
@@ -55,6 +52,8 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 16:23, Reeve: the lead on Reeve's laptop owns all product work (phone, stage, relay, UI) unless Nathan's lead posts otherwise; Nathan's lane is outreach and validation. A0b: cue stands out but must be unmistakable on-path (now a landmark state, see A0c).
+- Sat 16:21, Reeve: the lead's agents do ALL UI, stage included (#92 running); Nathan's lane otherwise unchanged. #13-#23 closed. Default core 4 mm; fade derives from core (lead's ratio 1.5), not a student setting.
 - Sat 16:16, Reeve: D7 UI plan GO with changes: tutor controls the lesson, student controls exploration; phone home = Connect + status + collapsed advanced settings, testing tools moved out of the student home, spoken confirmations, Back as the accessible exit, TalkBack verification before polish; stage keeps canvas central with obvious controls, Shift straight lines, generic labels, undoable Clear, confirmed spoken log. Full text on the team log 16:16.
 - Sat 15:43-15:47, Reeve: product priority is a UI and usability pass on /feel and /stage (end-to-end flow, not just visuals); plan first, then edits.
 - Sat 15:33, Reeve: A0 passed on main 41f4576; landmark cue must stand out more (fixed as a leading silence plus two long buzzes, re-feel pending).

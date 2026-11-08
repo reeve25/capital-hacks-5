@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue } = require('./tactile.js');
+const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue, drawingKey, doubleTapper } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -287,4 +287,47 @@ test('an HTTP error counts as a failed send and is retried', async () => {
   assert.equal(q.failed, 2);
   assert.equal(q.waiting, 0);
   await assert.rejects(poster('/x', { fetch: fakeFetch([404]).fn })({}), /HTTP 404/);
+});
+
+test('drawingKey: the tutor drawing or a landmark changing is a change; a stroke the student draws is not', () => {
+  const tutor = { id: 't1', by: 'tutor', pts: [{ x: 5, y: 60 }, { x: 30, y: 60 }] };
+  const mark = { id: 'm1', x: 30, y: 60, name: 'Library' };
+  const phone = (n) => ({ id: 'phone-1', by: 'phone', pts: Array.from({ length: n }, (_, i) => ({ x: i, y: 10 })) });
+  const base = drawingKey([tutor, phone(2)], [mark]);
+  assert.equal(drawingKey([phone(9), tutor], [mark]), base, 'own stroke growing, or arrival order, is no change');
+  assert.notEqual(drawingKey([{ ...tutor, pts: [...tutor.pts, { x: 40, y: 60 }] }, phone(2)], [mark]), base, 'tutor stroke grew');
+  assert.notEqual(drawingKey([tutor, phone(2)], [{ ...mark, name: 'Gym' }]), base, 'landmark renamed');
+  assert.notEqual(drawingKey([tutor, phone(2)], [{ ...mark, x: 31 }]), base, 'landmark moved');
+  assert.notEqual(drawingKey([tutor], [mark]), base, 'tutor removed the phone stroke');
+  assert.notEqual(drawingKey([], []), base, 'board cleared');
+  assert.equal(drawingKey(undefined, undefined), drawingKey([], []));
+});
+
+test('doubleTapper: two quick still two-finger taps repeat; drawing, a third finger, a slow tap or a long gap do not', () => {
+  const tap = (start, end, extra = {}) => ({ start, end, fingers: 2, drew: false, ...extra });
+  let d = doubleTapper();
+  assert.equal(d(tap(0, 150)), false);
+  assert.equal(d(tap(400, 550)), true, 'second tap 250 ms after the first');
+  assert.equal(d(tap(700, 850)), false, 'a third tap starts a new pair');
+  assert.equal(d(tap(1000, 1150)), true);
+
+  d = doubleTapper();
+  assert.equal(d(tap(0, 150)), false);
+  assert.equal(d(tap(800, 950)), false, '650 ms gap is too long');
+  assert.equal(d(tap(1200, 1350)), true, 'but that tap can open the next pair');
+
+  d = doubleTapper();
+  d(tap(0, 150));
+  assert.equal(d(tap(300, 450, { drew: true })), false, 'a two-finger draw is never a tap');
+  assert.equal(d(tap(500, 650)), false, 'and it breaks the pair');
+
+  d = doubleTapper();
+  d(tap(0, 150));
+  assert.equal(d(tap(300, 450, { fingers: 3 })), false, 'three fingers');
+  d = doubleTapper();
+  d(tap(0, 150));
+  assert.equal(d(tap(300, 900)), false, 'held 600 ms is not a tap');
+  d = doubleTapper();
+  d(tap(0, 150, { fingers: 1 }));
+  assert.equal(d(tap(300, 450)), false, 'one finger then two is not a double tap');
 });

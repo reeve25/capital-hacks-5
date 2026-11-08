@@ -73,8 +73,8 @@ printf '%s\n' '{"stage":"recordings/selftest/stage.mp4","phone":"recordings/self
  "board":[750,90,420,900],"tools":[0,0,360,1080],"session":[1560,0,360,1080],"session_rect":[1560,0,360,290],
  "headers":{"stage":["Tutor laptop","mock"],"phone":["Student phone","mock"]},
  "tags":{"stage":["MOCK","synthetic clip"],"phone":["MOCK","synthetic clip"],"whole":["MOCK","synthetic clip"]},
- "captions":[{"t0":0,"t1":3,"who":"tutor","cause":"Cause one.","effect":"Effect one."},
-  {"t0":3,"t1":6,"who":"student","cause":"Cause two.","effect":"Effect two."}],
+ "captions":[{"t0":0,"t1":3,"who":"tutor","text":"Caption one."},
+  {"t0":3,"t1":6,"who":"student","text":"Caption two."}],
  "insets":[{"t0":1,"t1":4,"title":"INSET","rect":[700,400,300,200]}],"speech":[{"t0":2,"t1":3,"text":"Hello"}],
  "stills":[{"t":1.5,"name":"a"},{"t":4.5,"name":"b"}],"establish_t":5,
  "callouts":[{"rect":[750,90,420,900],"at":[380,380,320],"title":"BOARD","lines":["mock"]}]}' > "$out/story-spec.json"

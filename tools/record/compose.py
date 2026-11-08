@@ -714,10 +714,11 @@ def story_session_still(spec, a, out_dir):
     cw = w * s + 2 * m
     tmp = tempfile.mkdtemp(prefix="feelink-session-")
     texts = Texts(tmp)
-    tag_h = tag_box(Plate(1, 1), Texts(tmp), 0, 0, cw - 2 * m, spec["tags"]["whole"])  # measure only
+    tag = spec["tags"]["phone"]  # the panel shows only the scripted touch and the simulated speech: the short phone tag
+    tag_h = tag_box(Plate(1, 1), Texts(tmp), 0, 0, cw - 2 * m, tag)  # measure only
     ch = head + h * s + 24 + tag_h + 24
     plate = Plate(cw, ch, C["bg"])
-    tag_box(plate, texts, m, head + h * s + 24, cw - 2 * m, spec["tags"]["whole"])
+    tag_box(plate, texts, m, head + h * s + 24, cw - 2 * m, tag)
     texts.add("Tutor's laptop: session panel", m, 22, 32, C["text"], "bold")
     texts.add("The tutor's view of the student, live", m, 64, 22, C["muted"])
     plate.save(os.path.join(tmp, "plate.png"))
@@ -738,7 +739,7 @@ def story_session_still(spec, a, out_dir):
 def stage_cut_plate(spec, texts, callouts=False):
     """Over the whole stage window: a role header in the gutter left of the board, and the simulation tag inside the
     tools panel, inside the board and inside the session panel, so a crop of any one of them keeps it. With callouts,
-    each region is outlined and named (the establishing still)."""
+    each region is outlined and named (the establishing still), and the board's tag sits in the gutter beside it."""
     plate = Plate(OUT_W, OUT_H)
     bx, by, bw, bh = spec["board"]
     tx, ty, tw_, th = spec["tools"]
@@ -748,7 +749,10 @@ def stage_cut_plate(spec, texts, callouts=False):
     texts.block([spec["headers"]["stage"][1] + ".", "This is the whole screen."], gx0, gx1, 62, 20, C["muted"])
     short = spec["tags"]["whole"]
     tag_box(plate, texts, tx + 16, 0, tw_ - 32, short, bottom=ty + th - 12)
-    tag_box(plate, texts, bx + 16, 0, bw - 32, short, bottom=by + bh - 12)
+    if callouts:  # the establishing still ends on Library at the board's foot: its tag goes in the gutter beside the board
+        tag_box(plate, texts, gx0, 0, gx1 - gx0, short, bottom=ty + th - 12)
+    else:
+        tag_box(plate, texts, bx + 16, 0, bw - 32, short, bottom=by + bh - 12)
     tag_box(plate, texts, px_ + 16, 0, pw - 32, short, bottom=py_ + ph - 96)  # above the "Spoken on their phone" drawer
     if callouts:
         for c in spec["callouts"]:

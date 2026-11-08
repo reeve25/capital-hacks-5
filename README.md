@@ -21,7 +21,7 @@ The tutor controls the lesson. The student controls their own exploration.
 3. **Student:** slides one finger across the glass. Lines buzz under the finger, getting fainter toward the edge of a line. Corners and line ends have their own short cues. On a label the phone gives a distinct triple pulse and says its name ("Start: Classroom").
 4. **Tutor:** talks to the student, as in any lesson, and watches the stage's student panel: their finger, the last label spoken and how much of the drawing they have felt. (Labels are `landmark` events in the protocol.)
 5. **Tutor:** can reveal the drawing one stroke at a time (`N` next, `P` previous, `Shift+N` all). Hidden strokes are dashed for the tutor and silent on the phone, which says "Drawing updated." once per step.
-6. **Both:** the stage shows the student's finger live, teal where they have already felt the ink, and an amber ring for each buzz the phone asked for. Android **Back** takes the student out of the drawing.
+6. **Both:** the stage shows the student's finger live, teal where their finger has already covered the ink, and an amber ring for each buzz the phone asked for. Android **Back** takes the student out of the drawing.
 
 ## Screenshots
 

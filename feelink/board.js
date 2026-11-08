@@ -396,13 +396,14 @@
     return { upto: u, changed: false, note: '' };
   }
 
-  // The legend line, only while something is hidden: the tutor's strokes, as revealView counts them.
-  const revealLegend = (shown, total) => (shown < total ? `Shown ${shown} of ${total} stroke${total === 1 ? '' : 's'}` : '');
+  // The legend line, only while something is hidden: the tutor's strokes, as revealView counts them. The stage says
+  // "lines", the tutor's word for them, as the session panel's felt line does.
+  const revealLegend = (shown, total) => (shown < total ? `Shown ${shown} of ${total} line${total === 1 ? '' : 's'}` : '');
   // The step-through control's own line, in every state (Studio, D10): never blank, so the control explains itself.
   function revealMeter(shown, total) {
     if (!(total > 0)) return 'Nothing to reveal yet';
     if (shown < total) return revealLegend(shown, total);
-    return total === 1 ? 'The stroke is shown' : `All ${total} strokes shown`;
+    return total === 1 ? 'The line is shown' : `All ${total} lines shown`;
   }
 
   // Where a landmark's label goes: right, left, above or below the dot. Spots that run off the board are
@@ -562,9 +563,9 @@
   }
 
   // The tutor's connection line, in words (#92, #107; Studio copy, D10). The board's own link comes first: without it
-  // nothing the tutor draws reaches the phone. `link` is phoneLink's answer; touching is the student's finger, the one
-  // live fact the stage has about what the student is doing, so 'live' (exploring) is a tone of its own. `receiving`
-  // (the student can feel what is drawn right now) is true only when both links are up.
+  // nothing the tutor draws reaches the phone. `link` is phoneLink's answer. What the finger is doing has its own line
+  // in the session panel (touchState), so the header only names the link; a finger on the glass gives the dot its
+  // ripple ('live'). `receiving` (the student can feel what is drawn right now) is true only when both links are up.
   const LINKS = {
     waiting: { tone: 'wait', text: 'Waiting for the student', sub: 'Open FeelInk on their phone' },
     reconnecting: { tone: 'warn', text: 'Phone reconnecting…', sub: "Your changes reach it once it's back" },
@@ -573,8 +574,44 @@
   function connectionStatus(relayUp, link, touching) {
     if (!relayUp) return { tone: 'off', text: 'Studio offline', sub: 'Reconnecting…', receiving: false };
     if (link !== 'connected') return { ...(LINKS[link] || LINKS.waiting), receiving: false };
-    return touching ? { tone: 'live', text: 'Student exploring', sub: 'Finger on the board', receiving: true }
-      : { tone: 'on', text: 'Student connected', sub: 'Not touching the screen', receiving: true };
+    return { tone: touching ? 'live' : 'on', text: 'Student connected', sub: '', receiving: true };
+  }
+
+  // The student's finger in words, for the session panel (human-led note, Nov 7). Only what the phone reports: whether a
+  // finger is on the glass, whether it has moved in the last TOUCH_REST_MS, and the buzz level it is playing (finger
+  // events carry `level`: 0 off the line, 1..top-1 the fade beside it, top on it; tactile.js). `at` is the shown point
+  // the finger is on, within the phone's own landmark radius. `inked`: is anything shown to feel at all, so an empty
+  // board never reads "Off the line". Returns {state: 'none'|'lifted'|'exploring'|'resting', text, sub}.
+  const TOUCH_MOVE_MM = 1.5, TOUCH_REST_MS = 1000;
+  function touchState({ live = false, ever = false, down = false, stillMs = 0, level = NaN, top = 4, at = '', inked = true } = {}) {
+    if (!live) return { state: 'none', text: ever ? 'Not touching' : 'No touch yet', sub: '' };
+    if (!down) return { state: 'lifted', text: 'Not touching', sub: '' };
+    const resting = stillMs >= TOUCH_REST_MS;
+    let sub = '';
+    if (at) sub = 'At ' + at;
+    else if (inked && Number.isFinite(level)) sub = level >= top ? 'On the line' : level > 0 ? 'Beside the line' : 'Off the line';
+    return { state: resting ? 'resting' : 'exploring', text: resting ? 'Resting' : 'Exploring', sub };
+  }
+
+  // How long ago, in the words a tutor glancing over would use: "just now" under 5 s, then seconds, minutes, hours.
+  function ago(ms) {
+    const s = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s} s ago`;
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    return `${Math.floor(s / 3600)} h ago`;
+  }
+
+  // What the student has felt of the tutor's shown lines, from the teal the board draws: `fractions` holds each line's
+  // felt share (felt samples over all of its 1 mm samples). A line counts only once all of it is teal, so the words never
+  // claim more than the board shows; the session panel's bars carry the partial lines.
+  function feltLine(fractions) {
+    const n = (fractions || []).length;
+    if (!n) return 'Nothing drawn yet';
+    if (!fractions.some((f) => f > 0)) return 'Nothing felt yet';
+    const full = fractions.filter((f) => f >= 1).length;
+    if (full === n) return n === 1 ? 'Felt the whole line' : `Felt all ${n} lines`;
+    return `Felt ${full} of ${n} line${n === 1 ? '' : 's'} in full`;
   }
 
   // Studio side panels (D10). The GIF pipeline (tools/record/compose.py detect_board) crops the stage video to the board
@@ -600,7 +637,7 @@
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
-    SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
+    SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, touchState, ago, feltLine,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
     cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend, revealMeter, cropZone, sidePanels,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };

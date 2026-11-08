@@ -3,25 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0e1620">
+<meta name="description" content="Feel your tutor's drawing as vibration and hear its landmarks.">
 <title>FeelInk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- The stage's face, loaded without blocking: the phone may be offline, and the page must not wait on a font. -->
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
-  /* The stage's world (stage.html): near-black surround, paper and ink, teal for touch, amber for focus. */
+  /* The stage's world (stage.html): near-black surround, paper and ink, teal for touch, amber for focus.
+     Home is a finished app screen for the student and whoever sets the phone up; Live is a black glass with nothing on it. */
   :root { --surround: #0e1620; --raised: #172230; --pressed: #1f2d3d; --line: #2c3a49; --edge: #56677a; --text: #e8edf2; --muted: #a3aebb;
     --paper: #fbfaf6; --ink: #1b222b; --teal: #2bb3a3; --teal-pressed: #23968a; --amber: #ffb020; --on: #4ade80; --off: #4b5563;
-    --right: #1f7a4d; --right-pressed: #17603c; --wrong: #a3352f; --wrong-pressed: #862a25; color-scheme: dark; accent-color: var(--teal); }
+    --on-line: rgba(74, 222, 128, 0.45); --on-wash: rgba(74, 222, 128, 0.07); --amber-line: rgba(255, 176, 32, 0.5); --amber-wash: rgba(255, 176, 32, 0.07);
+    --right: #1f7a4d; --right-pressed: #17603c; --wrong: #a3352f; --wrong-pressed: #862a25;
+    --radius: 16px; --ease-out: cubic-bezier(0.16, 1, 0.3, 1); color-scheme: dark; accent-color: var(--teal); }
   html, body { margin: 0; height: 100%; background: #000; color: var(--text); overscroll-behavior: none;
     font: 17px/1.4 'Atkinson Hyperlegible', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
   ::selection { background: var(--teal); color: var(--ink); }
   #board { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
   .panel { position: fixed; inset: 0; overflow: auto; box-sizing: border-box; display: flex; flex-direction: column;
-    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    padding: max(32px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     background: var(--surround); touch-action: auto; }
   .panel > * { width: 100%; max-width: 480px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
-  .panel[hidden], #hint[hidden], #dev[hidden], #warn:empty { display: none; }
+  .panel[hidden], #hint[hidden], #dev[hidden], #warn:empty, #netsub:empty { display: none; }
   h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: 0.005em; }
   h2 { margin: 0 0 16px; font-size: 18px; line-height: 1.2; font-weight: 700; }
   p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
@@ -32,8 +37,9 @@
     color: var(--text); background: var(--raised); border: 2px solid var(--edge); border-radius: 12px;
     touch-action: manipulation; transition: background-color 150ms ease-out, transform 150ms ease-out; }
   button:active { background: var(--pressed); transform: scale(0.985); }
-  button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
-  button.primary { min-height: 76px; font-size: 22px; color: var(--ink); background: var(--teal); border-color: var(--teal); }
+  button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+  button.primary { min-height: 80px; font-size: 24px; color: var(--ink); background: var(--teal); border-color: var(--teal);
+    border-radius: var(--radius); box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.55); }
   button.primary:active { background: var(--teal-pressed); }
   button.go { min-height: 72px; font-size: 22px; color: #fff; background: var(--right); border-color: var(--right); }
   button.no { min-height: 72px; font-size: 22px; color: #fff; background: var(--wrong); border-color: var(--wrong); }
@@ -43,36 +49,76 @@
   .row button { flex: 1; }
   .stack { display: grid; gap: 12px; }
 
-  /* Home: the link in words, the one main action, and collapsed settings last. /dev adds the test tools. */
-  #net { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 18px; font-weight: 700; color: var(--text); }
-  #net::before { content: ''; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--off); }
-  #net[data-state=on]::before { background: var(--on); }
-  #net[data-state=lost] { color: var(--amber); }
-  #net[data-state=lost]::before { background: var(--amber); }
-  #warn { margin-top: 16px; padding: 12px 14px; font-size: 16px; color: #fecaca; background: #2a1517; border: 1px solid #6b2a2a; border-radius: 12px; }
-  #live { margin-top: 28px; }
-  #help { margin-top: 14px; }
+  /* Home: name and purpose, the link in one sentence, the one main action, how to use it, then settings folded away
+     at the bottom. /dev adds the test tools above the settings. */
+  .lead { flex: none; }
+  .more { flex: 1 0 auto; display: flex; flex-direction: column; }
+  .brand h1 { font-size: 40px; line-height: 1.05; letter-spacing: -0.01em; }
+  .brand p { margin-top: 8px; font-size: 20px; line-height: 1.3; color: var(--muted); }
+  /* The link in words, with a dot that agrees: grey ring waiting, grey pulse connecting, green on, amber pulse reconnecting. */
+  .status { display: grid; grid-template-columns: 14px 1fr; column-gap: 14px; margin-top: 28px; padding: 16px 18px;
+    background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius);
+    transition: border-color 200ms ease-out, background-color 200ms ease-out; }
+  .status[data-state=on] { border-color: var(--on-line); background: linear-gradient(var(--on-wash), var(--on-wash)), var(--raised); }
+  .status[data-state=lost] { border-color: var(--amber-line); background: linear-gradient(var(--amber-wash), var(--amber-wash)), var(--raised); }
+  .dot { position: relative; width: 14px; height: 14px; margin-top: 6px; box-sizing: border-box; border-radius: 50%;
+    border: 2px solid var(--muted); color: var(--muted); }
+  .status[data-state=connecting] .dot { background: var(--muted); }
+  .status[data-state=on] .dot { background: var(--on); border-color: var(--on); }
+  .status[data-state=lost] .dot { background: var(--amber); border-color: var(--amber); color: var(--amber); }
+  .dot::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; }
+  .status[data-state=connecting] .dot::after, .status[data-state=lost] .dot::after { animation: ping 1.6s var(--ease-out) infinite; }
+  @keyframes ping { from { transform: scale(1); opacity: 0.8; } to { transform: scale(2.8); opacity: 0; } }
+  #net { font-size: 20px; line-height: 1.3; font-weight: 700; color: var(--text); text-wrap: balance; }
+  #netsub { margin-top: 4px; text-wrap: pretty; }
+  #warn { margin-top: 12px; padding: 14px 18px; font-size: 16px; color: #fecaca; background: #2a1517; border: 1px solid #6b2a2a; border-radius: var(--radius); }
+  #live { margin-top: 16px; }
+  .help { margin-top: 36px; }
+  .help h2 { margin: 0 0 2px; font-size: 20px; }
+  .help dl { margin: 0; }
+  .help dl > div { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .help dl > div:last-child { border-bottom: 0; }
+  .help dt { font-size: 17px; font-weight: 700; color: var(--text); }
+  .help dd { margin: 4px 0 0; font-size: 16px; line-height: 1.45; color: var(--muted); }
   #dev { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
   #dev p { margin: 8px 0 20px; }
-  .settings { margin-top: auto; padding-top: 32px; }
-  .settings summary { display: flex; align-items: center; justify-content: space-between; min-height: 48px;
-    border-top: 1px solid var(--line); padding-top: 8px; font-size: 18px; font-weight: 700; cursor: pointer; list-style: none; }
+  .settings { margin-top: auto; padding-top: 24px; }
+  .settings summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px;
+    border-top: 1px solid var(--line); cursor: pointer; list-style: none; border-radius: 4px; }
   .settings summary::-webkit-details-marker { display: none; }
-  .settings summary::after { content: '+'; font-size: 26px; line-height: 1; color: var(--muted); }
-  .settings[open] summary::after { content: '\2212'; }
-  .settings p { margin: 8px 0 20px; }
+  .settings summary b { display: block; font-size: 18px; }
+  .settings summary small { display: block; margin-top: 2px; font-size: 15px; color: var(--muted); }
+  .chev { flex: none; width: 24px; height: 24px; color: var(--muted); transition: transform 200ms var(--ease-out); }
+  .settings[open] .chev { transform: rotate(180deg); }
+  .settings .body { padding: 4px 0 8px; }
+  .field { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 0; font-size: 17px; font-weight: 700; }
+  .field output { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .scale { display: flex; justify-content: space-between; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .settings .note { margin-top: 12px; }
   label { display: block; margin: 0 0 18px; font-size: 17px; }
   label:last-child { margin-bottom: 0; }
   input[type=range] { display: block; width: 100%; height: 48px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; }
   input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: var(--edge); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -10px;
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -12px;
     border-radius: 50%; background: var(--teal); border: 3px solid var(--ink); box-sizing: border-box; }
   input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: var(--edge); }
-  input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--teal); border: 3px solid var(--ink); box-sizing: border-box; }
+  input[type=range]::-moz-range-thumb { width: 32px; height: 32px; border-radius: 50%; background: var(--teal); border: 3px solid var(--ink); box-sizing: border-box; }
   input[type=text] { display: block; width: 100%; min-height: 52px; margin-top: 8px; padding: 10px 14px; box-sizing: border-box;
     font: 700 22px 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--text); background: var(--raised);
     border: 2px solid var(--edge); border-radius: 10px; }
   input[type=text]:focus { color: var(--ink); background: var(--paper); border-color: var(--paper); caret-color: var(--ink); }
+  /* A phone on its side: the name, link and button on the left, how to use it and settings on the right. */
+  @media (orientation: landscape) and (max-height: 600px) {
+    #home { flex-direction: row; justify-content: center; gap: 48px; padding-top: max(20px, env(safe-area-inset-top)); }
+    #home > .lead, #home > .more { flex: 1 1 0; max-width: 420px; margin: 0; }
+    .brand h1 { font-size: 32px; }
+    .status { margin-top: 20px; }
+    .help { margin-top: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot::after { animation: none !important; }
+    button, .chev, .status { transition: none; }
+  }
 
   /* Test flow. The reveal sits over the drawn shape, so its text stays above the board's shapes and its buttons below. */
   #hint { position: fixed; top: 0; left: 0; right: 0; padding: max(16px, env(safe-area-inset-top)) 20px 0; text-align: center;
@@ -91,33 +137,56 @@
 <canvas id="board"></canvas>
 <div id="hint" hidden></div>
 
-<div class="panel" id="home">
-  <header>
-    <h1>FeelInk</h1>
-    <p id="net" role="status">Waiting for laptop</p>
+<main class="panel" id="home">
+  <div class="lead">
+    <header class="brand">
+      <h1>FeelInk</h1>
+      <p>Feel your tutor's drawing.</p>
+    </header>
+    <div class="status" id="conn" data-state="connecting">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <p id="net" role="status">Connecting to the laptop…</p>
+        <p id="netsub"></p>
+      </div>
+    </div>
     <p id="warn" role="alert"></p>
-  </header>
-  <button class="primary" id="live">Connect to tutor</button>
-  <p id="help">Explore with one finger. Back returns here, and a two-finger double tap repeats the tutor's instruction, or else what was said last.</p>
-  <!-- Development and validation, shown only at /dev: same page, same test mode and results.jsonl fields. -->
-  <section id="dev" hidden aria-labelledby="dev-title">
-    <h2 id="dev-title">Development and validation</h2>
-    <div class="stack">
-      <button id="practice">Practice (shapes visible)</button>
-      <button id="test">Start blind test (5 shapes)</button>
-      <button id="buzz">Buzz check</button>
-    </div>
-    <p>No buzz? Turn off Silent and Do Not Disturb, then check that vibration is on in Android settings.</p>
-    <label>Who is testing (initials)<input id="who" type="text" maxlength="8" autocomplete="off" spellcheck="false"></label>
-  </section>
-  <details class="settings" id="advanced">
-    <summary>Advanced settings</summary>
-    <div>
-      <p>For the tutor. The default suits most students.</p>
-      <label>Strong core width: <b><span id="wval"></span> mm</b>, fade <b><span id="fval"></span> mm</b> each side<input id="width" type="range" min="1" max="5" step="1"></label>
-    </div>
-  </details>
-</div>
+    <button class="primary" id="live" aria-describedby="net">Connect to tutor</button>
+  </div>
+  <div class="more">
+    <section class="help" aria-labelledby="help-title">
+      <h2 id="help-title">How to use</h2>
+      <dl>
+        <div><dt>Explore</dt><dd>Slide one finger across the screen. Lines buzz under your finger, and places say their names.</dd></div>
+        <div><dt>Hear it again</dt><dd>Double tap with two fingers to hear your tutor's instruction again.</dd></div>
+        <div><dt>Leave the drawing</dt><dd>Press Back to return to this screen.</dd></div>
+      </dl>
+    </section>
+    <!-- Development and validation, shown only at /dev: same page, same test mode and results.jsonl fields. -->
+    <section id="dev" hidden aria-labelledby="dev-title">
+      <h2 id="dev-title">Development and validation</h2>
+      <div class="stack">
+        <button id="practice">Practice (shapes visible)</button>
+        <button id="test">Start blind test (5 shapes)</button>
+        <button id="buzz">Buzz check</button>
+      </div>
+      <p>No buzz? Turn off Silent and Do Not Disturb, then check that vibration is on in Android settings.</p>
+      <label>Who is testing (initials)<input id="who" type="text" maxlength="8" autocomplete="off" spellcheck="false"></label>
+    </section>
+    <details class="settings" id="advanced">
+      <summary>
+        <span><b>Advanced settings</b><small>For your tutor</small></span>
+        <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="body">
+        <label class="field" for="width">Line width <output for="width"><span id="wval"></span> mm</output></label>
+        <input id="width" type="range" min="1" max="5" step="1" aria-describedby="width-note">
+        <div class="scale" aria-hidden="true"><span>1 mm</span><span>5 mm</span></div>
+        <p class="note" id="width-note">How wide the strongest buzz is along each line, with a softer edge of <b><span id="fval"></span> mm</b> on each side. Most students do best with the default, 4 mm.</p>
+      </div>
+    </details>
+  </div>
+</main>
 
 <div class="panel" id="reveal" hidden>
   <div>
@@ -392,19 +461,31 @@ function sendFinger(msg) {
   pendingFinger = null;
   post(m).catch(() => {}).finally(() => { fingerBusy = false; if (pendingFinger) sendFinger(pendingFinger); });
 }
-// The link to the laptop's relay, in words: waiting (never connected yet), on, or lost (was on, now retrying).
+// The link to the laptop's relay, in words: connecting (first try), waiting (never connected yet, retrying), on, or
+// lost (was on, now retrying). The page never gives up, so there is no final "disconnected": waiting and lost are it.
+// One table for the screen and the voice, so they always agree: off the link, the phone says the status sentence.
 // In Live a change is spoken once, on the change itself: EventSource fires onerror on every failed retry.
-const LINK_TEXT = { waiting: 'Waiting for laptop', on: 'Connected to laptop', lost: 'Reconnecting to laptop' };
-const WELCOME = 'Connected to tutor. Touch the screen to explore.';
-let link = 'waiting', welcomed = false;
+const LINK = {
+  connecting: { text: 'Connecting to the laptop…', sub: '' },
+  waiting: { text: 'Waiting for the laptop', sub: 'Ask your tutor to start FeelInk on their laptop. This phone connects by itself.' },
+  on: { text: 'Connected to the laptop', sub: 'Tap Connect to tutor to feel the drawing.' },
+  lost: { text: 'Reconnecting to the laptop', sub: 'The connection dropped. Keep this page open. It reconnects by itself.' },
+};
+const linkLine = (s) => LINK[s].text.replace(/…$/, '') + '.';
+const WELCOME = 'Connected to your tutor. Touch the screen to explore.';
+let link = 'connecting', welcomed = false, leftLive = false; // leftLive: home after Back, worded as a return
+function showLink() {
+  $('net').textContent = LINK[link].text;
+  $('netsub').textContent = link === 'on' && leftLive ? 'You left the drawing. Tap Connect to tutor to go back.' : LINK[link].sub;
+  $('conn').dataset.state = link;
+}
 function setLink(next) {
   const was = link;
   link = next;
-  $('net').textContent = LINK_TEXT[next];
-  $('net').dataset.state = next;
+  showLink();
   if (mode !== 'live' || was === next) return;
-  if (next === 'on') { say(welcomed ? 'Connected.' : WELCOME, 'status'); welcomed = true; }
-  else if (next === 'lost') say('Reconnecting.', 'status');
+  if (next === 'on') { say(welcomed ? 'Connected again.' : WELCOME, 'status'); welcomed = true; }
+  else say(linkLine(next), 'status');
 }
 // "Drawing changed." once the tutor has paused for 1.5 s, so a stroke being drawn (re-posted on every move) is one
 // change, not one per move. `heard` is the drawing as the student was last told it, so a change undone within the
@@ -437,7 +518,7 @@ function connect() {
   es = new EventSource('/events');
   es.onopen = () => setLink('on');
   es.onerror = () => {
-    setLink(link === 'waiting' ? 'waiting' : 'lost');
+    setLink(link === 'on' || link === 'lost' ? 'lost' : 'waiting');
     // EventSource retries a dropped link by itself but gives up for good on a bad reply; start over then.
     if (es.readyState === EventSource.CLOSED) { es = null; setTimeout(connect, 2000); }
   };
@@ -543,7 +624,7 @@ function startLive() {
   draw();
   heard = synced ? shownKey() : null;
   welcomed = link === 'on';
-  say(welcomed ? WELCOME : 'Connecting to tutor.', 'status');
+  say(welcomed ? WELCOME : linkLine(link), 'status');
   sayInstructionIfNew(); // waits behind the welcome
   // Android Back returns to the menu: Live is its own history entry.
   if (!(history.state && history.state.feelLive)) history.pushState({ feelLive: true }, '');
@@ -555,7 +636,7 @@ function goHome() {
   apply(renderer.lift()); setBuzz(0); // before leaving live mode, so the stage hears the stop
   clearTimeout(changeTimer); changeTimer = null;
   mode = 'home'; hint(''); showInk = false; strokes = []; show('home'); draw();
-  if (wasLive) { hush(); say('Back to menu.', 'status'); sendConfig(); }
+  if (wasLive) { hush(); say('Back to menu.', 'status'); sendConfig(); leftLive = true; showLink(); }
 }
 addEventListener('popstate', () => { if (mode === 'live') goHome(); });
 // Chrome on Android may spend a Back press in fullscreen on leaving fullscreen only, without touching history
@@ -660,7 +741,10 @@ function checkGestures() {
 // Stored values from the old 2-14 range are clamped into the slider, which then reports the clamped value.
 $('width').value = Math.min(5, Math.max(1, +store.get('fi.core', '4')));
 $('who').value = store.get('fi.who', '');
-const showWidth = () => { $('wval').textContent = $('width').value; $('fval').textContent = fadeMm(); };
+const showWidth = () => {
+  $('wval').textContent = $('width').value; $('fval').textContent = fadeMm();
+  $('width').setAttribute('aria-valuetext', `${$('width').value} millimetres`);
+};
 showWidth();
 $('width').oninput = () => { showWidth(); store.set('fi.core', $('width').value); sendConfig(); };
 $('who').oninput = () => store.set('fi.who', $('who').value);
@@ -669,7 +753,7 @@ $('dev').hidden = !DEV;
 if (DEV) { $('advanced').open = true; document.title = 'FeelInk dev'; }
 // A reload keeps the history entry Live pushed; drop its mark so the menu doesn't count as Live.
 if (history.state && history.state.feelLive) history.replaceState(null, '');
-if (!canVibrate) $('warn').textContent = 'This browser cannot vibrate. Use Chrome on the Pixel. iPhone Safari has no vibration API.';
+if (!canVibrate) $('warn').textContent = "This browser can't vibrate, so you won't feel the drawing. Open this page in Chrome on an Android phone.";
 const enterFullscreen = () => { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); };
 $('buzz').onclick = () => { if (canVibrate) navigator.vibrate(300); };
 $('practice').onclick = () => { enterFullscreen(); startPractice(); };
@@ -687,6 +771,7 @@ addEventListener('pagehide', stopForHide);
 // The relay replays only the drawing (strokes and landmarks), so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.
 setInterval(() => { if (mode === 'live' && !document.hidden) sendConfig(); }, 2000);
 addEventListener('resize', layout);
+showLink();
 connect();
 sendConfig();
 layout();

@@ -4,13 +4,7 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 16:47). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
-
-### D8. Decide: TalkBack approach (research in `research/talkback-2026-11-07.md`)
-Predicted (Reasoned, from AOSP, TalkBack and Chromium sources; not yet measured on the Pixel): with TalkBack on, one-finger exploring never reaches the page, two fingers together arrive as one pointer, and our 2- and 3-finger gestures belong to TalkBack. A web page cannot turn explore-by-touch off. Lead's recommendation: an opt-in TalkBack mode in Advanced settings (any pointer explores, phone drawing and multi-finger gestures off, Android Back exits, instructions teach two-finger exploring and TalkBack's pass-through gesture). Alternatives: ask students to pause TalkBack (rejected by Reeve's brief), or a native wrapper (out of scope for Sunday). Needed: yes to building the opt-in mode now, or wait for the Part B measurement first.
-
-### A1b. Reeve or Nathan, Do (10 minutes at the phone): TalkBack measurement (Part B)
-Turn TalkBack on in Settings > Accessibility on Nathan's Pixel (his yes), tell the lead, explore the test route with one finger then with two fingers while the lead runs the probe, say what you heard, then turn TalkBack off. Protocol with exact steps is in the research note.
+## Open, in order of urgency (Sat Nov 7, 17:05). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
 ### A0c. Reeve, Do (after the next phone build ships): re-feel landmark arrival
 Per his 16:23 note the landmark becomes a state: the line hum stops, 400 ms silence while the name is spoken, three long pulses, then only a slow heartbeat while the finger rests on the landmark; the hum returns when the finger leaves. Ships inside the phone product build (#90); the lead posts when the Pixel is reloaded.
@@ -52,6 +46,7 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 17:02, Reeve: TalkBack dropped (no mode, no Pixel session; #91 closed as parked, research stays on main). Other D7 items stand.
 - Sat 16:46: phone product build (#90), undoable Clear, TalkBack research (#91) and the stage product pass (#92) are on main; phone and laptop pages reloaded. Deck still parked.
 - Sat 16:23, Reeve: the lead on Reeve's laptop owns all product work (phone, stage, relay, UI) unless Nathan's lead posts otherwise; Nathan's lane is outreach and validation. A0b: cue stands out but must be unmistakable on-path (now a landmark state, see A0c).
 - Sat 16:21, Reeve: the lead's agents do ALL UI, stage included (#92 running); Nathan's lane otherwise unchanged. #13-#23 closed. Default core 4 mm; fade derives from core (lead's ratio 1.5), not a student setting.

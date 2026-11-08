@@ -578,19 +578,17 @@
   }
 
   // The student's finger in words, for the session panel (human-led note, Nov 7). Only what the phone reports: whether a
-  // finger is on the glass, whether it has moved in the last TOUCH_REST_MS, and the buzz level it is playing (finger
-  // events carry `level`: 0 off the line, 1..top-1 the fade beside it, top on it; tactile.js). `at` is the shown point
-  // the finger is on, within the phone's own landmark radius. `inked`: is anything shown to feel at all, so an empty
-  // board never reads "Off the line". Returns {state: 'none'|'lifted'|'exploring'|'resting', text, sub}.
-  const TOUCH_MOVE_MM = 1.5, TOUCH_REST_MS = 1000;
-  function touchState({ live = false, ever = false, down = false, stillMs = 0, level = NaN, top = 4, at = '', inked = true } = {}) {
-    if (!live) return { state: 'none', text: ever ? 'Not touching' : 'No touch yet', sub: '' };
-    if (!down) return { state: 'lifted', text: 'Not touching', sub: '' };
+  // finger is on the glass and whether it has moved in the last TOUCH_REST_MS. Where it is against the ink and which
+  // point it sits on are the board's to show (cursor, teal, caption), so the line says nothing about them (#138).
+  // A lift shorter than TOUCH_LIFT_MS (a finger hopping between touches) keeps the line as it was, like the cursor's
+  // lift shrink, so it never flickers "Not touching" between two touches. `liftMs` is how long ago the finger lifted.
+  // Returns {state: 'none'|'lifted'|'exploring'|'resting', text}.
+  const TOUCH_MOVE_MM = 1.5, TOUCH_REST_MS = 1000, TOUCH_LIFT_MS = 350;
+  function touchState({ live = false, ever = false, down = false, liftMs = Infinity, stillMs = 0 } = {}) {
+    if (!live) return { state: 'none', text: ever ? 'Not touching' : 'No touch yet' };
+    if (!down && !(liftMs < TOUCH_LIFT_MS)) return { state: 'lifted', text: 'Not touching' };
     const resting = stillMs >= TOUCH_REST_MS;
-    let sub = '';
-    if (at) sub = 'At ' + at;
-    else if (inked && Number.isFinite(level)) sub = level >= top ? 'On the line' : level > 0 ? 'Beside the line' : 'Off the line';
-    return { state: resting ? 'resting' : 'exploring', text: resting ? 'Resting' : 'Exploring', sub };
+    return { state: resting ? 'resting' : 'exploring', text: resting ? 'Resting' : 'Exploring' };
   }
 
   // How long ago, in the words a tutor glancing over would use: "just now" under 5 s, then seconds, minutes, hours.
@@ -638,7 +636,7 @@
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
-    SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, touchState, ago, feltLine,
+    SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, TOUCH_LIFT_MS, touchState, ago, feltLine,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
     cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend, revealMeter, cropZone, sidePanels,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };

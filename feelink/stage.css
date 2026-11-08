@@ -135,12 +135,15 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .now { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-6); }
 .fact { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 3px; }
 .fact .g { grid-row: 1 / span 2; width: 22px; height: 22px; margin-top: 1px; overflow: visible; }
-.fact b { font-size: var(--t-xl); line-height: 1.3; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.fact b { font-size: var(--t-xl); line-height: 1.3; font-weight: 700; color: var(--text); overflow-wrap: anywhere;
+  transition: color 240ms ease-out; }
 .fact .sub { grid-column: 2; font-size: var(--t-md); line-height: 1.35; color: var(--muted); }
 .fact .sub:empty { display: none; }
-.fact[data-state="lifted"] b { font-weight: 400; color: var(--muted); }
+/* A lifted finger keeps the weight (#138): touching and not touching trade only colour, eased, so the line never jumps. */
+.fact[data-state="lifted"] b { color: var(--muted); }
 .fact[data-state="none"] b { font-weight: 400; color: var(--faint); }
 /* Their finger: the board's cursor (amber in a white ring) while it is on the glass, an empty ring when it is not. */
+.fact .g circle, .fact .g path { transition: fill 240ms ease-out, stroke 240ms ease-out; }
 .fact .g-ring { fill: none; stroke: var(--edge); stroke-width: 1.6; }
 .fact .g-dot { fill: none; }
 #touchRow[data-state="exploring"] .g-ring, #touchRow[data-state="resting"] .g-ring { fill: #ffffff; stroke: #ffffff; }

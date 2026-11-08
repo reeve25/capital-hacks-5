@@ -726,18 +726,17 @@ test('side panels stay out of the GIF crop zone and off the board (D10)', () => 
 });
 
 test("session panel: the finger in words, only from the phone's reports (human-led, Nov 7)", () => {
-  const t = (o) => B.touchState({ live: true, ever: true, down: true, stillMs: 0, level: 4, top: 4, ...o });
-  assert.deepEqual(B.touchState({}), { state: 'none', text: 'No touch yet', sub: '' }, 'never connected');
-  assert.deepEqual(B.touchState({ ever: true, down: true }), { state: 'none', text: 'Not touching', sub: '' }, 'a gone phone is not touching, whatever its last finger said');
-  assert.deepEqual(t({ down: false }), { state: 'lifted', text: 'Not touching', sub: '' });
-  assert.deepEqual(t({}), { state: 'exploring', text: 'Exploring', sub: 'On the line' });
-  // The level is the buzz the phone is playing: top on the line, the fade steps beside it, 0 nothing.
-  assert.deepEqual([3, 1, 0].map((level) => t({ level }).sub), ['Beside the line', 'Beside the line', 'Off the line']);
-  assert.equal(t({ level: undefined }).sub, '', 'no level reported: say nothing about the line');
-  assert.equal(t({ level: 0, inked: false }).sub, '', 'an empty board is not "off the line"');
-  assert.equal(t({ at: 'Library', level: 0 }).sub, 'At Library', 'a point under the finger says where it is');
+  const t = (o) => B.touchState({ live: true, ever: true, down: true, stillMs: 0, ...o });
+  assert.deepEqual(B.touchState({}), { state: 'none', text: 'No touch yet' }, 'never connected');
+  assert.deepEqual(B.touchState({ ever: true, down: true }), { state: 'none', text: 'Not touching' }, 'a gone phone is not touching, whatever its last finger said');
+  assert.deepEqual(t({ down: false }), { state: 'lifted', text: 'Not touching' });
+  assert.deepEqual(t({}), { state: 'exploring', text: 'Exploring' }, 'one line, nothing about the ink (#138): the board shows that');
+  // A short lift between two touches keeps the line as it was; a real lift reads as not touching.
+  assert.equal(t({ down: false, liftMs: B.TOUCH_LIFT_MS - 1 }).state, 'exploring', 'a hop between touches is not a lift');
+  assert.equal(t({ down: false, liftMs: B.TOUCH_LIFT_MS }).state, 'lifted');
+  assert.equal(t({ down: false, liftMs: NaN }).state, 'lifted', 'no lift time known: say what the phone says');
   assert.equal(t({ stillMs: B.TOUCH_REST_MS - 1 }).state, 'exploring');
-  assert.deepEqual(t({ stillMs: B.TOUCH_REST_MS, at: 'Gym' }), { state: 'resting', text: 'Resting', sub: 'At Gym' });
+  assert.deepEqual(t({ stillMs: B.TOUCH_REST_MS }), { state: 'resting', text: 'Resting' });
 });
 
 test('session panel: how long ago a point was spoken, and how much of the drawing is teal', () => {

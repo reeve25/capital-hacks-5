@@ -387,11 +387,11 @@ test('spoken reports: only real spoken lines are logged, once each (#90, #92)', 
 });
 
 test('connection status is in words, board link first, then the phone and its finger (#92)', () => {
-  assert.deepEqual(B.connectionStatus(false, true, true), { tone: 'off', text: 'Board offline', sub: 'Reconnecting…' });
-  assert.equal(B.connectionStatus(true, false, false).text, "Waiting for the student's phone");
-  assert.equal(B.connectionStatus(true, false, true).tone, 'wait', 'a stale finger is not a live phone');
-  assert.equal(B.connectionStatus(true, true, false).sub, 'Not touching the board');
-  assert.deepEqual(B.connectionStatus(true, true, true), { tone: 'on', text: "Student's phone connected", sub: 'Touching the board' });
+  assert.deepEqual(B.connectionStatus(false, 'connected', true), { tone: 'off', text: 'Board offline', sub: 'Reconnecting…', receiving: false });
+  assert.equal(B.connectionStatus(true, 'waiting', false).text, "Waiting for the student's phone");
+  assert.equal(B.connectionStatus(true, 'waiting', true).tone, 'wait', 'a stale finger is not a live phone');
+  assert.equal(B.connectionStatus(true, 'connected', false).sub, 'Not touching the board');
+  assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'on', text: "Student's phone connected", sub: 'Touching the board', receiving: true });
 });
 
 test('landmark-rest heartbeat is a small one-off ring that leaves a held line alone (#90)', () => {
@@ -411,4 +411,94 @@ test('landmark-rest heartbeat is a small one-off ring that leaves a held line al
   // The arrival cue since #90: three 220 ms buzzes, one ring each, with the name for the caption.
   const cue = B.parseHaptic({ type: 'haptic', kind: 'landmark', name: 'Gate', level: 4, top: 4, pattern: [220, 130, 220, 130, 220], ok: true });
   assert.deepEqual([cue.pulses, cue.name, cue.soft], [[0, 350, 700], 'Gate', undefined]);
+});
+
+test('link states: connected under 5 s since the phone last reported, reconnecting to 15 s, then disconnected (#107)', () => {
+  assert.equal(B.phoneLink(Infinity), 'waiting', 'never heard from');
+  assert.equal(B.phoneLink(NaN), 'waiting');
+  assert.equal(B.phoneLink(0), 'connected');
+  assert.equal(B.phoneLink(4999), 'connected', 'phoneconfig every 2 s: two beats can be missed');
+  assert.equal(B.phoneLink(B.LINK_RECONNECTING_MS), 'reconnecting');
+  assert.equal(B.phoneLink(14999), 'reconnecting');
+  assert.equal(B.phoneLink(B.LINK_DISCONNECTED_MS), 'disconnected');
+  assert.equal(B.phoneLink(60000), 'disconnected');
+  assert.equal(B.phoneLink(100, true), 'disconnected', 'the phone said it went back to its menu');
+  const words = (link) => B.connectionStatus(true, link, false);
+  assert.deepEqual(words('reconnecting'), { tone: 'warn', text: "Student's phone reconnecting…", sub: 'Not receiving drawings', receiving: false });
+  assert.deepEqual(words('disconnected'), { tone: 'off', text: "Student's phone disconnected", sub: 'Not receiving drawings', receiving: false });
+  // The student can receive drawings only when connected, and only while the board itself is online.
+  assert.deepEqual(['waiting', 'connected', 'reconnecting', 'disconnected'].map((l) => words(l).receiving), [false, true, false, false]);
+  assert.equal(B.connectionStatus(false, 'connected', false).receiving, false);
+  // Each state reads differently in words, not only in colour.
+  assert.equal(new Set(['waiting', 'connected', 'reconnecting', 'disconnected'].map((l) => words(l).text)).size, 4);
+});
+
+test('heard log: latest first, a landmark said again within 10 s merges, the rest fold under earlier (#107)', () => {
+  const log = new B.HeardLog();
+  const said = (text, kind = 'landmark') => B.parseSpoken({ type: 'spoken', text, kind });
+  assert.equal(log.latest, null);
+  log.heard(said('School'), 1000);
+  log.heard(said('Library'), 3000);
+  log.heard(said('Start: School'), 9000); // the same landmark 8 s later, as the start point: merged, moved to the top
+  assert.equal(log.items.length, 2);
+  assert.deepEqual([log.latest.key, log.latest.n, log.latest.text, log.latest.at], ['School', 2, 'Start: School', 9000]);
+  assert.deepEqual(log.earlier.map((x) => x.key), ['Library']);
+  log.heard(said('School'), 18999); // within 10 s of the last time it was said
+  assert.equal(log.latest.n, 3);
+  log.heard(said('School'), 29000); // 10.001 s on: a new entry
+  assert.deepEqual(log.items.map((x) => [x.key, x.n]), [['School', 1], ['School', 3], ['Library', 1]]);
+  // Repeated status lines merge the same way; different lines do not.
+  log.heard(said('Drawing changed.', 'status'), 30000);
+  log.heard(said('Drawing changed.', 'status'), 31000);
+  log.heard(said('Reconnecting.', 'status'), 32000);
+  assert.deepEqual(log.items.slice(0, 2).map((x) => [x.text, x.n]), [['Reconnecting.', 1], ['Drawing changed.', 2]]);
+  assert.equal(log.earlier.length, log.items.length - 1);
+  assert.equal(log.heard(null, 1), null);
+  const small = new B.HeardLog({ max: 3 });
+  for (let i = 0; i < 5; i++) small.heard(said('P' + i), i * 20000);
+  assert.deepEqual(small.items.map((x) => x.key), ['P4', 'P3', 'P2'], 'capped, oldest dropped');
+  assert.equal(B.markName('Start: Main  library'), 'Main library');
+  assert.equal(B.markName('School'), 'School');
+});
+
+test('an instruction shows Sent until the phone reports saying it, then Heard; a replay counts on it (#107)', () => {
+  const log = new B.HeardLog();
+  const ins = { type: 'instruction', id: 'say-1', text: 'Follow the line from the school to the library.', by: 'tutor' };
+  const e = log.sent(ins, 1000);
+  assert.deepEqual([e.kind, e.state, e.n, log.latest], ['instruction', 'sent', 0, e]);
+  assert.equal(log.sent({ ...ins }, 1200), e, "the relay's echo of the same id is the same entry");
+  // Neither a landmark nor a status line with the same words confirms it: only a spoken report of kind 'instruction'.
+  log.heard(B.parseSpoken({ type: 'spoken', text: 'School', kind: 'landmark', t: 1 }), 1500);
+  log.heard(B.parseSpoken({ type: 'spoken', text: ins.text, kind: 'status', t: 2 }), 1600);
+  assert.equal(e.state, 'sent');
+  const spoken = { type: 'spoken', text: ins.text, kind: 'instruction', id: 'say-1', t: 3 };
+  assert.deepEqual(B.parseSpoken(spoken), { text: ins.text, kind: 'instruction', id: 'say-1' });
+  log.heard(B.parseSpoken(spoken), 4000);
+  assert.deepEqual([e.state, e.n, e.at, log.latest], ['heard', 1, 4000, e]);
+  // The student's replay, led by the start point, matches by id and counts on the same entry.
+  log.heard(B.parseSpoken({ ...spoken, text: 'Start: School. ' + ins.text, t: 4 }), 9000);
+  assert.deepEqual([e.state, e.n, log.items.filter((x) => x.kind === 'instruction').length], ['heard', 2, 1]);
+  // A phone without ids still matches on the words, plain or led by the start point.
+  const old = new B.HeardLog();
+  const o = old.sent({ id: 'a', text: 'Find the school.' }, 1);
+  old.heard(B.parseSpoken({ type: 'spoken', text: 'Start: Gate. Find the school.', kind: 'instruction' }), 2);
+  assert.deepEqual([o.state, old.items.length], ['heard', 1]);
+  // A newer instruction leaves an unheard one 'replaced' (the relay keeps only the latest); a heard one stays heard.
+  const log2 = new B.HeardLog();
+  const a = log2.sent({ id: 'a', text: 'Find the school.' }, 1);
+  const b = log2.sent({ id: 'b', text: 'Now find the library.' }, 2);
+  assert.deepEqual([a.state, b.state, log2.latest], ['replaced', 'sent', b]);
+  log2.sent({ id: 'c', text: 'Go back to the start.' }, 3);
+  assert.deepEqual(log2.items.map((x) => x.state), ['sent', 'replaced', 'replaced']);
+  assert.equal(e.state, 'heard');
+  // The relay marks it heard in its sync, so a stage that joined after the phone spoke shows Heard, not Sent.
+  const late = new B.HeardLog();
+  assert.equal(late.sent({ id: 'b', text: 'Now find the library.', heard: true }, 5).state, 'heard');
+  log2.sent({ id: 'c', text: 'Go back to the start.', heard: true }, 6);
+  assert.equal(log2.latest.state, 'heard');
+  assert.equal(log2.sent({ id: 'd', text: '   ' }, 7), null);
+  assert.equal(log2.sent({ text: 'no id' }, 7), null);
+  assert.equal(B.parseSpoken({ type: 'spoken', text: 'z'.repeat(300), kind: 'instruction' }).text.length, 160, 'room for "Start: <name>. " plus the instruction');
+  assert.equal(B.cleanInstruction('  Follow   the line. '), 'Follow the line.');
+  assert.equal(B.cleanInstruction('w'.repeat(200)).length, B.INSTRUCTION_MAX);
 });

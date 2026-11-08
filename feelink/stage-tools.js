@@ -1,5 +1,6 @@
-// FeelInk stage, left panel (the tutor's tools) and the tutor's input on the board: Draw/Label, the pen and Shift line,
-// the name box and start point, Undo/Clear and its toast, the reveal stepper, hints, keys and buttons.
+// FeelInk stage, left panel (the tutor's tools) and the tutor's input on the board: Create (Draw, Label, Start point and
+// the line saying what the next click does), the pen and Shift line, the name box, Edit (Undo, Clear and its toast),
+// Present (the reveal stepper), keys and buttons.
 
 // Tutor input: pointer on the board, smoothed before sending so phone and stage share one geometry.
 let raw = [], lastSend = 0;
@@ -10,15 +11,20 @@ function inBoard(e) {
   return p.x >= -2 && p.y >= -2 && p.x <= BOARD.w + 2 && p.y <= BOARD.h + 2;
 }
 function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
-// Placing a label (a named point; 'landmark' in the protocol): L (or the Label button) arms it, the next click on the board opens the name box there
-// (or on the point clicked, to rename it). Enter posts it, Escape or clicking away cancels. Then back to Draw.
+// The tool is what the next click on the board does (#141): draw (the default), label or start point. Label (L) and Start
+// point arm one click, then it is back to Draw. Label: a click opens the name box there, or on the label clicked to
+// rename it; Enter posts it, Escape or clicking away cancels. A label is a named point, 'landmark' in the protocol.
+// Start point: a click on a label marks it as the start (or unmarks it), as S over it does; on bare paper it opens the
+// name box for a new point already marked as the start. The S key itself is unchanged: it acts at the pointer at once.
 const nameBox = document.getElementById('name'), nameWrap = document.getElementById('namebox'), nameStart = document.getElementById('nameStart');
-const hint = document.getElementById('hint');
-const toolDraw = document.getElementById('toolDraw'), toolMark = document.getElementById('toolMark');
-// Key hints only, no explanations (human-led note, Nov 7): the line under the tools names the key that changes what the
-// tool does next. The start point lives with the Label tool, where the tutor is thinking about points.
-const HINT_DRAW = 'Hold <kbd>Shift</kbd> for a straight line.';
-const HINT_PLACE = 'Click to place a label or rename one. <kbd>S</kbd> over a point makes it the start.';
+const readout = document.getElementById('readout');
+const tools = { draw: document.getElementById('toolDraw'), label: document.getElementById('toolMark'), start: document.getElementById('toolStart') };
+// The line under the tiles: what the next click does, then the one key that changes it. Copy standard (Reeve, 19:35):
+// a professional tool, precise and minimal; a screenshot should say what each tool does without a caption.
+const READOUT = {
+  draw: '<b>Drag on the board to draw.</b><span>Hold <kbd>Shift</kbd> for a straight line.</span>',
+  label: '<b>Click the board to add a label.</b><span>Click a label to rename it.</span>',
+  start: '<b>Click a label to make it the start.</b><span><kbd>S</kbd> over a label does the same.</span>' };
 // The reveal group's line: a state, shown only while something is hidden (#111). A new stroke drawn then arrives last
 // and stays hidden too, dashed like the rest, so the dashes are all the tutor needs to read.
 const STEP_HIDING = 'Dashed lines are hidden from the student.';
@@ -28,12 +34,12 @@ const NOTES = { all: 'Everything is shown. <kbd>P</kbd> steps back.',
   empty: 'Nothing to reveal yet.' };
 const NOTE_MS = 3500;
 const stepNote = document.getElementById('stepNote');
-let placing = false, straight = false, pending = null; // pending: {id, x, y} while the name box is open
+let tool = 'draw', straight = false, pending = null; // pending: {id, x, y} while the name box is open
 let note = '', noteTimer = 0, hiding = false, hintHtml = '', stepHtml = '';
 function renderHint() {
-  const html = placing ? HINT_PLACE : HINT_DRAW;
-  if (html !== hintHtml) { hintHtml = html; hint.innerHTML = html; } // aria-live: only real changes are announced
-  hint.classList.toggle('on', straight && !placing);
+  const html = READOUT[tool];
+  if (html !== hintHtml) { hintHtml = html; readout.innerHTML = html; } // aria-live: only real changes are announced
+  readout.classList.toggle('on', straight && tool === 'draw');
   const step = note ? NOTES[note] : hiding ? STEP_HIDING : '';
   if (step !== stepHtml) { stepHtml = step; stepNote.innerHTML = step; }
 }
@@ -43,11 +49,10 @@ function flashNote(key) {
   renderHint();
   if (key) noteTimer = setTimeout(() => { note = ''; renderHint(); }, NOTE_MS);
 }
-function setPlacing(on) {
-  placing = on;
-  document.body.classList.toggle('placing', on);
-  toolDraw.setAttribute('aria-pressed', String(!on));
-  toolMark.setAttribute('aria-pressed', String(on));
+function setTool(t) {
+  tool = t;
+  document.body.dataset.tool = t; // the board's cursor
+  for (const k in tools) tools[k].setAttribute('aria-pressed', String(k === t));
   renderHint();
 }
 // Shift held: the stroke in progress becomes the straight line from its first point (#92), redrawn and re-sent
@@ -58,14 +63,14 @@ function setStraight(on) {
   renderHint();
   if (mine) { mine = { ...mine, pts: B.strokePoints(raw, straight) }; upsert(mine); sendMine(); }
 }
-setPlacing(false);
-function openName(p, existing) {
+setTool('draw');
+function openName(p, existing, start = false) {
   pending = existing ? { id: existing.id, x: existing.x, y: existing.y } : { id: 'mark-' + Date.now(), x: p.x, y: p.y };
   const px = view.x + pending.x * view.scale, py = view.y + pending.y * view.scale;
   nameWrap.style.left = Math.max(8, Math.min(innerWidth - 228, px + 14)) + 'px';
   nameWrap.style.top = Math.max(8, Math.min(innerHeight - 76, py - 22)) + 'px';
   nameBox.value = existing ? existing.name || '' : '';
-  nameStart.checked = !!(existing && existing.start);
+  nameStart.checked = !!(existing && existing.start) || start;
   nameWrap.style.display = 'block';
   // After the click finishes, so the click's own focus change cannot pull focus back off the box.
   setTimeout(() => { if (pending) { nameBox.focus(); nameBox.select(); } }, 0);
@@ -95,7 +100,8 @@ nameWrap.addEventListener('focusout', (e) => { if (!nameWrap.contains(e.relatedT
 nameWrap.querySelector('label').addEventListener('mousedown', (e) => e.preventDefault());
 
 // The start point (#107): one at a time, so marking one unmarks any other. A change is the landmark re-posted with its
-// id, so it keeps its place in the undo order, as a rename does. S toggles it on the point nearest the pointer.
+// id, so it keeps its place in the undo order, as a rename does. S toggles it on the point nearest the pointer; the
+// Start point tool does the same on the point clicked, within the same reach.
 const START_PICK_MM = 10;
 let pointerAt = null; // the mouse over the page, client px
 function setStart(id, on) {
@@ -113,12 +119,15 @@ function toggleStartNear() {
 
 c.addEventListener('pointerdown', (e) => {
   if (pending) { closeName(true); return; }
-  if (placing) {
-    setPlacing(false);
+  if (tool !== 'draw') {
+    const t = tool;
+    setTool('draw');
     if (!inBoard(e)) return;
     const p = boardPoint(e);
-    openName(p, B.landmarkAt(landmarks, p));
     e.preventDefault(); // keep focus in the name box
+    const near = t === 'start' && B.landmarkAt(landmarks, p, START_PICK_MM);
+    if (near) setStart(near.id, !near.start);
+    else openName(p, t === 'label' ? B.landmarkAt(landmarks, p) : null, t === 'start');
     return;
   }
   if (!inBoard(e) || mine) return;
@@ -149,14 +158,18 @@ c.addEventListener('pointerup', finish);
 c.addEventListener('pointercancel', finish);
 
 // Clear asks nothing (#92): the relay keeps the cleared board for one undo (0eac4a1), and the toast offers it
-// for 3 s. U works on it as long as nothing new is drawn first; the toast only makes that visible.
-const toast = document.getElementById('toast');
+// for 3 s. U works on it as long as nothing new is drawn first; the toast only makes that visible. It takes the Edit
+// row's place, the same height, so nothing below moves; keyboard focus on that row goes with it, and comes back.
+const toast = document.getElementById('toast'), editRow = document.getElementById('editRow');
+const clearBtn = document.getElementById('clear'), undoClearBtn = document.getElementById('undoClear');
 const TOAST_MS = 3000;
 let toastTimer = 0;
 function showToast(on) {
   clearTimeout(toastTimer);
+  const refocus = on ? editRow.contains(document.activeElement) && undoClearBtn : toast.contains(document.activeElement) && clearBtn;
   toast.hidden = !on;
-  hint.hidden = on;
+  editRow.hidden = on;
+  if (refocus) refocus.focus();
   if (on) toastTimer = setTimeout(() => showToast(false), TOAST_MS);
 }
 const undo = () => { showToast(false); post({ type: 'undo' }); };
@@ -176,8 +189,9 @@ function clearBoard() {
 }
 // Buttons act on click but never take focus from a mouse, so Space or Enter later cannot press Clear again.
 // Tab still reaches them. A click first saves a name box that is open, as clicking the board does.
-const buttons = [[toolDraw, () => setPlacing(false)], [toolMark, () => setPlacing(!placing)],
-  [document.getElementById('undo'), undo], [document.getElementById('clear'), clearBoard], [document.getElementById('undoClear'), undo],
+const buttons = [[tools.draw, () => setTool('draw')], [tools.label, () => setTool(tool === 'label' ? 'draw' : 'label')],
+  [tools.start, () => setTool(tool === 'start' ? 'draw' : 'start')],
+  [document.getElementById('undo'), undo], [clearBtn, clearBoard], [undoClearBtn, undo],
   [document.getElementById('revealNext'), () => stepReveal('next')], [document.getElementById('revealPrev'), () => stepReveal('prev')],
   [document.getElementById('revealAll'), () => stepReveal('all')]];
 for (const [btn, act] of buttons) {
@@ -190,11 +204,11 @@ addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'u') undo();
   else if (k === 'c') clearBoard();
-  else if (k === 'l') setPlacing(!placing);
+  else if (k === 'l') setTool(tool === 'label' ? 'draw' : 'label');
   else if (k === 's') toggleStartNear();
   else if (k === 'n') stepReveal(e.shiftKey ? 'all' : 'next');
   else if (k === 'p') stepReveal('prev');
-  else if (k === 'd' || k === 'escape') setPlacing(false);
+  else if (k === 'd' || k === 'escape') setTool('draw');
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });
 addEventListener('blur', () => setStraight(false));

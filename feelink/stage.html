@@ -17,34 +17,42 @@
     <svg viewBox="0 0 20 26" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="25" rx="4" fill="#fbfaf6"/><path d="M6 20.5V12h8V6.5" fill="none" stroke="#0d7064" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="14" cy="6.5" r="3" fill="#ffb020" stroke="#1b222b" stroke-width="1.2"/></svg>
     <h1>FeelInk <span>Studio</span></h1>
   </header>
+  <!-- Grouped by what the tutor does (#141): put things on the board, correct them, hand them to the student a line at a
+       time. Every control is a real one; its key is on it. -->
   <div class="panel-body">
-    <section class="group" aria-labelledby="lessonTitle">
-      <h2 id="lessonTitle">Shape the lesson</h2>
-      <div class="seg" role="group" aria-label="Tool">
-        <button class="tool" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
+    <section class="group" aria-labelledby="createTitle">
+      <h2 id="createTitle">Create</h2>
+      <!-- What the next click on the board does: one of three, so they read as one choice with the current one lit. -->
+      <div class="tiles" role="group" aria-label="Tool">
+        <button class="tile" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l4 4L8.5 19.5h-4v-4z"/><path d="M13 7l4 4"/></svg><span>Draw</span><kbd>D</kbd></button>
-        <button class="tool" id="toolMark" type="button" aria-pressed="false" aria-keyshortcuts="L">
+        <button class="tile" id="toolMark" type="button" aria-pressed="false" aria-keyshortcuts="L">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="12" r="3.5"/><path d="M14 9.5h6.5M14 14.5h4"/></svg><span>Label</span><kbd>L</kbd></button>
+        <button class="tile" id="toolStart" type="button" aria-pressed="false" aria-keyshortcuts="S" title="S over a label marks it as the start">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 20.5V3.5"/><path d="M7 4l10.5 4.25L7 12.5z"/></svg><span>Start point</span><kbd>S</kbd></button>
       </div>
-      <div class="pair">
-        <button class="tool quiet" id="undo" type="button" aria-keyshortcuts="U">
+      <p class="readout" id="readout" aria-live="polite"></p>
+    </section>
+    <section class="group" aria-labelledby="editTitle">
+      <h2 id="editTitle">Edit</h2>
+      <div class="pair" id="editRow">
+        <button class="tool" id="undo" type="button" aria-keyshortcuts="U">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span>Undo</span><kbd>U</kbd></button>
-        <button class="tool quiet" id="clear" type="button" aria-keyshortcuts="C">
+        <button class="tool" id="clear" type="button" aria-keyshortcuts="C">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10.5 11v5M13.5 11v5"/></svg><span>Clear</span><kbd>C</kbd></button>
       </div>
-      <p class="say hint" id="hint" aria-live="polite"></p>
       <div class="toast" id="toast" role="status" hidden>Board cleared<button id="undoClear" type="button" aria-keyshortcuts="U">Undo<kbd>U</kbd></button></div>
     </section>
-    <section class="group" aria-labelledby="stepsTitle">
-      <h2 id="stepsTitle">Reveal in steps</h2>
-      <div class="stepper">
-        <button class="tool quiet" id="revealPrev" type="button" aria-label="Previous step" title="Previous step" aria-keyshortcuts="P">
-          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6l-8 6 8 6z"/><path d="M6 6v12"/></svg><kbd>P</kbd></button>
-        <div class="meter" id="meter"><div class="pips" id="revealPips" aria-hidden="true"></div><span id="revealText" role="status"></span></div>
-        <button class="tool quiet" id="revealNext" type="button" aria-label="Reveal next" title="Reveal next" aria-keyshortcuts="N">
-          <kbd>N</kbd><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l8 6-8 6z"/><path d="M18 6v12"/></svg></button>
+    <section class="group" aria-labelledby="presentTitle">
+      <h2 id="presentTitle">Present</h2>
+      <div class="meter" id="meter"><span id="revealText" role="status"></span><div class="pips" id="revealPips" aria-hidden="true"></div></div>
+      <div class="pair">
+        <button class="tool" id="revealPrev" type="button" aria-keyshortcuts="P" title="Hide the last line shown">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6l-8 6 8 6z"/><path d="M6 6v12"/></svg><span>Previous</span><kbd>P</kbd></button>
+        <button class="tool" id="revealNext" type="button" aria-keyshortcuts="N" title="Show the next line">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l8 6-8 6z"/><path d="M18 6v12"/></svg><span>Next</span><kbd>N</kbd></button>
       </div>
-      <button class="tool quiet" id="revealAll" type="button" aria-keyshortcuts="Shift+N">
+      <button class="tool" id="revealAll" type="button" aria-keyshortcuts="Shift+N">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>Reveal all</span><kbd>Shift</kbd><kbd>N</kbd></button>
       <p class="say" id="stepNote" aria-live="polite"></p>
     </section>
@@ -53,8 +61,9 @@
 <aside class="panel right" aria-label="Student">
   <header class="status" id="status" data-tone="wait"><i></i><div><b id="statusText" role="status">Connecting…</b><small id="statusSub"></small></div></header>
   <div class="panel-body">
+    <h2 class="eyebrow" id="sessionTitle">Session</h2>
     <!-- The student right now, each line marked with the board's own glyph for it: their finger, a spoken point, felt ink. -->
-    <ul class="now" aria-label="The student now">
+    <ul class="now" aria-labelledby="sessionTitle">
       <li class="fact" id="touchRow" data-state="none">
         <svg class="g" viewBox="0 0 20 20" aria-hidden="true"><circle class="g-ring" cx="10" cy="10" r="7.6"/><circle class="g-dot" cx="10" cy="10" r="5"/></svg>
         <b id="touchText">No touch yet</b>

@@ -6,15 +6,21 @@ Subcommands:
   probe   CLIP...                      size, rotation, fps, codec, HDR flag
   strip   CLIP --at T [--dur 2]        contact sheet of every frame, labelled with clip time, to find the sync tap
   compose --stage S --phone P ...      1920x1080 30 fps H.264 MP4, then a looping slide-size GIF from it
+  story   SPEC.json                    the annotated take: role headers and simulation tags inside each panel, step
+                                       captions at logged event times, tutor-control insets, legend, phone frame, stills
 See tools/record/README.md for the take-day runbook.
 """
 import argparse
 import glob
 import json
+import math
 import os
 import shutil
+import struct
 import subprocess
 import sys
+import tempfile
+import zlib
 
 SURROUND = "0x0e1620"  # stage page surround; every panel is letterboxed with it
 OUT_W, OUT_H, OUT_FPS = 1920, 1080, 30
@@ -363,6 +369,423 @@ def cmd_frames(a):
     print(f"{a.out}: {describe(probe(a.out))}")
 
 
+# ---------- story: the annotated take ----------
+# A judge sees the clip for a few seconds, often cropped onto a slide, so every panel carries its own role header and
+# its own simulation tag, and the middle column says what caused each change, at the times the take logged.
+
+FACES = {
+    "bold": ("C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    "semi": ("C:/Windows/Fonts/seguisb.ttf", "C:/Windows/Fonts/segoeuib.ttf", "C:/Windows/Fonts/arialbd.ttf",
+             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    "reg": ("C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+}
+# The stage's own colours (feelink/stage-board.js COL) for the legend, plus the layout's text and frame colours.
+C = {"bg": (14, 22, 32), "text": (232, 237, 242), "muted": (150, 166, 181), "teal": (43, 179, 163), "amber": (255, 176, 32),
+     "rule": (38, 51, 63), "card": (23, 34, 48), "tag": (36, 27, 8), "felt": (13, 112, 100), "unfelt": (179, 185, 193),
+     "hidden": (195, 196, 195), "paper": (251, 250, 246), "ink": (27, 34, 43), "bezel": (30, 40, 52), "edge": (70, 86, 104),
+     "tutor": (124, 196, 255), "student": (196, 178, 255), "white": (255, 255, 255)}
+PANELS = {"stage": (0, 600), "mid": (600, 1320), "phone": (1320, 1920)}  # x ranges of the three columns
+DEV_Y, DEV_H = 108, 780  # board window and phone screen: same height, side by side
+TAG_Y, TAG_H = 970, 96  # simulation tag box inside each side panel
+SLOT = (640, 432, 640, 300)  # inset slot in the middle column: x, y, w, h
+
+
+def hexc(c):
+    return "0x%02x%02x%02x" % tuple(c[:3])
+
+
+def _extent(x, y, w, h, r, sy):
+    """Horizontal extent [a, b) of a rounded rectangle at height sy, or None."""
+    if sy < y or sy > y + h:
+        return None
+    dy = max(0.0, y + r - sy, sy - (y + h - r))
+    ins = r - math.sqrt(max(0.0, r * r - dy * dy)) if dy > 0 else 0.0
+    return x + ins, x + w - ins
+
+
+def _cover(px, span):
+    return 0.0 if span is None else max(0.0, min(px + 1.0, span[1]) - max(float(px), span[0]))
+
+
+class Plate:
+    """An RGBA picture drawn in plain Python and saved as PNG: the rounded shapes ffmpeg's drawbox cannot draw (phone
+    frame, tag boxes, legend swatches). Edges are smoothed with four sub-rows per pixel row."""
+
+    def __init__(self, w, h, fill=(0, 0, 0, 0)):
+        self.w, self.h = w, h
+        self.px = bytearray(bytes(tuple(fill) + (255,) * (4 - len(fill))) * (w * h))
+
+    def rect(self, x, y, w, h, col, r=0, hole=None, clear=False):
+        """Fill a rounded rectangle, minus an optional hole (x, y, w, h, r); clear=True erases instead of painting."""
+        col = tuple(col) + (255,) * (4 - len(col))
+        for row in range(max(0, int(y)), min(self.h, math.ceil(y + h))):
+            subs = [row + (k + 0.5) / 4 for k in range(4)]
+            outer = [_extent(x, y, w, h, r, s) for s in subs]
+            inner = [_extent(*hole, s) for s in subs] if hole else [None] * 4
+            spans = [o for o in outer if o]
+            if not spans:
+                continue
+            ins = [i for i in inner if i]
+            void = (math.ceil(max(a for a, _ in ins)), math.floor(min(b for _, b in ins))) if len(ins) == 4 else (0, 0)
+            for px in range(max(0, int(min(a for a, _ in spans))), min(self.w, math.ceil(max(b for _, b in spans)))):
+                if void[0] <= px < void[1]:
+                    continue
+                cov = sum(_cover(px, o) - _cover(px, i) for o, i in zip(outer, inner)) / 4
+                if cov > 0.001:
+                    self._paint(row, px, col, min(1.0, cov), clear)
+
+    def outline(self, x, y, w, h, r, t, col):
+        self.rect(x, y, w, h, col, r, hole=(x + t, y + t, w - 2 * t, h - 2 * t, max(0, r - t)))
+
+    def _paint(self, row, px, col, cov, clear):
+        p, i = self.px, (row * self.w + px) * 4
+        if clear:
+            p[i + 3] = round(p[i + 3] * (1 - cov))
+            return
+        a, da = col[3] / 255 * cov, p[i + 3] / 255
+        oa = a + da * (1 - a)
+        if oa <= 0:
+            return
+        for k in range(3):
+            p[i + k] = min(255, round((col[k] * a + p[i + k] * da * (1 - a)) / oa))
+        p[i + 3] = round(oa * 255)
+
+    def save(self, path):
+        stride = self.w * 4
+        raw = b"".join(b"\x00" + bytes(self.px[r * stride:(r + 1) * stride]) for r in range(self.h))
+
+        def chunk(tag, data):
+            return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        with open(path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", self.w, self.h, 8, 6, 0, 0, 0))
+                    + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
+
+
+def text_w(s, size, face="reg"):
+    """Rough rendered width (Segoe UI-like metrics); wrapping only needs to be safe, not exact."""
+    em = 0.0
+    for ch in s:
+        em += (0.27 if ch in " .,:;'\u2019!|il()[]" else 0.34 if ch in "fjtrI\u201c\u201d\"" else
+               0.86 if ch in "mwMW" else 0.64 if ch.isupper() else 0.56 if ch.isdigit() else 0.53)
+    return em * size * (1.0 if face == "reg" else 1.06)
+
+
+def wrap(text, size, width, face="reg"):
+    lines, cur = [], ""
+    for word in text.split():
+        t = f"{cur} {word}" if cur else word
+        if cur and text_w(t, size, face) > width:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = t
+    return lines + ([cur] if cur else [])
+
+
+class Texts:
+    """drawtext filters reading their text from files (no filtergraph escaping of quotes, colons or commas)."""
+
+    def __init__(self, tmp):
+        self.tmp, self.filters = tmp, []
+        self.fonts = {}
+        for face, cands in FACES.items():
+            hit = next((f for f in cands if os.path.isfile(f)), None)
+            if not hit:
+                sys.exit(f"story needs a {face} font; none of {cands} exists")
+            self.fonts[face] = hit.replace(":", "\\:")
+
+    def add(self, text, x, y, size, col, face="reg", when=None):
+        name = f"t{len(self.filters):03d}.txt"
+        with open(os.path.join(self.tmp, name), "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        s = (f"drawtext=fontfile='{self.fonts[face]}':textfile={name}:expansion=none:fontsize={size}:"
+             f"fontcolor={hexc(col)}:x={x}:y={y}")
+        if when:
+            s += f":enable='between(t,{when[0]:.3f},{when[1]:.3f})'"
+        self.filters.append(s)
+
+    def block(self, lines, x0, x1, y, size, col, face="reg", lh=None, when=None, center=False):
+        """Lines, wrapped to fit x0..x1, left-aligned (or centred); returns the y below the block."""
+        lh = lh or round(size * 1.3)
+        for raw in lines:
+            for line in wrap(raw, size, x1 - x0, face):
+                self.add(line, f"{(x0 + x1) // 2}-tw/2" if center else x0, y, size, col, face, when)
+                y += lh
+        return y
+
+
+def tag_box(plate, texts, x, y, w, lines, size=18, head=22, bottom=None):
+    """The simulation tag: an amber-edged box, the first line in amber capitals, the rest in body text. With bottom, the
+    box grows upward from there, so a longer tag never runs off the frame."""
+    body = [ln for raw in lines[1:] for ln in wrap(raw, size, w - 32)]
+    h = 18 + head + 6 + len(body) * round(size * 1.35) + 10
+    if bottom is not None:
+        y = bottom - h
+    plate.rect(x, y, w, h, C["tag"], 10)
+    plate.outline(x, y, w, h, 10, 2, C["amber"])
+    texts.add(lines[0], x + 16, y + 12, head, C["amber"], "bold")
+    texts.block(body, x + 16, x + w - 16, y + 18 + head + 4, size, C["text"], lh=round(size * 1.35))
+    return h
+
+
+def check_inside(what, box, x0, x1):
+    """A header or tag must sit wholly inside its own panel, so a crop of that panel alone keeps it."""
+    bx, _, bw, _ = box
+    assert x0 <= bx and bx + bw <= x1, f"{what} at x {bx}..{bx + bw} leaves its panel {x0}..{x1}"
+
+
+def story_plates(spec, tmp, texts, board_win, screen):
+    """The base plate (under the video) and the top plate (phone frame over the screen's corners)."""
+    base, top = Plate(OUT_W, OUT_H, C["bg"]), Plate(OUT_W, OUT_H)
+    for x in (PANELS["mid"][0], PANELS["mid"][1]):
+        base.rect(x, 24, 1, OUT_H - 48, C["rule"])
+    # Headers and tags inside the two side panels.
+    for key in ("stage", "phone"):
+        x0, x1 = PANELS[key]
+        title, sub = spec["headers"][key]
+        for what, t, size, face in (("header", title, 34, "bold"), ("subheader", sub, 22, "reg")):
+            check_inside(f"{key} {what}", ((x0 + x1) / 2 - text_w(t, size, face) / 2, 0, text_w(t, size, face), 0), x0, x1)
+        texts.add(title, f"{(x0 + x1) // 2}-tw/2", 22, 34, C["text"], "bold")
+        texts.add(sub, f"{(x0 + x1) // 2}-tw/2", 68, 22, C["muted"])
+        box = (x0 + 16, TAG_Y, x1 - x0 - 32, TAG_H)
+        check_inside(f"{key} tag", box, x0, x1)
+        h = tag_box(base, texts, box[0], box[1], box[2], spec["tags"][key], bottom=OUT_H - 12)
+        assert OUT_H - 12 - h >= TAG_Y - 8, f"{key} tag is {h} px tall and would cover the phone's speech line; shorten it"
+    # The board window's edge, and the phone: a frame with rounded screen corners, camera hole and side buttons.
+    bx, by, bw, bh = board_win
+    top.outline(bx - 4, by - 4, bw + 8, bh + 8, 14, 2, C["edge"])
+    sx, sy, sw, sh = screen
+    bz = 12
+    top.rect(sx - bz, sy - bz, sw + 2 * bz, sh + 2 * bz, C["bezel"], 46, hole=(sx, sy, sw, sh, 32))
+    top.outline(sx - bz, sy - bz, sw + 2 * bz, sh + 2 * bz, 46, 2, C["edge"])
+    top.rect(sx + sw / 2 - 7, sy + 12, 14, 14, (5, 8, 11), 7)
+    top.outline(sx + sw / 2 - 8, sy + 11, 16, 16, 8, 2, (40, 50, 62))
+    for y0, h in ((150, 70), (250, 110)):
+        top.rect(sx + sw + bz, sy + y0, 5, h, C["edge"], 2)
+    # Middle column: the key. Swatches drawn like the stage draws them.
+    mx = PANELS["mid"][0] + 40
+    texts.add("WHAT HAPPENS", mx, 30, 20, C["muted"], "bold")
+    ly = 784
+    texts.add("KEY (TUTOR'S BOARD)", mx, ly, 18, C["muted"], "bold")
+    # The board's own legend words (feelink/stage-board.js), larger, each with what it means.
+    rows = [("felt", "Covered: ink the student's finger passed over"), ("unfelt", "Not yet: drawn, not passed over"),
+            ("hidden", "Hidden by tutor: shown with Next"), ("dot", "Student's finger, live"),
+            ("ring", "Phone asked to buzz: a request, not proof")]
+    for i, (kind, label) in enumerate(rows):
+        y = ly + 34 + i * 46
+        cy = y + 15
+        if kind in ("felt", "unfelt"):
+            base.rect(mx, cy - 5, 60, 10, C[kind], 5)
+        elif kind == "hidden":
+            for k in range(4):
+                base.rect(mx + k * 17, cy - 4, 10, 8, C[kind], 0)
+        elif kind == "dot":
+            base.rect(mx + 14, cy - 16, 32, 32, C["ink"], 16)
+            base.rect(mx + 17, cy - 13, 26, 26, C["white"], 13)
+            base.rect(mx + 21, cy - 9, 18, 18, C["amber"], 9)
+        else:
+            base.outline(mx + 12, cy - 18, 36, 36, 18, 3, C["amber"])
+        texts.add(label, mx + 80, y, 21, C["text"])
+    base.save(os.path.join(tmp, "base.png"))
+    top.save(os.path.join(tmp, "top.png"))
+
+
+def fit(w, h, bw, bh):
+    s = min(bw / w, bh / h)
+    return int(w * s) // 2 * 2, int(h * s) // 2 * 2
+
+
+def cmd_story(a):
+    ffmpeg, _ = tools()
+    with open(a.spec, encoding="utf-8") as f:
+        spec = json.load(f)
+    stage, phone = probe(spec["stage"]), probe(spec["phone"])
+    dur = float(spec["dur"])
+    os.makedirs(a.out_dir, exist_ok=True)
+    out_dir = os.path.abspath(a.out_dir)
+    tmp = tempfile.mkdtemp(prefix="feelink-story-")
+    texts = Texts(tmp)
+
+    # Board window: the board plus a 12 px rim, scaled to the device height and centred in the stage panel.
+    x, y, w, h = spec["board"]
+    m = 12
+    crop = (max(0, x - m), max(0, y - m), w + 2 * m, h + 2 * m)
+    bw, bh = fit(crop[2], crop[3], 560, DEV_H)
+    board_win = (sum(PANELS["stage"]) // 2 - bw // 2, DEV_Y, bw, bh)
+    sw, sh = fit(phone["display_w"], phone["display_h"], 520, DEV_H)
+    screen = (sum(PANELS["phone"]) // 2 - sw // 2, DEV_Y, sw, sh)
+    story_plates(spec, tmp, texts, board_win, screen)
+
+    # Captions at the logged times: who acted, the cause, then the effect.
+    x0, x1 = PANELS["mid"][0] + 40, PANELS["mid"][1] - 40
+    n = len(spec["captions"])
+    for i, c in enumerate(spec["captions"]):
+        when = (c["t0"], c["t1"])
+        texts.add(f"STEP {i + 1} OF {n}", f"{x1}-tw", 30, 20, C["muted"], "bold", when)
+        who = "TUTOR" if c["who"] == "tutor" else "STUDENT (SCRIPTED FINGER)"
+        texts.add(who, x0, 70, 22, C[c["who"]], "bold", when)
+        yy = texts.block([c["cause"]], x0, x1, 106, 30, C["text"], "semi", lh=40, when=when)
+        texts.block(["\u2192 " + c["effect"]], x0, x1, yy + 8, 30, C["teal"], "semi", lh=40, when=when)
+    # Insets: a live crop of the tutor control in use (or the session panel), from the same stage frames.
+    insets = []
+    for k in spec["insets"]:
+        # A 10 px margin, so the control's own edge and heading are not cut by the crop.
+        rx, ry, rw, rh = k["rect"]
+        x_, y_ = max(0, rx - 10), max(0, ry - 10)
+        k = dict(k, rect=[x_, y_, min(stage["display_w"], rx + rw + 10) - x_, min(stage["display_h"], ry + rh + 10) - y_])
+        iw, ih = fit(k["rect"][2], k["rect"][3], SLOT[2], SLOT[3])
+        ix, iy = SLOT[0] + (SLOT[2] - iw) // 2, SLOT[1] + (SLOT[3] - ih) // 2
+        insets.append((k, iw, ih, ix, iy))
+        texts.add(k["title"], x0, SLOT[1] - 34, 18, C["muted"], "bold", (k["t0"], k["t1"]))
+    # What the phone said, in a bubble under the phone: speech is sound, so it stays off the dark screen.
+    bub = (PANELS["phone"][0] + 24, screen[1] + screen[3] + 22, PANELS["phone"][1] - PANELS["phone"][0] - 48, 46)
+    draws = []
+    for s in spec["speech"]:
+        when = f"enable='between(t,{s['t0']:.3f},{s['t1']:.3f})'"
+        draws.append(f"drawbox=x={bub[0]}:y={bub[1]}:w={bub[2]}:h={bub[3]}:color={hexc(C['card'])}:t=fill:{when}")
+        draws.append(f"drawbox=x={bub[0]}:y={bub[1]}:w={bub[2]}:h={bub[3]}:color={hexc(C['teal'])}:t=2:{when}")
+        line = f"Spoken (emulated): \u201c{s['text']}\u201d"
+        size = max(14, min(24, int(24 * (bub[2] - 28) / text_w(line, 24, "semi"))))  # long phrases shrink to fit
+        texts.add(line, f"{bub[0] + bub[2] // 2}-tw/2", f"{bub[1] + bub[3] // 2}-th/2", size, C["text"], "semi",
+                  (s["t0"], s["t1"]))
+    for k, iw, ih, ix, iy in insets:
+        draws.append(f"drawbox=x={ix - 3}:y={iy - 3}:w={iw + 6}:h={ih + 6}:color={hexc(C['edge'])}:t=2:"
+                     f"enable='between(t,{k['t0']:.3f},{k['t1']:.3f})'")
+
+    fc = [f"[1:v]fps={OUT_FPS},setpts=PTS-STARTPTS,split={1 + len(insets)}" + "".join(f"[s{i}]" for i in range(1 + len(insets))),
+          f"[s0]crop={crop[2]}:{crop[3]}:{crop[0]}:{crop[1]},scale={bw}:{bh}:flags=lanczos[board]",
+          f"[2:v]fps={OUT_FPS},setpts=PTS-STARTPTS,scale={sw}:{sh}:flags=lanczos[ph]",
+          f"[0:v][board]overlay={board_win[0]}:{board_win[1]}[c0]", f"[c0][ph]overlay={screen[0]}:{screen[1]}[c1]"]
+    last = "c1"
+    for i, (k, iw, ih, ix, iy) in enumerate(insets, 1):
+        r = [round(v) for v in k["rect"]]
+        fc.append(f"[s{i}]crop={r[2]}:{r[3]}:{r[0]}:{r[1]},scale={iw}:{ih}:flags=lanczos[i{i}]")
+        fc.append(f"[{last}][i{i}]overlay={ix}:{iy}:enable='between(t,{k['t0']:.3f},{k['t1']:.3f})'[c{i + 1}]")
+        last = f"c{i + 1}"
+    stills = spec.get("stills", [])
+    frames = [min(round(s["t"] * OUT_FPS), int(dur * OUT_FPS) - 1) for s in stills]
+    fc.append(f"[{last}][3:v]overlay=0:0," + ",".join(draws + texts.filters)
+              + f",trim=duration={dur:.3f},setpts=PTS-STARTPTS,format=yuv420p,split=2[v][vs]")
+    fc.append("[vs]select='" + "+".join(f"eq(n,{n_})" for n_ in frames) + "'[st]" if frames else "[vs]nullsink")
+    with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
+        f.write(";\n".join(fc))
+    mp4 = os.path.join(out_dir, a.name + ".mp4")
+    loop = ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{dur + 0.5:.3f}"]
+    cmd = [ffmpeg, "-hide_banner", "-y", *loop, "-i", "base.png",
+           "-ss", f"{spec.get('stage_start', 0):.3f}", "-t", f"{dur + 1:.3f}", "-i", os.path.abspath(spec["stage"]),
+           "-ss", f"{spec.get('phone_start', 0):.3f}", "-t", f"{dur + 1:.3f}", "-i", os.path.abspath(spec["phone"]),
+           *loop, "-i", "top.png", "-/filter_complex", "graph.txt",
+           "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", str(a.crf), "-pix_fmt", "yuv420p",
+           "-r", str(OUT_FPS), "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+           "-movflags", "+faststart", mp4]
+    if frames:
+        cmd += ["-map", "[st]", "-fps_mode", "passthrough", "-frames:v", str(len(frames)), "still-%02d.png"]
+    r = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        sys.exit(f"story failed:\n{r.stderr[-2500:]}")
+    for i, s in enumerate(stills, 1):
+        dst = os.path.join(out_dir, f"{a.name}-still-{s['name']}.png")
+        shutil.move(os.path.join(tmp, f"still-{i:02d}.png"), dst)
+        print(f"still {dst} at {s['t']:.2f} s")
+    make_gif(mp4, os.path.join(out_dir, a.name + ".gif"), a)
+    story_stage_cut(spec, a, out_dir)
+    if spec.get("session_rect"):
+        story_session_still(spec, a, out_dir)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+def story_session_still(spec, a, out_dir):
+    """NAME-still-6-session-panel.png: the tutor's view of the student at twice its size, for its own slide (the stage
+    GIF shrinks this text to 8-9 px), with its own header and tag."""
+    ffmpeg, _ = tools()
+    x, y, w, h = (round(v) for v in spec["session_rect"])
+    s, m, head = 2, 32, 104
+    cw = w * s + 2 * m
+    tmp = tempfile.mkdtemp(prefix="feelink-session-")
+    texts = Texts(tmp)
+    tag_h = tag_box(Plate(1, 1), Texts(tmp), 0, 0, cw - 2 * m, spec["tags"]["whole"])  # measure only
+    ch = head + h * s + 24 + tag_h + 24
+    plate = Plate(cw, ch, C["bg"])
+    tag_box(plate, texts, m, head + h * s + 24, cw - 2 * m, spec["tags"]["whole"])
+    texts.add("Tutor's laptop: session panel", m, 22, 32, C["text"], "bold")
+    texts.add("The tutor's view of the student, live", m, 64, 22, C["muted"])
+    plate.save(os.path.join(tmp, "plate.png"))
+    with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
+        f.write(f"[1:v]crop={w}:{h}:{x}:{y},scale={w * s}:{h * s}:flags=lanczos[c];[0:v][c]overlay={m}:{head},"
+                + ",".join(texts.filters) + "[v]")
+    out = os.path.join(out_dir, f"{a.name}-still-6-session-panel.png")
+    r = subprocess.run([ffmpeg, "-hide_banner", "-y", "-i", "plate.png",
+                        "-ss", f"{spec.get('stage_start', 0) + spec['establish_t']:.3f}", "-i", os.path.abspath(spec["stage"]),
+                        "-/filter_complex", "graph.txt", "-map", "[v]", "-frames:v", "1", out],
+                       cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        sys.exit(f"session still failed:\n{r.stderr[-2500:]}")
+    print(f"still {out} at {spec['establish_t']:.2f} s (session panel, {s}x)")
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+def stage_cut_plate(spec, texts, callouts=False):
+    """Over the whole stage window: a role header in the gutter left of the board, and the simulation tag inside the
+    tools panel, inside the board and inside the session panel, so a crop of any one of them keeps it. With callouts,
+    each region is outlined and named (the establishing still)."""
+    plate = Plate(OUT_W, OUT_H)
+    bx, by, bw, bh = spec["board"]
+    tx, ty, tw_, th = spec["tools"]
+    px_, py_, pw, ph = spec["session"]
+    gx0, gx1 = tx + tw_ + 20, bx - 20
+    texts.add(spec["headers"]["stage"][0], gx0, 24, 28, C["text"], "bold")
+    texts.block([spec["headers"]["stage"][1] + ".", "This is the whole screen."], gx0, gx1, 62, 20, C["muted"])
+    short = spec["tags"]["whole"]
+    tag_box(plate, texts, tx + 16, 0, tw_ - 32, short, bottom=ty + th - 12)
+    tag_box(plate, texts, bx + 16, 0, bw - 32, short, bottom=by + bh - 12)
+    tag_box(plate, texts, px_ + 16, 0, pw - 32, short, bottom=py_ + ph - 96)  # above the "Spoken on their phone" drawer
+    if callouts:
+        for c in spec["callouts"]:
+            x, y, w, h = c["rect"]
+            plate.outline(x - 6, y - 6, w + 12, h + 12, 12, 3, C["amber"])
+            cx, cy, cw = c["at"]
+            lines = [ln for raw in c["lines"] for ln in wrap(raw, 21, cw - 32)]
+            chh = 20 + 30 + len(lines) * 28 + 12
+            plate.rect(cx, cy, cw, chh, C["card"], 12)
+            plate.outline(cx, cy, cw, chh, 12, 2, C["amber"])
+            texts.add(c["title"], cx + 16, cy + 14, 24, C["amber"], "bold")
+            texts.block(lines, cx + 16, cx + cw - 16, cy + 50, 21, C["text"], lh=28)
+    return plate
+
+
+def story_stage_cut(spec, a, out_dir):
+    """NAME-stage.mp4/.gif: the whole stage window with header and tags; NAME-still-0-establishing.png: one frame of it
+    with every region outlined and named."""
+    ffmpeg, _ = tools()
+    dur = float(spec["dur"])
+    for est in (False, True):
+        tmp = tempfile.mkdtemp(prefix="feelink-cut-")
+        texts = Texts(tmp)
+        stage_cut_plate(spec, texts, est).save(os.path.join(tmp, "plate.png"))
+        with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
+            f.write(f"[0:v]fps={OUT_FPS},setpts=PTS-STARTPTS,scale={OUT_W}:{OUT_H}[s];[s][1:v]overlay=0:0,"
+                    + ",".join(texts.filters) + ",format=yuv420p[v]")
+        src = ["-ss", f"{spec.get('stage_start', 0) + (spec['establish_t'] if est else 0):.3f}",
+               "-t", f"{dur:.3f}", "-i", os.path.abspath(spec["stage"]), "-i", "plate.png"]
+        if est:
+            out = os.path.join(out_dir, f"{a.name}-still-0-establishing.png")
+            cmd = [ffmpeg, "-hide_banner", "-y", *src, "-/filter_complex", "graph.txt", "-map", "[v]",
+                   "-frames:v", "1", out]
+        else:
+            out = os.path.join(out_dir, f"{a.name}-stage.mp4")
+            cmd = [ffmpeg, "-hide_banner", "-y", *src, "-/filter_complex", "graph.txt", "-map", "[v]", "-an",
+                   "-c:v", "libx264", "-preset", "medium", "-crf", str(a.crf), "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
+                   "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", out]
+        r = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if r.returncode != 0:
+            sys.exit(f"stage cut failed:\n{r.stderr[-2500:]}")
+        if est:
+            print(f"still {out} at {spec['establish_t']:.2f} s (establishing, whole stage)")
+        else:
+            make_gif(out, os.path.join(out_dir, f"{a.name}-stage.gif"), a)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def output_args(c):
     c.add_argument("--label", help='text burned into the bottom-left corner, e.g. "Desktop simulation"')
     c.add_argument("--crf", type=int, default=18)
@@ -420,6 +843,11 @@ def main():
     g.add_argument("--dur", type=float, help="seconds (default: to the end)")
     output_args(g)
     g.set_defaults(fn=cmd_single)
+
+    t = sub.add_parser("story", help="annotated take (headers, tags, captions, insets, stills) from a spec JSON")
+    t.add_argument("spec", help="JSON written by tools/record/sim_take.mjs (see README section 8)")
+    output_args(t)
+    t.set_defaults(fn=cmd_story)
 
     f = sub.add_parser("frames", help="unevenly timed frames (ffconcat list) -> constant 30 fps MP4")
     f.add_argument("list")

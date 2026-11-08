@@ -1,17 +1,19 @@
 // Desktop simulation of the route lesson, for the deck until real Pixel footage replaces it. Starts its own TEST relay on
 // a free port (never 8765) and its own headless Chrome, loads the real /stage (1920x1080) and /feel (Pixel 8 size, 412x915
 // at 2.625), plays a scripted tutor (mouse, with a drawn cursor) and an emulated student finger (touch events), records
-// both pages, and composes them with compose.py as a real take would be, tagged "Desktop simulation" in the picture.
+// both pages, and composes them with `compose.py story`: role headers and a simulation tag inside each panel, step
+// captions at the logged event times, insets of the tutor control in use, a legend, the phone in a frame, and stills.
 // Emulated, never device evidence: the phone page's navigator.vibrate and speechSynthesis are stubbed and logged (speech
 // "ends" after a length-based delay, so the stage's spoken reports are emulated too). On the phone panel this script draws
-// the fingertip, rings for the vibration the page asked for (ring strength = how much of the last 120 ms was buzzing),
-// and a caption for what the page asked to say, over the page's real screen, which stays dark for the student.
+// the fingertip and rings for the vibration the page asked for (ring strength = how much of the last 120 ms was buzzing)
+// over the page's real screen, which stays dark for the student; what the phone said is shown beside it, not on it.
 // The lesson: the finger starts 22 mm off the line and is guided onto it, finds "Start: Classroom", traces step 1; the
 // tutor reveals step 2 (Next), the student reaches Office; the tutor then draws the last leg live and labels Library, and
 // the student follows it there.
 // Run from the repo root (Python, Chrome, Node 22+, ffmpeg; CHROME=<path> if Chrome is elsewhere):
 //   node tools/record/sim_take.mjs [--name sim-route-lesson]
-// Raw clips go to recordings/raw/, the composed MP4 and GIF (and the whole stage window as NAME-stage) to recordings/out/.
+// Raw clips and the spec (event times, captions) go to recordings/raw/; the composed MP4 and GIF, the whole stage window
+// as NAME-stage, and the stills to recordings/out/. Re-compose without Chrome: python tools/record/compose.py story SPEC.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -22,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const NAME = arg('--name', 'sim-route-lesson');
-const LABEL = 'Desktop simulation';
+const GIF_W = arg('--gif-width', '1280'); // a third larger than compose's 960 default, so the slide GIF's text stays legible
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const freePort = () => new Promise((res, rej) => {
   const s = createServer();
@@ -64,7 +66,6 @@ const PHONE_SIM = `(() => {
     }
     return on / 31;
   };
-  const wrap = (ctx, text, w) => { const out = []; let l = ''; for (const word of text.split(' ')) { const t = l ? l + ' ' + word : word; if (ctx.measureText(t).width > w && l) { out.push(l); l = word; } else l = t; } out.push(l); return out; };
   addEventListener('DOMContentLoaded', () => {
     const c = document.createElement('canvas');
     c.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647';
@@ -75,7 +76,6 @@ const PHONE_SIM = `(() => {
       if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = '#2c3a49'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(1, 1, W - 2, H - 2, 18); ctx.stroke(); // the screen's edge
       const k = sim.down ? 1 : Math.max(0, 1 - (now - sim.up) / 250); // a lifted fingertip fades out
       if (sim.touch && k > 0) {
         const { x, y } = sim.touch, d = duty(now);
@@ -85,26 +85,9 @@ const PHONE_SIM = `(() => {
           ctx.beginPath(); ctx.arc(x, y, r + 2 * d * Math.sin(now / 18), 0, Math.PI * 2); ctx.stroke();
         }
         ctx.globalAlpha = k;
-        ctx.fillStyle = 'rgba(232,237,242,0.20)'; ctx.strokeStyle = 'rgba(232,237,242,0.85)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // The stage's own finger symbol (amber core, white ring), so one mark means "the student's finger" in both panels.
+        for (const [r, c] of [[R * 0.62, '#ffffff'], [R * 0.45, '#ffb020']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
         ctx.globalAlpha = 1;
-      }
-      const s = [...sim.said].reverse().find((s) => !s.cut && now < s.t + s.ms + 300);
-      if (s) {
-        // Big enough to read in the slide GIF, where this 412 px screen shows about 240 px wide.
-        ctx.font = "700 25px 'Atkinson Hyperlegible', system-ui, sans-serif";
-        const lines = wrap(ctx, '\u201c' + s.text + '\u201d', W - 24 - 68), lh = 32, h = 28 + lines.length * lh;
-        const y0 = H - 24 - h;
-        ctx.fillStyle = '#172230'; ctx.strokeStyle = '#2c3a49'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.roundRect(12, y0, W - 24, h, 16); ctx.fill(); ctx.stroke();
-        ctx.save(); // a speaker: box, cone, two waves
-        ctx.translate(28, y0 + 14 + lh / 2); ctx.scale(1.4, 1.4);
-        ctx.fillStyle = ctx.strokeStyle = '#2bb3a3'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(5, -4); ctx.lineTo(11, -9); ctx.lineTo(11, 9); ctx.lineTo(5, 4); ctx.lineTo(0, 4); ctx.closePath(); ctx.fill();
-        for (const r of [6, 11]) { ctx.beginPath(); ctx.arc(11, 0, r, -0.8, 0.8); ctx.stroke(); }
-        ctx.restore();
-        ctx.fillStyle = '#e8edf2'; ctx.textBaseline = 'middle';
-        lines.forEach((l, i) => ctx.fillText(l, 12 + 64, y0 + 14 + lh / 2 + i * lh));
       }
       requestAnimationFrame(frame);
     };
@@ -240,9 +223,9 @@ try {
   const press = async () => { mouseButtons = 1; await mouse('mousePressed', ...mouseAt); };
   const release = async () => { mouseButtons = 0; await mouse('mouseReleased', ...mouseAt); };
   const click = async () => { await sleep(150); await press(); await sleep(90); await release(); };
-  const clickEl = async (sel) => {
+  const clickEl = async (sel, name) => {
     await glideMouse(await stage.ev(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`), 700);
-    await click(); await sleep(250);
+    await sleep(150); if (name) mark(name); await press(); await sleep(90); await release(); await sleep(250);
   };
   const key = async (k, code, vk, text) => {
     await stage.s('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, text });
@@ -260,43 +243,52 @@ try {
 
   // Record. Both pages' frames carry wall-clock times, so the two clips start and end together.
   const t0 = Date.now() / 1000;
+  const marks = {}, mark = (k) => { marks[k] = +(Date.now() / 1000 - t0).toFixed(3); }; // clip seconds of each scripted step
   await stage.s('Page.startScreencast', { format: 'jpeg', quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 2 });
   await phone.s('Page.startScreencast', { format: 'jpeg', quality: 90, maxWidth: 600, maxHeight: 1334, everyNthFrame: 2 });
   await glideMouse([1250, 640], 400);
   await sleep(600);
   // The student taps Connect; the screen goes dark and says so.
   const [cx, cy] = await phone.ev(`(() => { const r = document.getElementById('live').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
-  await touch('touchStart', [[cx, cy]]); await sleep(140); await lift();
+  mark('connect'); await touch('touchStart', [[cx, cy]]); await sleep(140); await lift();
   const [ppm, ox, oy] = await phone.ev('[pxPerMm, originX, originY]');
   toPhone = (p) => [ox + p.x * ppm, oy + p.y * ppm];
   await sleep(2000);
   // Finding the start: down 22 mm off the hall line (silent), guided onto it by quickening taps, then up it to Classroom.
   await trace(path({ x: 34, y: 42 }, { x: 24, y: 37 }, { x: 17, y: 35 }), 9, 0);
   await trace(path({ x: 17, y: 35 }, { x: 12, y: 34 }), 8, 0);
+  mark('onLine');
   await sleep(300);
   await trace(path({ x: 12, y: 34 }, CLASS), 20);
   await sleep(1600);
   await trace(path(CLASS, CORNER));
+  mark('corner');
   await sleep(800);
   // The tutor reveals step 2.
-  await clickEl('#revealNext');
+  mark('nextGlide');
+  await clickEl('#revealNext', 'next');
   await sleep(1700);
   await trace(path(CORNER, OFFICE));
   await sleep(1200);
   // Mid-lesson change: the tutor draws the last leg from Office while the student waits there, then labels Library.
+  mark('penGlide');
   await glideMouse(onStage(LEG[0]), 700);
+  mark('penDown');
   await press();
   await walk(path(...LEG), 45, async (p) => { mouseAt = onStage(p); await mouse('mouseMoved', ...mouseAt); });
   await release();
+  mark('penUp');
   await sleep(400);
-  await clickEl('#toolMark');
+  await clickEl('#toolMark', 'labelTool');
   await glideMouse(onStage(LIB), 600);
   await click(); await sleep(400);
   for (const ch of 'Library') { await stage.s('Input.insertText', { text: ch }); await sleep(110); }
   await sleep(200);
   await key('Enter', 'Enter', 13, '\r');
+  mark('labelEnter');
   await glideMouse([1330, 860], 500);
   await sleep(2700); // the student sets off once the phone has said the drawing changed (1.5 s settle, then the words)
+  mark('follow');
   await trace(path(...LEG));
   await sleep(2000);
   const t1 = Date.now() / 1000;
@@ -304,13 +296,30 @@ try {
   await phone.s('Page.stopScreencast');
   await sleep(300);
 
-  const said = await phone.ev('__sim.said.map((s) => s.text)');
-  const buzzes = await phone.ev('__sim.buzz.length');
+  // Page clocks -> clip seconds through performance.timeOrigin (wall clock, like the frames' timestamps).
+  const saidLog = (await phone.ev('__sim.said.map((s) => ({ text: s.text, t: (performance.timeOrigin + s.t) / 1000, end: (performance.timeOrigin + (s.cut || s.t + s.ms)) / 1000 }))'))
+    .map((s) => ({ text: s.text, t: +(s.t - t0).toFixed(3), end: +(s.end - t0).toFixed(3) }));
+  const said = saidLog.map((s) => s.text);
+  const buzzAt = (await phone.ev('__sim.buzz.map((b) => (performance.timeOrigin + b.t) / 1000)')).map((t) => +(t - t0).toFixed(3));
+  const buzzes = buzzAt.length;
+  const rects = await stage.ev(`(() => {
+    const r = (el) => { const b = el.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
+    const $ = (s) => document.querySelector(s), st = r($('#status')), now = r($('ul.now'));
+    return { board: [view.x, view.y, BOARD.w * view.scale, BOARD.h * view.scale].map(Math.round), tools: r($('aside.panel.left')),
+      session: r($('aside.panel.right')), present: r($('#revealNext').closest('section')), create: r($('#toolDraw').closest('section')),
+      now: [st[0], st[1], st[2], now[1] + now[3] + 56 - st[1]] }; // read at the end; mid-lesson the last row wraps to two lines
+  })()`);
   const board = await stage.ev(`({ strokes: strokes.length, marks: landmarks.map((l) => l.name + (l.start ? '*' : '')).join(','), reveal })`);
-  const boardMid = await stage.ev('view.x + BOARD.w * view.scale / 2');
   await lift();
+  // Chrome is done: close it before the ffmpeg work, so the next take on this laptop can start its own.
+  await Promise.race([send('Browser.close'), sleep(2000)]);
+  try { bws.close(); } catch {}
+  bws = null;
+  for (const p of procs) try { p.kill(); } catch {}
+  console.log('chrome and test relay stopped');
   console.log(`take: ${(t1 - t0).toFixed(1)} s, frames stage ${frames.stage.length}, phone ${frames.phone.length}`);
-  console.log('phone said (stubbed speech):', JSON.stringify(said));
+  console.log('phone said (stubbed speech), clip s:', saidLog.map((s) => `${s.t.toFixed(2)} ${s.text}`).join(' | '));
+  console.log('scripted steps, clip s:', JSON.stringify(marks));
   console.log('vibrate() calls (stubbed):', buzzes, '| stage board:', JSON.stringify(board));
   if (errors.length) throw new Error('page errors: ' + errors.join(' | '));
   const want = ['Start: Classroom', 'Drawing updated.', 'Office', 'Drawing changed.', 'Library'];
@@ -332,13 +341,57 @@ try {
     clips[who] = join(raw, `${stamp}-${NAME}-${who}.mp4`);
     py(['frames', join(work, who, 'frames.txt'), clips[who]]);
   }
-  // The stage panel: a 960 x 1080 window centred on the board, read off the page (compose's auto crop would also take in
-  // the white text of the tool and session panels).
-  const crop = `960:1080:${Math.round(boardMid - 480)}:0`;
-  const dur = (t1 - t0).toFixed(2);
-  py(['compose', '--stage', clips.stage, '--phone', clips.phone, '--stage-start', '0', '--phone-start', '0', '--dur', dur,
-    '--stage-crop', crop, '--label', LABEL, '--name', NAME]);
-  py(['single', clips.stage, '--label', LABEL, '--name', NAME + '-stage']);
+  // The spec for `compose.py story`: every caption, inset and still is placed at a time this run logged (the scripted
+  // steps in `marks`, the phone's speech in `saidLog`), and the captions say which side is scripted.
+  const D = +(t1 - t0).toFixed(3), m = marks;
+  const say = (text, after = 0) => { const s = saidLog.find((x) => x.text === text && x.t >= after); if (!s) throw new Error(`no "${text}" in the speech log`); return s.t; };
+  const tStart = say('Start: Classroom'), tUpd = say('Drawing updated.', m.next), tOffice = say('Office', m.next), tLib = say('Library', m.follow);
+  const nextEnd = +Math.max(m.next + 1.8, tUpd + 0.9).toFixed(3);
+  const session = { title: "ON THE TUTOR'S LAPTOP: SESSION PANEL", rect: rects.now };
+  const [tl, bd, se, cr, pr, nw] = [rects.tools, rects.board, rects.session, rects.create, rects.present, rects.now];
+  const spec = {
+    stage: clips.stage, phone: clips.phone, dur: D, board: bd, tools: tl, session: se, session_rect: nw, marks: m,
+    headers: { stage: ["Tutor's laptop (live stage)", 'A sighted tutor draws and talks'],
+      phone: ["Student's phone", 'Screen stays dark on purpose: touch, buzz, voice'] },
+    tags: { stage: ['DESKTOP SIMULATION', "Tutor's clicks and strokes replayed by a script; in class a person does this and talks."],
+      phone: ['DESKTOP SIMULATION', 'Scripted finger; buzz and voice stubbed. Real screen stays dark; finger dot and rings drawn on top.'],
+      whole: ['DESKTOP SIMULATION', 'Scripted tutor and finger; no phone; buzz and speech stubbed.'] },
+    captions: [
+      { t0: 0, t1: m.onLine, who: 'student', cause: 'A blind student learns a school route from a sighted tutor. After Connect, a script moves the finger toward the line.',
+        effect: 'The phone taps faster near the line (guide taps, not yet tried on a real phone).' },
+      { t0: m.onLine, t1: m.corner, who: 'student', cause: 'The scripted finger reaches the line and moves up to the start.',
+        effect: 'The phone buzzes on the ink and says “Start: Classroom”.' },
+      { t0: m.corner, t1: m.penGlide, who: 'tutor', cause: 'The scripted finger stops at the corner. The tutor sees it on the laptop and clicks Next.',
+        effect: 'The next leg appears (“Drawing updated”); the finger follows it to “Office”.' },
+      { t0: m.penGlide, t1: m.follow, who: 'tutor', cause: 'The tutor draws the last leg live and names it Library.',
+        effect: 'The phone says “Drawing changed”.' },
+      { t0: m.follow, t1: D, who: 'student', cause: 'The scripted finger follows the new leg to its end.', effect: 'The phone says “Library”.' },
+    ],
+    insets: [
+      { t0: 0, t1: m.nextGlide - 0.3, ...session },
+      { t0: m.nextGlide - 0.3, t1: nextEnd, title: "ON THE TUTOR'S LAPTOP: THE NEXT BUTTON", rect: pr },
+      { t0: nextEnd, t1: m.penGlide - 0.3, ...session },
+      { t0: m.penGlide - 0.3, t1: m.labelEnter + 1, title: "ON THE TUTOR'S LAPTOP: DRAW AND LABEL TOOLS", rect: cr },
+      { t0: m.labelEnter + 1, t1: D, ...session },
+    ],
+    speech: saidLog.map((s, i) => ({ t0: s.t, t1: +Math.min(s.end + 0.3, saidLog[i + 1]?.t ?? D).toFixed(3), text: s.text })),
+    stills: [{ t: tStart + 0.4, name: '1-start' }, { t: Math.min(tUpd + 0.4, nextEnd - 0.2), name: '2-next' }, { t: tOffice + 0.4, name: '3-office' },
+      { t: m.penDown + 0.7 * (m.penUp - m.penDown), name: '4-tutor-draws' }, { t: Math.min(tLib + 0.4, D - 0.1), name: '5-library' }],
+    establish_t: +(D - 0.8).toFixed(3),
+    callouts: [
+      { rect: [cr[0], cr[1], cr[2], pr[1] + pr[3] - cr[1]], at: [tl[0] + 16, pr[1] + pr[3] + 40, tl[2] - 32], title: "TUTOR'S TOOLS",
+        lines: ['Draw, label, and Next to reveal the next part of the drawing.'] },
+      { rect: bd, at: [tl[0] + tl[2] + 20, 380, bd[0] - tl[0] - tl[2] - 40], title: 'THE BOARD',
+        lines: ["What the student feels on the phone. The amber dot is the student's finger, live."] },
+      { rect: [nw[0] + 6, nw[1] + 6, nw[2] - 12, nw[3] - 6], at: [bd[0] + bd[2] + 20, nw[1] + nw[3] + 40, se[0] - bd[0] - bd[2] - 40], title: 'SESSION PANEL',
+        lines: ["The tutor's view of the student: touching or resting, what the phone said, how much ink the finger has covered."] },
+    ],
+  };
+  const specPath = join(raw, `${stamp}-${NAME}-spec.json`);
+  writeFileSync(specPath, JSON.stringify(spec, null, 1));
+  console.log('spec:', specPath);
+  if (process.argv.includes('--skip-compose')) console.log('compose skipped; run: python tools/record/compose.py story', specPath, '--name', NAME, '--gif-width', GIF_W);
+  else py(['story', specPath, '--name', NAME, '--gif-width', GIF_W]);
 } catch (e) {
   console.error('sim_take:', e.message || e);
   process.exitCode = 1;

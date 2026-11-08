@@ -66,5 +66,25 @@ for n in A B; do
   t=0.03; [ "$n" = A ] && t=0.53
   ff -ss "$t" -i "$mp4" -frames:v 1 "$out/sync$n.png"
 done
+
+echo "== story (annotated take from a spec: headers, tags, captions, inset, speech line, stills)"
+ff -f lavfi -i "color=c=black:s=412x914:r=30:d=8" -c:v libx264 -pix_fmt yuv420p "$out/phone_sim.mp4"
+printf '%s\n' '{"stage":"recordings/selftest/stage.mp4","phone":"recordings/selftest/phone_sim.mp4","dur":6,
+ "board":[750,90,420,900],"tools":[0,0,360,1080],"session":[1560,0,360,1080],"session_rect":[1560,0,360,290],
+ "headers":{"stage":["Tutor laptop","mock"],"phone":["Student phone","mock"]},
+ "tags":{"stage":["MOCK","synthetic clip"],"phone":["MOCK","synthetic clip"],"whole":["MOCK","synthetic clip"]},
+ "captions":[{"t0":0,"t1":3,"who":"tutor","cause":"Cause one.","effect":"Effect one."},
+  {"t0":3,"t1":6,"who":"student","cause":"Cause two.","effect":"Effect two."}],
+ "insets":[{"t0":1,"t1":4,"title":"INSET","rect":[700,400,300,200]}],"speech":[{"t0":2,"t1":3,"text":"Hello"}],
+ "stills":[{"t":1.5,"name":"a"},{"t":4.5,"name":"b"}],"establish_t":5,
+ "callouts":[{"rect":[750,90,420,900],"at":[380,380,320],"title":"BOARD","lines":["mock"]}]}' > "$out/story-spec.json"
+"$PY" "$here/compose.py" story "$out/story-spec.json" --name selftestS --out-dir "$out"
+m=$("$FP" -v error -select_streams v:0 -show_entries stream=codec_name,width,height,pix_fmt,r_frame_rate -of csv=p=0 "$out/selftestS.mp4" | tr -d '\r')
+echo "selftestS.mp4: $m"
+[ "$m" = "h264,1920,1080,yuv420p,30/1" ] || { echo "FAIL story mp4 format"; fail=1; }
+for f in selftestS.gif selftestS-stage.mp4 selftestS-stage.gif selftestS-still-a.png selftestS-still-b.png \
+         selftestS-still-0-establishing.png selftestS-still-6-session-panel.png; do
+  [ -s "$out/$f" ] || { echo "FAIL story output $f missing"; fail=1; }
+done
 [ "$fail" -eq 0 ] && echo "selftest: ok (mock: synthetic clips, not real footage)"
 exit "$fail"

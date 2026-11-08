@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every push, to any branch, runs the local checks first. Direct pushes to main are allowed since Sat Nov 7 21:20
+# Every push, to any branch, runs the local checks first. Direct pushes to main are allowed since Sat Nov 7 21:10
 # (Reeve: the branch + PR + squash cycle for every small change was the biggest drag on the day); CI runs the same
 # checks on main as the second signal. Never skip this hook with --no-verify.
 exec bash tools/check.sh

@@ -122,3 +122,20 @@ See `DECISIONS.md`: D10, what still looks incomplete to Reeve. Recording, consen
 - Both laptops and the one Claude account are Reeve's; Nathan borrows one (Windows). Reeve's Claude plan: Max 20x (Reeve, Sat).
 - Hardware order cancelled (Reeve's report); physical projects are out. Old ideation: `OPTIONS.md` and `research/*2026-11-06*` carry a superseded banner; the rival check that still applies is `research/feelink-rivals-claude-2026-11-06.md` (closest product the $15,500 Monarch-class tactile display).
 
+
+## DECISIONS.md header and FYI items retired Sat Nov 7 21:25 (non-authoritative history)
+
+Kept by the lead (engineering manager) session. A separate "decision desk" chat reads this file, explains each item to Reeve in plain English, and records his answers by posting `DECISION: <item id> ...` to the team log (`gh issue comment 1`). The lead folds answers into this file and acts on them. Only the lead edits this file. Times are from `date`, Pacific.
+
+Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
+
+## Open (Sat Nov 7, 18:05). Development decisions and actions for the agents only (Reeve, 17:59): recording, consent, organizer questions, fact sheet and the deck are handled by Reeve and Nathan outside this board.
+
+### FYI
+- One lead at a time: the previous lead session merged #145 and pulled the checkout at 20:11-20:12 during the re-check gate; it was asked to stand down (20:19). Any decision Reeve types elsewhere goes to the team log as a DECISION line only.
+- The coordinate-plane preset (#147) is on origin/main, not yet felt on the Pixel; it needs a relay restart after the pull that follows demo-2.
+- The Pixel stays on the USB cable. While an agent check runs, nobody touches it. Media vibration must stay at 3 (at 1 long buzzes play at half strength).
+- The relay (restarted 17:44 on `c64269c`) and keep-alive run under nohup from the main checkout (logs in `.tmp/`); the lead watches port 8765 every 60 s and restarts the relay after any `server.py` change.
+- #111 (step-through reveal) is P2: two agents are building it, and it lands only after a Pixel re-check, never as a last-minute change to the recording build.
+- TalkBack is deferred and unverified; the connection is USB/adb only and classroom deployment over a network is not demonstrated. Both go on the limitations slide, not in the claims.
+- Both leads' time stamps ran fast earlier today; the lead now runs `date` before writing a time.

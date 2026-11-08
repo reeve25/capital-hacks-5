@@ -1,21 +1,17 @@
-# Decision board: what Reeve and Nathan need to decide or do
+# Decisions
 
-Kept by the lead (engineering manager) session. A separate "decision desk" chat reads this file, explains each item to Reeve in plain English, and records his answers by posting `DECISION: <item id> ...` to the team log (`gh issue comment 1`). The lead folds answers into this file and acts on them. Only the lead edits this file. Times are from `date`, Pacific.
+Reeve's and Nathan's decisions for the agents' development work, newest first; times Pacific, from `date`. The lead records each one here and posts one `DECISION` line to team log #1; a session that receives a decision while it is not the lead posts the DECISION line and the lead folds it in. A later entry overrides an earlier one where they differ. Recording, consent, organizer questions, the fact sheet and the deck are Reeve's and Nathan's, off this file (Reeve, 17:59). Current state and open questions: STATUS.md.
 
-Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
-
-## Open (Sat Nov 7, 18:05). Development decisions and actions for the agents only (Reeve, 17:59): recording, consent, organizer questions, fact sheet and the deck are handled by Reeve and Nathan outside this board.
-
-### FYI
-- One lead at a time: the previous lead session merged #145 and pulled the checkout at 20:11-20:12 during the re-check gate; it was asked to stand down (20:19). Any decision Reeve types elsewhere goes to the team log as a DECISION line only.
-- The coordinate-plane preset (#147) is on origin/main, not yet felt on the Pixel; it needs a relay restart after the pull that follows demo-2.
-- The Pixel stays on the USB cable. While an agent check runs, nobody touches it. Media vibration must stay at 3 (at 1 long buzzes play at half strength).
-- The relay (restarted 17:44 on `c64269c`) and keep-alive run under nohup from the main checkout (logs in `.tmp/`); the lead watches port 8765 every 60 s and restarts the relay after any `server.py` change.
-- #111 (step-through reveal) is P2: two agents are building it, and it lands only after a Pixel re-check, never as a last-minute change to the recording build.
-- TalkBack is deferred and unverified; the connection is USB/adb only and classroom deployment over a network is not demonstrated. Both go on the limitations slide, not in the claims.
-- Both leads' time stamps ran fast earlier today; the lead now runs `date` before writing a time.
+## Standing facts for agents
+- One lead session at a time (Fable, Reeve's laptop). It alone restarts the relay, reloads pages and touches the Pixel.
+- The Pixel stays on the USB cable; while an agent check runs, nobody touches it. Media vibration must stay at 3 (at 1, long buzzes play at half strength).
+- TalkBack compatibility and educational effectiveness are unverified; the connection is USB/adb only and classroom deployment over a network is not demonstrated. These go on the limitations slide, never in the claims.
 
 ## Decided (newest first)
+- Sat 21:20, Reeve: one-time workflow reconciliation: each rule stated once in CLAUDE.md, TEAM.md matching it, verified by realistic checks. Record the substantive critical feedback from Ricardo (ACB Students, email reply to outreach) and public Reddit respondents as critique, never as product validation.
+- Sat 21:12, Reeve: progress is a verified user-facing interaction; UI is done only after its rendered behaviour is inspected, phone claims only from the real Pixel; issues optional for agent work; no new frameworks, MCP servers or overlapping tools before Sunday; Fable leads, Opus implements; lanes stay independent.
+- Sat 21:10, Reeve: no mandatory PR for small changes; direct pushes to main allowed, and the pre-push check still runs (574918b).
+- Sat 21:00, Reeve: temporary hackathon execution policy (one-screen STATUS, milestone-only reporting, agents only for real parallelism, no new research or spec files before Sunday), now CLAUDE.md "How we work until after Sunday".
 - Sat 19:56, Reeve: a second educational demonstration, plotting points on a coordinate plane, if it reuses the engine and lands safely; Pixel demo, recording and the pitch stay first; human-led, no graphing calculator or subject-specific controls; otherwise a grounded future-use concept. Prompted by a public r/AskABlindPerson post (a named difficulty, not validation). Lead's evaluation and plan: `.plans/feelink-coordinate-plane-2026-11-07.md`; built as a stage-side preset, task #143, after #141 and demo-2. His message was cut off after "We want to demonstrate that user"; the missing sentence is still wanted.
 - Sat 19:43, Reeve: visible tutor tools (`.plans/feelink-tools-visible-2026-11-07.md`). The stage is both a working tool and part of the presentation, so the sidebar must make the tutor's real capabilities visible and grouped by action (Create / Edit / Present / Session suggested), shortcuts visible but secondary, no fake breadth, human-led framing and the board as hero kept. Filed as #141 for one implementation agent.
 - Sat 19:35, Reeve: no typed instructions read aloud ('we don't need to type instructions and have audio'): the stage's spoken-cue tool is removed and the typed-cue step leaves the Pixel re-check. Landmark -> Label in the UI: yes. Phone button: 'Connect', 'just something simple'. GitHub description and topics as proposed: applied (repo private). Standard for all copy and UI: a professional tool, 'think Apple, Google', smart intentional design. Same time, on the stage: the Touch line's jump to Exploring was jarring and 'On/Beside/Off the line' unnecessary, since the board shows it (#138, shipped).

@@ -15,6 +15,7 @@ One screen, current state only; replace lines, never append. Updated at mileston
 - Real Pixel (Nathan's Pixel 8, USB `adb reverse`): `demo-2` re-check passed 20:33 (Reeve); `demo-1` A5 pass 17:59 ("worked, decent, looks incomplete").
 - Blind run 1 (Reeve, eyes closed, old build): 4 of 5 shapes, median 49.9 s. The one prototype result.
 - Measured on the Pixel: Chrome ignores `vibrate(0)`, `vibrate(1)` stops; buzzes capped at 1000 ms.
+- Desktop only, no Pixel: "Guide back to the line" (`dc98e4a`): off the ink the phone taps every 250-900 ms, quicker nearer the nearest stroke, silent past 20 mm, Advanced-settings toggle, faint stage ring per tap. 37 tactile unit tests; `node tools/feel_guide_check.mjs` 19 of 19 in headless Chrome against a test relay (about 20 s). Not felt on the Pixel; whether a 15 ms tap is felt at all is the open question.
 - Desktop only, no Pixel: the felt row (`66d9ef2`) shows the mean felt share, checked in the running stage over headless Chrome against a test relay, 41 of 41 stage steps pass, screenshot checked 21:12. README stage screenshots came from a scripted test relay.
 
 ## Broken or unverified
@@ -23,8 +24,8 @@ One screen, current state only; replace lines, never append. Updated at mileston
 - Outside feedback: one critical email reply logged anonymously in `USERS.md` (critique, not validation; no user trial). The r/AskABlindPerson replies could not be fetched automatically (reddit.com 403, old.reddit 404, mirror 502); Reeve pastes them.
 
 ## Next
-1. Product-first: a polished FeelInk plus clearly labelled screenshots, GIFs and MP4 clips (`tools/record/`, `tools/stage_tools_check.mjs` for headless stage runs). In progress: phone "Guide back to the line" cue (Geiger-style taps that speed up toward the nearest ink when the finger is off the line), Opus agent on branch `worktree-agent-a6e164fdaf17876df`, Emulated only; the lead reviews and squash-merges.
-2. When the Pixel is back on USB: one focused device check (demo-2 flow, Coordinate plane, guide cue), tag `demo-3` if it passes, then the real takes.
+1. Product-first: a polished FeelInk plus clearly labelled screenshots, GIFs and MP4 clips (`tools/record/`, `tools/stage_tools_check.mjs` for headless stage runs). Next: critique /stage and /feel in a running headless browser, pick the one teaching interaction to showcase, script it on a test relay, export a stage GIF/MP4 labelled desktop simulation.
+2. When the Pixel is back on USB: one focused device check (demo-2 flow, Coordinate plane, guide cue: steps in the `dc98e4a` commit's agent report, summarised in README), tag `demo-3` if it passes, then the real takes.
 3. Deck: Reeve and Nathan, separately; outline `.plans/feelink-deck-2026-11-07.md`, Google Slides "FeelInk Presentation" in Reeve's Drive.
 
 ## Open

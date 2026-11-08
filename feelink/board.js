@@ -437,18 +437,21 @@
     return { side, x, y, align };
   }
 
-  // Where the caption bubble sits for a finger at fx: to the right of the cursor when that fits inside the board,
-  // else to the left, else (a caption wider than the room on either side of a 56 mm board) centred on the finger and
-  // held inside the board. `margin` is how far it may hang over the board's edge: the docked panels start 16 px out,
-  // so the bubble never slides under them. Returns the body's left edge and the tail's base x, both in board mm; the
-  // tail base stays inside the body, so a clamped bubble still points at the finger.
-  function captionPlace(fx, widthMm, board, offMm, margin = 1) {
-    const lo = -margin, hi = board.w + margin - widthMm;
-    let x0 = fx + offMm;
-    if (x0 > hi) x0 = fx - offMm - widthMm;
-    if (x0 < lo) x0 = Math.min(Math.max(fx - widthMm / 2, lo), hi);
-    const tail = Math.min(Math.max(fx, x0 + 2.5), x0 + widthMm - 2.5);
-    return { x0, tail };
+  // Where the caption sits: a fixed slot inside the board, centred, never by the finger (review, Nov 8: the bubble
+  // beside the cursor covered the route and the Office label). The top slot unless the bottom one (its foot at
+  // `bottom`, above the stage's key) crosses fewer of `obstacles`, the drawing's ink, landmark and label points in mm.
+  // A caption wider than the board less `margin` each side is scaled down to fit, so a long name never runs off it.
+  // Returns the body's top-left corner and that scale, in board mm.
+  function captionSlot(widthMm, heightMm, board, obstacles = [], { margin = 2, bottom = board.h } = {}) {
+    const scale = Math.min(1, (board.w - 2 * margin) / widthMm);
+    const w = widthMm * scale, h = heightMm * scale, x0 = (board.w - w) / 2;
+    let y0 = margin, least = Infinity;
+    for (const y of [margin, bottom - margin - h]) {
+      let n = 0;
+      for (const p of obstacles) if (p.x >= x0 - 1 && p.x <= x0 + w + 1 && p.y >= y - 1 && p.y <= y + h + 1) n++;
+      if (n < least) { y0 = y; least = n; }
+    }
+    return { x0, y0, scale };
   }
 
   // Caption bubble scale over its life: pops in, holds, shrinks away. 0 means hidden.
@@ -539,11 +542,16 @@
   const RING_MS = 700, RING_MIN_W = 0.3;
   // Ring geometry `ageMs` after a haptic event: {r, w} in mm, or null once it has thinned away.
   // Strength 0..1 (a fade level) sets weight and reach; bursts (corner, end, tick) are the heaviest.
+  // Smaller and thin (Reeve, Nov 8: "reduce oversized vibration rings"; sizes from the critic's pass): from the finger's
+  // edge (`baseR`, the stage's 4.3 mm cursor) a full level ring ends about 20 mm across and a burst about 24 mm, where
+  // they were 33 and 35, so one stays inside a route segment and still reads as a pulse leaving the finger. The stroke
+  // starts under half the 2.4 mm ink, so a junction or label under it stays readable; stroke weight hid them more
+  // than reach did. A full level ring still holds RING_MIN_W to 500 ms (board.test.cjs).
   function ringAt(ageMs, strength, burst, baseR) {
     if (ageMs < 0 || ageMs >= RING_MS) return null;
     const p = ageMs / RING_MS;
-    const w0 = burst ? 2.0 : 1.0 + 0.8 * strength;
-    const reach = burst ? 13 : 6 + 6 * strength;
+    const w0 = burst ? 1.15 : 0.65 + 0.43 * strength;
+    const reach = burst ? 7.6 : 3.4 + 2.4 * strength;
     const w = w0 * (1 - p);
     if (w < RING_MIN_W) return null;
     return { r: baseR + reach * easeOut(p), w };
@@ -670,7 +678,7 @@
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, TOUCH_LIFT_MS, touchState, ago, feltLine,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
     cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend, revealMeter, cropZone, sidePanels,
-    LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
+    LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionSlot, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

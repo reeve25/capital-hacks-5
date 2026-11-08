@@ -4,15 +4,20 @@
 const { BOARD } = Tactile;
 const B = Board;
 const HEADER_PX = 52, PAD_PX = 12;
-const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', unfelt: '#b3b9c1', felt: '#0d7064', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff',
-  hidden: B.mixHex('#1b222b', '#fbfaf6', 0.75) }; // 25% ink, flat (#c3c4c3), for what the student cannot feel yet (#111)
+const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', inkSoft: '#545e6b', unfelt: '#b3b9c1', felt: '#0d7064', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff',
+  hidden: B.mixHex('#1b222b', '#fbfaf6', 0.75), // 25% ink, flat (#c3c4c3), for what the student cannot feel yet (#111)
+  key: B.mixHex('#fbfaf6', '#1b222b', 0.05) }; // the key's panel: a step off the paper, so it never reads as drawing
 // Hidden ink is also dashed (butt caps, mm): solid 25% ink would read as the unfelt grey of ink the student can feel.
 const HIDDEN_DASH = [3, 2];
-// Sizes in board millimetres (about 8 px/mm when the page is 1000 px tall, about 4 px/mm in the GIF).
-// The finger is the thing to watch (#107): a large amber dot in a white ring with a heavy ink edge, readable over ink
-// and paper alike, while the trail behind it stays thin and starts already part-faded toward the paper.
+// Sizes in board millimetres (about 8.4 px/mm on a 1080 px tall stage, about 4.2 px/mm in its 960 px wide GIF).
+// The finger is the thing to watch (#107): an amber dot in a white ring with an ink edge, readable over ink and paper
+// alike, while the trail behind it stays thin and starts already part-faded toward the paper. 8.6 mm across, about
+// 72 px at 1080p and 36 px in the GIF (it was 12.5 mm and hid the route's junctions, review Nov 8): still the largest
+// mark on the board. Its amber core is the phone's default 3 mm found-by-touch radius (Board.FELT_MM), so the teal ink
+// is what passed under the amber.
 const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 2.2, TRAIL_TAIL_MM = 0.5, TRAIL_MS = 3000, TRAIL_FADE0 = 0.3;
-const CURSOR_MM = 4.4, CURSOR_BORDER_MM = 1.1, CURSOR_EDGE_MM = 0.75, CURSOR_TAU_MS = 35;
+const CURSOR_MM = 3, CURSOR_BORDER_MM = 0.8, CURSOR_EDGE_MM = 0.5, CURSOR_TAU_MS = 35;
+const CURSOR_R_MM = CURSOR_MM + CURSOR_BORDER_MM + CURSOR_EDGE_MM; // 4.3, the finger's edge, where a ring starts
 // Found-by-touch radius: half the phone's core width, updated from its phoneconfig (default 3 mm).
 let feltMm = Board.FELT_MM;
 // Movement-only polish (touch-down pop, lift shrink, ink settle) is skipped under reduced motion.
@@ -100,7 +105,8 @@ function onFinger(ev) {
 }
 
 // Rings come only from real phone haptic events. No events, no rings.
-// They stay centred on the cursor, so each one reads as "the fingertip buzzed", even mid-swipe.
+// They stay centred on the cursor, so each one reads as "the fingertip buzzed", even mid-swipe. They start at the
+// finger's edge, so all of their short reach (board.js ringAt) shows outside it.
 const haptics = new B.HapticRings();
 let rings = []; // {t0, strength, burst}
 // One ring per real pulse, at the pattern's own timing. Rings are kept even before the first finger
@@ -114,7 +120,7 @@ function spawnRings(list, now) {
 let landmarks = [];
 const landmarkOf = (ev) => ({ id: ev.id, x: ev.x, y: ev.y, name: ev.name, by: ev.by, ...(ev.start ? { start: true } : {}) });
 const foundMarks = new Set();
-let caption = null; // {name, t0}: what the phone just spoke, shown by the cursor for the silent GIF
+let caption = null; // {name, t0}: what the phone just spoke, shown in the caption slot for the silent GIF
 function setLandmarks(list) {
   landmarks = (list || []).filter(B.validLandmark);
   for (const l of landmarks) arrivals.add('landmark', l.id);
@@ -170,7 +176,59 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
+// The board's key (review, Nov 8: teal, grey, dashed and the amber rings went unexplained in the footage), on its own
+// panel inside the paper's foot, so any crop of the board keeps it. Soft ink, under the trail and the ink: the lowest
+// thing on the board. Ink states on the left, the student's marks on the right. A ring says what the stage knows, that
+// the phone page asked to buzz, never that the student felt it.
+// 2.5 mm type is about 10 px in the GIF, the least that reads there; three rows keep it out of the drawing's way.
+const LEGEND = { font: 2.5, pitch: 3.2, swatch: 4, gap: 1, col: 2.6, pad: 0.8, foot: 1, rows: 3 };
+const legendTop = () => BOARD.h - LEGEND.foot - LEGEND.rows * LEGEND.pitch - 2 * LEGEND.pad;
+function legendSwatch(kind, x, y) {
+  const s = LEGEND.swatch, cx = x + s / 2;
+  if (kind === 'finger') { // the cursor in small
+    for (const [r, fill] of [[1.5, COL.ink], [1.2, COL.white], [0.85, COL.amber]]) { ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); }
+    return;
+  }
+  ctx.beginPath();
+  if (kind === 'ring') { ctx.arc(cx, y, 1.5, 0, Math.PI * 2); ctx.lineWidth = 0.6; ctx.strokeStyle = COL.amber; ctx.stroke(); return; }
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = COL[kind];
+  ctx.lineCap = kind === 'hidden' ? 'butt' : 'round';
+  ctx.setLineDash(kind === 'hidden' ? [1.4, 0.9] : []); // the board's 3/2 dash at swatch size
+  const inset = kind === 'hidden' ? 0 : ctx.lineWidth / 2;
+  ctx.moveTo(x + inset, y);
+  ctx.lineTo(x + s - inset, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+function drawLegend() {
+  const L = LEGEND;
+  ctx.save();
+  ctx.font = FONT(L.font);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  const left = [['felt', 'Covered'], ['unfelt', 'Not yet'], ['hidden', 'Hidden by tutor']];
+  const right = [['finger', 'Student’s finger (live)'], ['ring', 'Phone asked to buzz']];
+  const width = (items) => L.swatch + L.gap + Math.max(...items.map(([, t]) => ctx.measureText(t).width));
+  // The third left line runs on under the right column, which has two.
+  const lw = width(left.slice(0, 2)), w = Math.max(lw + L.col + width(right), width(left.slice(2)));
+  const x0 = (BOARD.w - w) / 2, y0 = legendTop();
+  roundRect(x0 - L.pad, y0, w + 2 * L.pad, L.rows * L.pitch + 2 * L.pad, 1.6);
+  ctx.fillStyle = COL.key;
+  ctx.fill();
+  const rowY = (i) => y0 + L.pad + (i + 0.5) * L.pitch;
+  const put = (items, x) => items.forEach(([kind, text], i) => {
+    legendSwatch(kind, x, rowY(i));
+    ctx.fillStyle = COL.inkSoft;
+    ctx.fillText(text, x + L.swatch + L.gap, rowY(i));
+  });
+  put(left, x0);
+  put(right, x0 + lw + L.col);
+  ctx.restore();
+}
 function drawTrail(now) {
+  // The key goes down first, under everything: frame() (stage-relay.js) draws the trail first, inside the paper's clip.
+  drawLegend();
   while (trail.length && now - trail[0].t > TRAIL_MS) trail.shift();
   for (let i = 1; i < trail.length; i++) {
     const a = trail[i - 1], b = trail[i];
@@ -221,7 +279,7 @@ function drawRings(now) {
   const { x, y } = finger.cur;
   ctx.strokeStyle = COL.amber;
   for (const r of rings) {
-    const g = B.ringAt(now - r.t0, r.strength, r.burst, CURSOR_MM);
+    const g = B.ringAt(now - r.t0, r.strength, r.burst, CURSOR_R_MM);
     if (!g) continue;
     ctx.lineWidth = g.w;
     ctx.beginPath();
@@ -235,7 +293,7 @@ function drawCursor(now) {
   if (k <= 0) return;
   const { x, y } = finger.cur;
   ctx.beginPath();
-  ctx.arc(x, y, (CURSOR_MM + CURSOR_BORDER_MM + CURSOR_EDGE_MM) * k, 0, Math.PI * 2);
+  ctx.arc(x, y, CURSOR_R_MM * k, 0, Math.PI * 2);
   ctx.fillStyle = COL.ink;
   ctx.fill();
   ctx.beginPath();
@@ -249,7 +307,9 @@ function drawCursor(now) {
 }
 // Landmarks: a faint ring for the phone's 4 mm zone, a dot (hollow until the phone has announced it,
 // then filled), and the name beside it with a paper halo so it stays readable over ink. Flat colours only.
-const LM_DOT_MM = 1.9, LM_FONT_MM = 3.6, CAP_FONT_MM = 4.4;
+// Names 4.4 mm and captions 4.8 mm (18 and 20 px in the GIF, critic's pass, Nov 8): names are what the student hears,
+// and 3.6 mm was the smallest text on the board. A caption's longest lesson line still fits the 56 mm board.
+const LM_DOT_MM = 1.9, LM_FONT_MM = 4.4, CAP_FONT_MM = 4.8;
 const FONT = (mm) => `700 ${mm}px 'Atkinson Hyperlegible', system-ui, sans-serif`;
 // The start point (#107) carries a small ink pennant on its dot, a map's start flag. Its outline counts as ink when the
 // name's side is chosen, so the name never sits on the flag.
@@ -276,17 +336,20 @@ function drawFlag(l, ink = COL.ink) {
 // A hidden landmark (#111) draws all in 25% ink, never filled as announced: the phone gives it no cue yet.
 // Names are placed here and painted by drawNames after the cursor: the finger rests on a point exactly while its name
 // is spoken, and the cursor drawn over the name hid its first letters then.
-let names = [];
+// capMarks: what a caption must not cover (board.js captionSlot), the ink, each point's zone and flag, and each name,
+// as mm points.
+let names = [], capMarks = [];
 function drawLandmarks(rv) {
   names = [];
+  const ink = [];
+  for (const st of strokes) if (st.pts.length) for (const p of inkState(st).samples) ink.push(p);
+  capMarks = ink.slice();
   if (!landmarks.length) return;
   ctx.textBaseline = 'middle';
   ctx.font = FONT(LM_FONT_MM);
-  const ink = [];
-  for (const st of strokes) if (st.pts.length) for (const p of inkState(st).samples) ink.push(p);
   for (let n = 0; n < landmarks.length; n++) {
     const l = landmarks[n], tone = rv.mark[n] ? COL.ink : COL.hidden;
-    ctx.lineWidth = 0.35;
+    ctx.lineWidth = 0.5; // 0.35 mm (1.5 GIF px) of light grey speckled away in the GIF's palette
     ctx.strokeStyle = rv.mark[n] ? COL.unfelt : COL.hidden;
     ctx.beginPath();
     ctx.arc(l.x, l.y, B.LANDMARK_MM, 0, Math.PI * 2);
@@ -306,10 +369,16 @@ function drawLandmarks(rv) {
       ctx.fill();
     }
     if (l.start) drawFlag(l, tone);
+    capMarks.push(l);
+    for (let a = 0; a < 16; a++) capMarks.push({ x: l.x + B.LANDMARK_MM * Math.cos(a * Math.PI / 8), y: l.y + B.LANDMARK_MM * Math.sin(a * Math.PI / 8) });
+    if (l.start) capMarks.push(...flagPoints(l));
     const name = B.cleanName(l.name);
     if (!name) continue;
     const w = ctx.measureText(name).width, gap = B.LANDMARK_MM + 0.8;
-    names.push({ name, tone, at: B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, l.start ? ink.concat(flagPoints(l)) : ink) });
+    const at = B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, l.start ? ink.concat(flagPoints(l)) : ink);
+    names.push({ name, tone, at });
+    const x0 = at.align === 'left' ? at.x : at.align === 'right' ? at.x - w : at.x - w / 2;
+    for (let x = x0; x <= x0 + w; x += 1) for (const dy of [-LM_FONT_MM / 2, 0, LM_FONT_MM / 2]) capMarks.push({ x, y: at.y + dy });
   }
 }
 function drawNames() {
@@ -343,9 +412,23 @@ function drawPending() {
   ctx.stroke();
   ctx.restore();
 }
-// Caption: what the phone just said, in a bubble beside the cursor, for the silent GIF.
+// A speaker with two sound waves, `s` mm wide, left edge at x, centred on y: the caption is what the phone said aloud.
+function drawSpeaker(x, y, s) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - 0.16 * s); ctx.lineTo(x + 0.22 * s, y - 0.16 * s); ctx.lineTo(x + 0.5 * s, y - 0.4 * s);
+  ctx.lineTo(x + 0.5 * s, y + 0.4 * s); ctx.lineTo(x + 0.22 * s, y + 0.16 * s); ctx.lineTo(x, y + 0.16 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.lineWidth = 0.09 * s;
+  ctx.lineCap = 'round';
+  for (const r of [0.2, 0.4]) { ctx.beginPath(); ctx.arc(x + 0.5 * s, y, r * s, -Math.PI / 4, Math.PI / 4); ctx.stroke(); }
+}
+// Caption: what the phone just said, for the silent GIF, in a fixed slot inside the board (review, Nov 8: in a bubble
+// beside the cursor it covered the route and the Office label). The slot is picked once per caption, the top unless
+// the drawing fills it more than the bottom one above the key (board.js captionSlot), so it never jumps or covers a
+// line. It no longer waits for a finger: "Drawing updated" often comes while the student's finger is lifted.
 function drawCaption(now) {
-  if (!caption || !finger.cur) return;
+  if (!caption) return;
   const age = now - caption.t0;
   const k = REDUCE ? (age >= 0 && age < B.CAPTION_MS ? 1 : 0) : B.captionScale(age);
   if (k <= 0) { if (age >= B.CAPTION_MS) caption = null; return; }
@@ -353,25 +436,18 @@ function drawCaption(now) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   const text = '“' + caption.name + '”';
-  const pad = 2, w = ctx.measureText(text).width + pad * 2, h = CAP_FONT_MM + pad * 1.6;
-  const off = CURSOR_MM + CURSOR_BORDER_MM + 2.5;
-  // Kept inside the board (#136): a long caption used to flip left and run under the tools panel.
-  const { x0, tail } = B.captionPlace(finger.cur.x, w, BOARD, off);
-  const ay = finger.cur.y - off;
+  const pad = 1.8, icon = CAP_FONT_MM * 0.85, h = CAP_FONT_MM + pad * 1.6;
+  const w = pad + icon + 1 + ctx.measureText(text).width + pad;
+  if (!caption.slot) caption.slot = B.captionSlot(w, h, BOARD, capMarks, { bottom: legendTop() - 0.5 });
+  const { x0, y0, scale } = caption.slot;
   ctx.save();
-  ctx.translate(tail, ay); // the pop scales about the tail, which stays by the fingertip
-  ctx.scale(k, k);
-  roundRect(x0 - tail, -h, w, h, 1.6);
+  ctx.translate(x0 + w * scale / 2, y0 + h * scale / 2); // the pop scales about the slot's centre
+  ctx.scale(k * scale, k * scale);
+  roundRect(-w / 2, -h / 2, w, h, 1.6);
   ctx.fillStyle = COL.ink;
   ctx.fill();
-  ctx.beginPath(); // tail toward the fingertip
-  const dx = Math.min(Math.max(finger.cur.x - tail, -2.6), 2.6);
-  ctx.moveTo(-1.5, -0.2);
-  ctx.lineTo(dx, 1.6);
-  ctx.lineTo(1.5, -0.2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = COL.white;
-  ctx.fillText(text, x0 - tail + pad, -h / 2);
+  ctx.fillStyle = ctx.strokeStyle = COL.white;
+  drawSpeaker(-w / 2 + pad, 0, icon);
+  ctx.fillText(text, -w / 2 + pad + icon + 1, 0);
   ctx.restore();
 }

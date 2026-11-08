@@ -143,19 +143,22 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .status[data-tone="live"] i::after { content: ''; position: absolute; inset: -2px; border-radius: 50%;
   border: 2px solid var(--teal); animation: ripple 1.6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
 @keyframes ripple { from { transform: scale(1); opacity: 0.8; } to { transform: scale(2.8); opacity: 0; } }
-.status b { display: block; font-size: var(--t-lg); line-height: 1.25; }
-.status small { display: block; font-size: var(--t-sm); line-height: 1.3; color: var(--muted); }
+/* Sized for the 960 px stage GIF too (review, Nov 8): two lines still fit the header band. */
+.status b { display: block; font-size: var(--t-2xl); line-height: 1.2; }
+.status small { display: block; font-size: var(--t-lg); line-height: 1.3; color: var(--muted); }
 .status small:empty { display: none; }
 
 /* The student right now (human-led note, Nov 7): three lines, each led by the board's own mark for what it reports, so
    the panel doubles as the board's key. Big enough to read at a glance while talking to the student; grey until there
-   is something real to say. The history of spoken lines folds away at the foot. */
+   is something real to say. The history of spoken lines folds away at the foot. Twice the old size, glyphs with the
+   words (review, Nov 8): the state word and "Covered about N%" were about 8 px in the 960 px stage GIF, now 16 and 14,
+   and "Not touching" and "Covered about N%" still take at most one and two lines. */
 .now { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-6); }
-.fact { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 3px; }
-.fact .g { grid-row: 1 / span 2; width: 22px; height: 22px; margin-top: 1px; overflow: visible; }
-.fact b { font-size: var(--t-xl); line-height: 1.3; font-weight: 700; color: var(--text); overflow-wrap: anywhere;
+.fact { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 4px; }
+.fact .g { grid-row: 1 / span 2; width: 36px; height: 36px; margin-top: 2px; overflow: visible; }
+.fact b { font-size: 32px; line-height: 1.2; font-weight: 700; color: var(--text); overflow-wrap: anywhere;
   transition: color 240ms ease-out; }
-.fact .sub { grid-column: 2; font-size: var(--t-md); line-height: 1.35; color: var(--muted); }
+.fact .sub { grid-column: 2; font-size: var(--t-2xl); line-height: 1.3; color: var(--muted); }
 .fact .sub:empty { display: none; }
 /* A lifted finger keeps the weight (#138): touching and not touching trade only colour, eased, so the line never jumps. */
 .fact[data-state="lifted"] b { color: var(--muted); }
@@ -178,10 +181,10 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .fact .g-unfelt { fill: none; stroke: var(--edge); stroke-width: 2.6; stroke-linecap: round; }
 .fact .g-felt { fill: none; stroke: none; stroke-width: 2.6; stroke-linecap: round; }
 #feltRow[data-state="on"] .g-felt { stroke: var(--teal); }
-#feltRow b { font-size: var(--t-lg); }
-.bars { grid-column: 2; display: flex; gap: 4px; height: 6px; margin-top: var(--s-2); }
+#feltRow b { font-size: 28px; }
+.bars { grid-column: 2; display: flex; gap: 6px; height: 10px; margin-top: var(--s-2); }
 .bars:empty { display: none; }
-.bars i { flex: 0 1 36px; min-width: 4px; border-radius: 3px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--edge);
+.bars i { flex: 0 1 48px; min-width: 6px; border-radius: 5px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--edge);
   overflow: hidden; }
 .bars i.track { flex: 1 1 auto; max-width: 200px; }
 .bars span { display: block; height: 100%; background: var(--teal); }

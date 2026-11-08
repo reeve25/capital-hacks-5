@@ -304,15 +304,15 @@ test('landmark label avoids the board edge and the ink; caption pops, holds and 
   assert.equal(side({ x: 12, y: 62 }, 13, board, 4.8, 3.6, toRight(12).map((p) => ({ x: p.x, y: 62 })).concat(down)), 'above');
   const at = B.labelPlace({ x: 12, y: 62 }, 13, board, 4.8, 3.6, []);
   assert.deepEqual([at.x, at.y, at.align], [16.8, 62, 'left']);
-  // Caption bubble (#136): right of the finger when it fits, else left, else centred and held inside the board.
-  const cap = (fx, w) => B.captionPlace(fx, w, board, 8);
-  assert.deepEqual(cap(10, 20), { x0: 18, tail: 20.5 }, 'right of the finger');
-  assert.deepEqual(cap(45, 20), { x0: 17, tail: 34.5 }, 'left when the right side has no room');
-  const start = cap(30, 34); // 'Start: Classroom' near mid-board: neither side fits, so it is centred and clamped
-  assert.ok(start.x0 >= -1 && start.x0 + 34 <= 57, `inside the board, got ${start.x0}`);
-  assert.ok(start.tail >= start.x0 + 2.5 && start.tail <= start.x0 + 34 - 2.5, 'tail base inside the body');
-  assert.equal(cap(10, 44).x0, -1, 'a caption wider than either side: held at the left edge, never under the tools panel');
-  assert.equal(cap(50, 44).x0, 57 - 44, 'held at the right edge');
+  // Caption slot (review, Nov 8): centred in a fixed slot inside the board, top unless the top crosses more of the drawing.
+  const slot = (w, obstacles, opts) => B.captionSlot(w, 8, board, obstacles, opts);
+  assert.deepEqual(slot(40, []), { x0: 8, y0: 2, scale: 1 }, 'top slot, centred, on an empty board');
+  const topInk = Array.from({ length: 30 }, (_, i) => ({ x: 12 + i, y: 5 }));
+  assert.equal(slot(40, topInk).y0, board.h - 2 - 8, 'ink across the top: the bottom slot');
+  assert.equal(slot(40, topInk, { bottom: 106 }).y0, 106 - 2 - 8, 'the bottom slot sits above the key');
+  assert.equal(slot(40, topInk.concat(topInk.map((p) => ({ x: p.x, y: 115 })))).y0, 2, 'ink in both: the top on a tie');
+  const long = slot(80, []); // 'Start: ' plus a 24-letter name: shrunk to fit, never off the board
+  assert.ok(long.scale < 1 && long.x0 >= 2 - 1e-9 && long.x0 + 80 * long.scale <= board.w - 2 + 1e-9, JSON.stringify(long));
   assert.equal(B.captionScale(-1), 0);
   assert.ok(B.captionScale(0) >= 0.85 && B.captionScale(0) < 1);
   assert.equal(B.captionScale(800), 1);

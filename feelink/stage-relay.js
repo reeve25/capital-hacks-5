@@ -3,12 +3,35 @@
 
 // Relay.
 let tutorOnline = false, everOnline = false, synced = false;
+// A post the relay did not take (stage-board.js post): when, and whether the sync that puts the relay's state back on the
+// board is still on its way. Until it lands and for UNSENT_MS after, the board says so and takes no changes.
+let unsentAt = -Infinity, resyncing = false;
+const UNSENT_MS = 3000;
 // Each phone report is used once, and a buzz that waited over a second draws nothing (#92).
 const reports = new B.PhoneReports();
-const es = new EventSource('/events');
-es.onopen = () => { tutorOnline = everOnline = true; };
-es.onerror = () => { tutorOnline = false; };
-es.onmessage = (m) => {
+let es = null;
+function connect() {
+  const src = new EventSource('/events');
+  es = src;
+  src.onopen = () => { if (es === src) tutorOnline = everOnline = true; };
+  src.onerror = () => {
+    if (es !== src) return;
+    tutorOnline = false;
+    // EventSource retries a dropped link by itself but gives up for good on a bad reply; start over then, as feel-live.js.
+    if (src.readyState === EventSource.CLOSED) setTimeout(() => { if (es === src) connect(); }, 2000);
+  };
+  src.onmessage = (m) => { if (es === src) onRelay(m); };
+}
+// A new connection is how the stage asks for the relay's state: the relay sends every new client a sync.
+function unsent() {
+  unsentAt = performance.now();
+  if (resyncing) return;
+  resyncing = true;
+  es.close();
+  connect();
+}
+connect();
+function onRelay(m) {
   let ev;
   try { ev = JSON.parse(m.data); } catch { return; }
   const now = performance.now();
@@ -22,6 +45,7 @@ es.onmessage = (m) => {
   }
   if (ev.type === 'sync') {
     synced = true;
+    resyncing = false;
     // In the relay's arrival order (seq). The stroke being drawn keeps the relay's place for it (reveal steps count in
     // that order), or goes last if the relay has not got it yet.
     const relayStrokes = B.bySeq(ev.strokes), relayMarks = B.bySeq(ev.landmarks);
@@ -52,7 +76,7 @@ es.onmessage = (m) => {
     feltMm = B.feltFromConfig(ev, feltMm);
     if (Number.isInteger(ev.steps) && ev.steps > 0) phoneTop = ev.steps + 1;
   }
-};
+}
 
 let prevFrame = performance.now();
 function frame(now) {

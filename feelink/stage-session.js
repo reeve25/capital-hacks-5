@@ -76,6 +76,8 @@ said.querySelector('summary').addEventListener('mousedown', (e) => e.preventDefa
 const rows = {};
 for (const k of ['touch', 'spoke', 'felt']) rows[k] = { el: document.getElementById(k + 'Row'), text: document.getElementById(k + 'Text'), key: '' };
 const spokeSub = document.getElementById('spokeSub'), feltBars = document.getElementById('feltBars');
+const pausedEl = document.getElementById('paused'), pausedTitle = document.getElementById('pausedTitle');
+const pausedText = document.getElementById('pausedText'), leftBody = document.querySelector('.panel.left .panel-body');
 const BARS_MAX = 12; // more lines than this read as one bar, as the reveal pips do
 function setRow(row, state, text, key, extra) {
   if (key === row.key) return false;
@@ -136,7 +138,10 @@ let statusKey = '';
 function showStatus(now) {
   const link = B.phoneLink(now - lastPhoneAt, phoneLeft);
   const phoneLive = link === 'connected';
-  const s = everOnline ? B.connectionStatus(tutorOnline && es.readyState === 1, link, finger.down)
+  // The reconnect that fetches the relay's state after an unsent change is not an outage; it takes milliseconds.
+  const unsent = resyncing ? 'reloading' : now - unsentAt < UNSENT_MS ? 'reloaded' : '';
+  const relayUp = (tutorOnline && es.readyState === 1) || (resyncing && now - unsentAt < 1000);
+  const s = everOnline ? B.connectionStatus(relayUp, link, finger.down, unsent)
     : { tone: 'wait', text: 'Connecting…', sub: '' };
   const key = s.tone + '|' + s.text + '|' + s.sub;
   if (key !== statusKey) {
@@ -144,6 +149,17 @@ function showStatus(now) {
     statusEl.dataset.tone = s.tone;
     statusText.textContent = s.text;
     statusSub.textContent = s.sub;
+    // Out of reach or a change not taken: the board says it over the paper and the tools take nothing until the
+    // relay's state is back, so what the tutor sees is always what the phone has.
+    const paused = everOnline && (!relayUp || !!unsent);
+    document.body.classList.toggle('paused', paused);
+    leftBody.inert = paused;
+    pausedEl.hidden = !paused;
+    if (paused) {
+      pausedTitle.textContent = relayUp ? 'A change did not reach the phone' : 'Studio offline';
+      pausedText.textContent = relayUp ? 'The board was reloaded and now shows exactly what the phone has.'
+        : 'Changes are paused until it reconnects, so the board always matches the phone.';
+    }
   }
   const busy = !synced || phoneLive || strokes.length > 0 || landmarks.length > 0;
   if (document.body.classList.contains('board-busy') !== busy) document.body.classList.toggle('board-busy', busy);

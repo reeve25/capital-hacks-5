@@ -585,8 +585,11 @@
     reconnecting: { tone: 'warn', text: 'Phone reconnecting…', sub: "Your changes reach it once it's back" },
     disconnected: { tone: 'off', text: 'Phone disconnected', sub: 'Your changes reach it when it rejoins' },
   };
-  function connectionStatus(relayUp, link, touching) {
+  // `unsent`: '' normally, 'reloading' while the board waits for the relay's state after a change it did not take, then
+  // 'reloaded' for a few seconds, so a change that vanishes from the board is never a mystery (review, Nov 8).
+  function connectionStatus(relayUp, link, touching, unsent = '') {
     if (!relayUp) return { tone: 'off', text: 'Studio offline', sub: 'Reconnecting…', receiving: false };
+    if (unsent) return { tone: 'off', text: 'Not sent to the phone', sub: unsent === 'reloading' ? 'Reloading the board…' : 'Board matches the phone again', receiving: false };
     if (link !== 'connected') return { ...(LINKS[link] || LINKS.waiting), receiving: false };
     return { tone: touching ? 'live' : 'on', text: 'Student connected', sub: '', receiving: true };
   }

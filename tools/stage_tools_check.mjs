@@ -169,6 +169,29 @@ ws.addEventListener('open', async () => {
     await key('Enter', 'Enter', 0, '\r'); await sleep(300); s = await state();
     check('Enter on toast Undo: board back, focus back on Clear', !s.toast && s.focus === 'clear' && s.strokes === 2, s);
     check('board view unchanged by all of it', (await ev('JSON.stringify(view)')) === view0, view0);
+
+    // A change the relay did not take (review, Nov 8): the board says so, pauses, and puts the relay's state back, so the
+    // tutor never keeps a step the phone did not get. The next POST is made to fail once, then P (one reveal post).
+    const paused = () => ev(`({ on: !pausedEl.hidden, title: pausedTitle.textContent, status: statusText.textContent, inert: leftBody.inert, reveal })`);
+    await key('N', 'KeyN', 8); await sleep(300); // everything shown, so the relay's reveal is null
+    await ev(`(() => { const real = window.fetch; window.fetch = (u, o) => { if (o && o.method === 'POST') { window.fetch = real; return Promise.reject(new TypeError('test: relay unreachable')); } return real(u, o); }; })()`);
+    await key('p', 'KeyP'); let p = await paused();
+    check('unsent change: board says so, tools inert', p.on && /did not reach the phone/.test(p.title) && p.status === 'Not sent to the phone' && p.inert, p);
+    check('unsent change: relay state back on the board', p.reveal === null, p);
+    await key('p', 'KeyP'); p = await paused();
+    check('unsent change: keys take nothing while paused', p.reveal === null, p);
+    await sleep(3000); p = await paused();
+    check('unsent change: notice leaves after 3 s', !p.on && !p.inert, p);
+    await key('p', 'KeyP'); await sleep(300); p = await paused();
+    check('after the notice a step posts again', p.reveal === 1 && !p.on, p);
+    await key('N', 'KeyN', 8); await sleep(300);
+    // The relay out of reach: an offline notice over the paper, tools inert, keys ignored; back when it reconnects.
+    await ev('es.close()'); await sleep(300); p = await paused();
+    check('relay unreachable: "Studio offline" over the board, tools inert', p.on && p.title === 'Studio offline' && p.inert, p);
+    await key('p', 'KeyP'); p = await paused();
+    check('relay unreachable: P changes nothing', p.reveal === null, p);
+    await ev('connect()'); await sleep(800); p = await paused();
+    check('relay back: notice gone, tools live', !p.on && !p.inert && p.status !== 'Studio offline', p);
   } catch (e) { results.push(['FAIL', 'script error', String(e).slice(0, 300)]); }
   for (const r of results) console.log(r.join('  '));
   const fails = results.filter((r) => r[0] === 'FAIL').length;

@@ -23,7 +23,10 @@ const stamp = (now) => Math.max(1, now);
 
 const c = document.getElementById('c'), ctx = c.getContext('2d');
 let dpr = 1, view = { scale: 1, x: 0, y: 0, w: 0, h: 0 };
-const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+// A change shows here at once and is posted. One the relay did not take never reached the phone: unsent() (stage-relay.js)
+// says so and reloads the relay's state, so the board never keeps ink the student cannot feel (review, Nov 8).
+const post = (body) => fetch('/event', { method: 'POST', body: JSON.stringify(body) })
+  .then((r) => { if (!r.ok) throw new Error('relay ' + r.status); }).catch(() => unsent());
 
 // Strokes plus their found-by-touch state: id -> {stroke, samples, felt}.
 let strokes = [];

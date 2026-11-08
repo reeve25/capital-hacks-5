@@ -200,7 +200,7 @@ for (const [btn, act] of buttons) {
 }
 addEventListener('keydown', (e) => {
   if (e.key === 'Shift') { setStraight(true); return; }
-  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || pending) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || pending || document.body.classList.contains('paused')) return;
   const k = e.key.toLowerCase();
   if (k === 'u') undo();
   else if (k === 'c') clearBoard();

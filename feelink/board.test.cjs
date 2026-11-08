@@ -400,6 +400,10 @@ test('connection status is in words, board link first, then the phone and its fi
   assert.deepEqual(B.connectionStatus(true, 'waiting', false), { tone: 'wait', text: 'Waiting for the student', sub: 'Open FeelInk on their phone', receiving: false });
   assert.equal(B.connectionStatus(true, 'waiting', true).tone, 'wait', 'a stale finger is not a live phone');
   assert.deepEqual(B.connectionStatus(true, 'connected', false), { tone: 'on', text: 'Student connected', sub: '', receiving: true });
+  assert.deepEqual(B.connectionStatus(true, 'connected', true, 'reloading'),
+    { tone: 'off', text: 'Not sent to the phone', sub: 'Reloading the board…', receiving: false }, 'an unsent change outranks a live phone');
+  assert.equal(B.connectionStatus(true, 'connected', false, 'reloaded').sub, 'Board matches the phone again');
+  assert.equal(B.connectionStatus(false, 'connected', false, 'reloading').text, 'Studio offline', 'an outage outranks an unsent change');
   // The finger has its own line in the session panel; on the link it only sets the dot's ripple.
   assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'live', text: 'Student connected', sub: '', receiving: true });
 });

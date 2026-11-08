@@ -222,6 +222,15 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 #guide div { width: 78%; margin-top: -14%; text-align: center; color: var(--ink); }
 #guide b { display: block; font-size: var(--t-2xl); line-height: 1.2; }
 body.board-busy #guide { opacity: 0; }
+/* Out of reach, or a change the relay did not take (review, Nov 8): said over the paper, which takes no input until the
+   relay's state is back, so the board never shows ink the student cannot feel. The tools dim and go inert with it. */
+#paused { position: fixed; left: calc(var(--bx) - 1px); top: calc(var(--by) - 1px); width: calc(var(--bw) + 2px); height: calc(var(--bh) + 2px); z-index: 3; display: flex;
+  align-items: center; justify-content: center; border-radius: 20px; background: rgba(14, 22, 32, 0.78); color: var(--text); }
+#paused[hidden] { display: none; }
+#paused div { width: 78%; box-sizing: border-box; padding: var(--s-5); text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+#paused b { display: block; font-size: var(--t-xl); line-height: 1.25; }
+#paused span { display: block; margin-top: var(--s-3); font-size: var(--t-md); line-height: 1.45; color: var(--muted); }
+body.paused .panel.left .panel-body { opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) {
   .fact.enter, .status[data-tone="live"] i::after { animation: none; }
   #guide, .tool, .tile, .say kbd, .readout kbd, .pips i, .said summary svg { transition: none; }

@@ -1,6 +1,7 @@
 // FeelInk stage, right panel (the student's session): the link status header and the paper guide, three live lines on
-// the student (their finger, the point their phone last spoke, what they have felt), the folded "Spoken on their phone"
-// history, and the instruction box with its Sent/Spoken states. stage-relay.js calls in.
+// the student (their finger, the point their phone last spoke, what they have felt) and the folded "Spoken on their
+// phone" history; plus the optional spoken-cue tool at the foot of the tools, with its Sent/Spoken state.
+// stage-relay.js calls in; stage-tools.js opens the cue tool.
 
 // "Spoken on their phone" (#92, #107): lines the phone reports it spoke (#90), never inferred from a haptic, plus the
 // tutor's instructions, which show "Sent" until the phone reports saying them. board.js HeardLog merges repeats. The
@@ -52,6 +53,7 @@ function renderHeard() {
   said.hidden = !log.items.length;
   saidCount.textContent = log.items.length;
   heardList.replaceChildren(...log.items.map(heardItem));
+  renderCue();
 }
 function onSpoken(ev) {
   const s = reports.spoken(ev);
@@ -127,9 +129,28 @@ function showSession(now, rv) {
   });
 }
 
-// Instructions (#107): Enter posts {type:'instruction', id, text, by}. The relay keeps the latest and the phone says
-// it aloud; the log shows it Sent until the phone reports saying it. Keys typed here are text, not board shortcuts.
-const tell = document.getElementById('tell'), tellText = document.getElementById('tellText');
+// The spoken cue (#107; human-led note, Nov 7): the tutor talks to the student, so a typed line their phone says aloud
+// is an optional tool, closed by default, for remote lessons, replay or a fallback. T or its control opens it at the
+// foot of the tools; Enter posts {type:'instruction', id, text, by}, which the relay keeps and the phone says aloud.
+// While it is open, the latest cue shows Sent until the phone reports saying it. Keys typed here are text, not board
+// shortcuts; Escape closes it.
+const tell = document.getElementById('tell'), tellText = document.getElementById('tellText'), cueToggle = document.getElementById('cueToggle');
+const cueState = document.getElementById('cueState'), cueText = document.getElementById('cueText'), cueBadge = document.getElementById('cueBadge');
+const CUE_TEXT = { sent: 'Sent, not spoken yet', heard: 'Spoken on their phone', replaced: 'Replaced before it was spoken' };
+function renderCue() {
+  const x = log.items.find((i) => i.kind === 'instruction');
+  cueState.hidden = !x;
+  if (!x) return;
+  cueState.className = 'cue-state is-' + x.state;
+  cueText.textContent = x.text;
+  cueBadge.textContent = CUE_TEXT[x.state] + (x.n > 1 ? ' ×' + x.n : '');
+}
+function setCue(open) {
+  tell.hidden = !open;
+  cueToggle.setAttribute('aria-expanded', String(open));
+  if (open) { renderCue(); tellText.focus(); }
+  else if (tell.contains(document.activeElement)) document.activeElement.blur();
+}
 tell.addEventListener('submit', (e) => {
   e.preventDefault();
   const text = B.cleanInstruction(tellText.value);
@@ -139,7 +160,7 @@ tell.addEventListener('submit', (e) => {
   post(ins);
   tellText.value = '';
 });
-tellText.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') tellText.blur(); });
+tellText.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') setCue(false); });
 document.getElementById('tellSend').addEventListener('mousedown', (e) => e.preventDefault());
 
 // Status in words, and the guide: it sits on the paper only while nothing is drawn and no phone is live, so the

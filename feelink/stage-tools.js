@@ -179,7 +179,7 @@ function clearBoard() {
 const buttons = [[toolDraw, () => setPlacing(false)], [toolMark, () => setPlacing(!placing)],
   [document.getElementById('undo'), undo], [document.getElementById('clear'), clearBoard], [document.getElementById('undoClear'), undo],
   [document.getElementById('revealNext'), () => stepReveal('next')], [document.getElementById('revealPrev'), () => stepReveal('prev')],
-  [document.getElementById('revealAll'), () => stepReveal('all')]];
+  [document.getElementById('revealAll'), () => stepReveal('all')], [cueToggle, () => setCue(tell.hidden)]];
 for (const [btn, act] of buttons) {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => { closeName(true); act(); });
@@ -194,6 +194,7 @@ addEventListener('keydown', (e) => {
   else if (k === 's') toggleStartNear();
   else if (k === 'n') stepReveal(e.shiftKey ? 'all' : 'next');
   else if (k === 'p') stepReveal('prev');
+  else if (k === 't') { e.preventDefault(); setCue(true); } // the spoken cue; preventDefault keeps the T out of its field
   else if (k === 'd' || k === 'escape') setPlacing(false);
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });

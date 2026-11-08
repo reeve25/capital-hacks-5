@@ -36,6 +36,9 @@ class Relay:
         # The tutor's latest spoken instruction (#107), {id, text, by, heard?}. Only the newest is kept: it is what the
         # student should do now, and what a phone that joins late or reconnects is told.
         self.instruction = None
+        # Step-through reveal (#111): how many strokes, in first-arrival order, the student may feel. None = all, the
+        # default, so freehand drawing works as before. Landmarks follow their strokes on each client.
+        self.reveal = None
         self.clients = []
 
     def sync(self):
@@ -43,6 +46,8 @@ class Relay:
         out = {"type": "sync", "strokes": list(self.strokes.values()), "landmarks": list(self.landmarks.values())}
         if self.instruction:
             out["instruction"] = self.instruction  # absent when none, so older clients see the same sync as before
+        if self.reveal is not None:
+            out["reveal"] = self.reveal  # likewise absent at the default (all shown)
         return out
 
     def subscribe(self):
@@ -70,6 +75,10 @@ class Relay:
                 self.order.setdefault(("landmark", event["id"]))
             elif kind == "instruction":
                 self.instruction = {"id": event.get("id"), "text": event.get("text", ""), "by": event.get("by")}
+            elif kind == "reveal":
+                # Anything but a whole number of strokes means all, the safe default: nothing is kept from the student.
+                upto = event.get("upto")
+                self.reveal = upto if isinstance(upto, int) and not isinstance(upto, bool) and upto >= 0 else None
             elif kind == "spoken" and event.get("kind") == "instruction" and self.instruction \
                     and event.get("id") == self.instruction["id"]:
                 # The phone finished saying it, so a stage that joins later shows it heard, not merely sent.
@@ -83,6 +92,7 @@ class Relay:
                 self.strokes.clear()
                 self.landmarks.clear()
                 self.order.clear()
+                self.reveal = None  # a fresh board starts fully shown; the undo that restores it does too
             elif kind == "undo" and self.order:
                 (newest, item_id), _ = self.order.popitem()  # a dict pops its last-inserted key
                 (self.strokes if newest == "stroke" else self.landmarks).pop(item_id)
@@ -90,6 +100,9 @@ class Relay:
                 # An empty board after a clear: undo restores the whole cleared board, once.
                 self.strokes, self.landmarks, self.order = self.cleared
                 self.cleared = None
+            if kind == "undo" and self.reveal is not None and self.reveal > len(self.strokes):
+                # Undoing a shown stroke keeps the pointer at the end, never past it; undoing a hidden one moves nothing.
+                self.reveal = len(self.strokes)
             for q in self.clients:
                 q.put(event)
             if kind == "undo":
@@ -256,6 +269,42 @@ def selftest():
     assert relay.sync()["landmarks"] == [{**stored(lib), "start": True}]
     relay.publish({**lib, "start": False})
     assert relay.landmarks["m1"] == stored(lib)
+
+    # Step-through reveal (#111): upto is stored and relayed unchanged, and in sync only when it is not None (all).
+    relay.publish({"type": "clear"})
+    s3 = {"type": "stroke", "id": "s3", "by": "tutor", "pts": [{"x": 51, "y": 83}, {"x": 51, "y": 110}]}
+    for ev in (s1, lib, s2, s3):
+        relay.publish(ev)
+    drain()
+    assert "reveal" not in relay.sync()
+    show1 = {"type": "reveal", "upto": 1, "by": "tutor"}
+    relay.publish(show1)
+    assert drain() == [show1] and relay.reveal == 1 and relay.sync()["reveal"] == 1
+    assert relay.subscribe().get_nowait()["reveal"] == 1, "a client joining mid-reveal is told"
+    relay.publish({"type": "reveal", "upto": None, "by": "tutor"})
+    assert relay.reveal is None and "reveal" not in relay.sync()
+    for bad in (-1, 1.5, "2", True):
+        relay.publish({"type": "reveal", "upto": 2, "by": "tutor"})
+        relay.publish({"type": "reveal", "upto": bad, "by": "tutor"})
+        assert relay.reveal is None, bad
+    # Undo of a hidden stroke (or a landmark) leaves upto alone; undo past it clamps it to the strokes left.
+    relay.publish({"type": "reveal", "upto": 2, "by": "tutor"})
+    relay.publish({"type": "undo"})  # s3, hidden
+    assert ids() == (["s1", "s2"], ["m1"]) and relay.reveal == 2
+    relay.publish({"type": "undo"})  # s2, shown: 2 > 1 stroke left
+    assert ids() == (["s1"], ["m1"]) and relay.reveal == 1 and drain()[-1]["reveal"] == 1
+    relay.publish({"type": "undo"})  # the landmark
+    assert ids() == (["s1"], []) and relay.reveal == 1
+    relay.publish({"type": "reveal", "upto": 0, "by": "tutor"})
+    relay.publish({"type": "undo"})  # s1, hidden: 0 stays 0
+    assert ids() == ([], []) and relay.reveal == 0
+    # Clear resets to all, and the undo that restores the cleared board brings it back fully shown.
+    for ev in (s1, s2, {"type": "reveal", "upto": 1, "by": "tutor"}, {"type": "clear"}):
+        relay.publish(ev)
+    assert relay.reveal is None and "reveal" not in relay.sync()
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1", "s2"], []) and relay.reveal is None
+    assert relay.instruction == {"id": "i3", "text": say1["text"], "by": "tutor"}, "reveal never touches the instruction"
     print("server selftest: ok")
 
 

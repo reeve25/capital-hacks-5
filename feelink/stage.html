@@ -8,47 +8,155 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
-  :root { --surround: #0e1620; --text: #e8edf2; --muted: #8a96a3; --on: #4ade80; --off: #4b5563; }
+  /* Dark surround, paper board and ink; teal is the student's touch, amber the phone's buzz and keyboard focus.
+     The tutor's tools sit left of the board and the student's side right of it. Both columns are placed from the
+     board's own geometry, GAP_PX clear of it, so the GIF crop (compose.py keeps 40 px around the board) stays clean. */
+  :root { --surround: #0e1620; --raised: #172230; --pressed: #1f2d3d; --line: #2c3a49; --edge: #56677a;
+    --text: #e8edf2; --muted: #a3aebb; --paper: #fbfaf6; --ink: #1b222b; --ink-soft: #545e6b; --teal: #2bb3a3;
+    --amber: #ffb020; --on: #4ade80; --bad: #f87171; color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--surround); color: var(--text);
     font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; }
+  ::selection { background: var(--teal); color: var(--ink); }
   canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; display: block; }
-  header { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 18px;
-    padding: 0 20px; box-sizing: border-box; pointer-events: none; z-index: 1; }
-  h1 { margin: 0 auto 0 0; font-size: 22px; font-weight: 700; letter-spacing: 0.01em; }
-  .dot { display: flex; align-items: center; gap: 7px; font-size: 15px; color: var(--muted); }
-  .dot i { width: 11px; height: 11px; border-radius: 50%; background: var(--off); }
-  .dot.on { color: var(--text); }
-  .dot.on i { background: var(--on); }
-  .hint { font-size: 15px; color: var(--muted); }
-  .hint b { color: var(--text); }
   body.placing canvas { cursor: copy; }
-  /* Name box for a new landmark, opened on the board where the tutor clicked. Paper-board style. */
+
+  .col { position: fixed; left: var(--x); width: var(--w); box-sizing: border-box; z-index: 1; }
+  .col.head { top: 0; height: 52px; display: flex; align-items: center; }
+  .col.body { top: var(--by); height: var(--bh); display: flex; flex-direction: column; }
+  .left { --x: var(--lx); --w: var(--lw); }
+  .right { --x: var(--rx); --w: var(--rw); }
+  h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.01em; }
+  h2 { margin: 0 0 10px; font-size: 14px; line-height: 1.3; font-weight: 700; color: var(--muted); }
+  kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; box-sizing: border-box;
+    font: 700 12px/1 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--muted); background: var(--surround);
+    border: 1px solid var(--line); border-radius: 5px; }
+
+  /* Tools: two modes (Draw, Landmark), then the two board actions, then one line of help. Keys are on every button.
+     Nothing here is paper-bright in bulk: compose.py finds the board by brightness, and a paper-filled button plus
+     paper legend chips pulled its auto crop out to this column (cropdetect on the 1280x720 mock). */
+  .tools { display: flex; flex-direction: column; gap: 6px; }
+  .tool { display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; margin: 0; padding: 0 10px 0 12px;
+    box-sizing: border-box; font: 700 16px/1 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--text);
+    background: var(--raised); border: 1px solid var(--line); border-radius: 10px; cursor: pointer;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out; }
+  .tool span { flex: 1; text-align: left; }
+  .tool svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .tool:hover { background: var(--pressed); border-color: var(--edge); }
+  .tool:active { background: var(--line); }
+  .tool:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  .tool[aria-pressed="true"] { background: #2a3a4c; border-color: var(--text); }
+  .tool[aria-pressed="true"] kbd { color: var(--text); border-color: var(--edge); }
+  #undo { margin-top: 12px; }
+  .hint { margin: 12px 2px 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+  .hint kbd { min-width: 20px; height: 20px; vertical-align: 1px; transition: background-color 120ms ease-out, color 120ms ease-out; }
+  .hint.on { color: var(--text); }
+  .hint.on kbd { color: var(--ink); background: var(--paper); border-color: var(--paper); }
+  /* After a clear: the relay keeps the cleared board for one undo, offered here for 3 s in the help line's place. */
+  .toast { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px;
+    padding: 6px 6px 6px 12px; font-size: 14px; color: var(--text); background: var(--raised);
+    border: 1px solid var(--line); border-radius: 10px; }
+  .toast[hidden], .hint[hidden] { display: none; }
+  .toast button { display: flex; align-items: center; gap: 8px; height: 32px; margin: 0; padding: 0 6px 0 10px;
+    font: 700 14px/1 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--text); background: transparent;
+    border: 1px solid var(--edge); border-radius: 8px; cursor: pointer; transition: background-color 150ms ease-out; }
+  .toast button:hover { background: var(--pressed); }
+  .toast button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+  /* Legend: what each mark on the paper means. Swatches use the board's own colours, on paper. */
+  .legend { margin-top: auto; }
+  .legend ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .legend li { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 1.3; color: var(--muted); }
+  .legend svg { width: 32px; height: 18px; flex: none; overflow: visible; }
+
+  /* Student side: connection in words, then what the phone said aloud. */
+  .status { display: flex; align-items: center; gap: 10px; }
+  .status i { width: 10px; height: 10px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--edge); }
+  .status[data-tone="on"] i { background: var(--on); border-color: var(--on); }
+  .status[data-tone="off"] i { background: var(--bad); border-color: var(--bad); }
+  .status b { display: block; font-size: 15px; line-height: 1.25; }
+  .status small { display: block; font-size: 13px; line-height: 1.3; color: var(--muted); }
+  .status small:empty { display: none; }
+  .heard { overflow: hidden; }
+  .heard .empty { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+  .heard ol { list-style: none; margin: 0; padding: 0; }
+  .heard li { display: flex; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line);
+    font-size: 15px; line-height: 1.3; color: var(--muted); }
+  .heard li:first-child { padding-top: 0; border-top: 0; }
+  .heard li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .heard li.landmark span { font-weight: 700; }
+  .heard li.latest { color: var(--text); }
+  .heard li.latest.landmark span { font-size: 18px; }
+  .heard time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .heard li.enter { animation: enter 220ms cubic-bezier(0.23, 1, 0.32, 1); }
+  @keyframes enter { from { opacity: 0.35; transform: translateY(-4px); } }
+
+  /* First-run guide on the paper, only while nothing is drawn and no phone is live. */
+  #guide { position: fixed; left: var(--bx); top: var(--by); width: var(--bw); height: var(--bh); z-index: 1; display: flex;
+    align-items: center; justify-content: center; pointer-events: none; transition: opacity 200ms ease-out; }
+  #guide div { width: 78%; margin-top: -14%; text-align: center; color: var(--ink); }
+  #guide b { display: block; font-size: 22px; line-height: 1.2; }
+  #guide p { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--ink-soft); text-wrap: balance; }
+  body.board-busy #guide { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .heard li.enter { animation: none; } #guide, .tool, .hint kbd { transition: none; } }
+
+  /* Name box for a new point, opened on the board where the tutor clicked. Paper-board style. */
   #name { position: fixed; z-index: 2; display: none; width: 220px; padding: 8px 10px; box-sizing: border-box;
-    font: 700 18px 'Atkinson Hyperlegible', system-ui, sans-serif; color: #1b222b; background: #fbfaf6;
-    border: 2px solid #1b222b; border-radius: 6px; outline: none; }
-  #name:focus-visible { box-shadow: 0 0 0 3px #ffb020; }
+    font: 700 18px 'Atkinson Hyperlegible', system-ui, sans-serif; color: var(--ink); background: var(--paper);
+    border: 2px solid var(--ink); border-radius: 6px; outline: none; }
+  #name::placeholder { color: var(--ink-soft); }
+  #name:focus-visible { box-shadow: 0 0 0 3px var(--amber); }
 </style>
 </head>
-<body>
-<header>
-  <h1>FeelInk</h1>
-  <span class="hint" id="hint"><b>L</b> landmark</span>
-  <span class="dot" id="phoneDot"><i></i>Phone</span>
-  <span class="dot" id="tutorDot"><i></i>Tutor</span>
-</header>
-<canvas id="c"></canvas>
-<input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Landmark name" placeholder="Landmark name">
+<body class="board-busy">
+<canvas id="c" aria-label="Drawing board"></canvas>
+<div class="col head left"><h1>FeelInk</h1></div>
+<div class="col body left">
+  <div class="tools" role="group" aria-label="Board tools">
+    <button class="tool" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l4 4L8.5 19.5h-4v-4z"/><path d="M13 7l4 4"/></svg><span>Draw</span><kbd>D</kbd></button>
+    <button class="tool" id="toolMark" type="button" aria-pressed="false" aria-keyshortcuts="L">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="12" r="3.5"/><path d="M14 9.5h6.5M14 14.5h4"/></svg><span>Landmark</span><kbd>L</kbd></button>
+    <button class="tool" id="undo" type="button" aria-keyshortcuts="U">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span>Undo</span><kbd>U</kbd></button>
+    <button class="tool" id="clear" type="button" aria-keyshortcuts="C">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10.5 11v5M13.5 11v5"/></svg><span>Clear</span><kbd>C</kbd></button>
+    <p class="hint" id="hint" aria-live="polite"></p>
+    <div class="toast" id="toast" role="status" hidden>Board cleared<button id="undoClear" type="button" aria-keyshortcuts="U">Undo<kbd>U</kbd></button></div>
+  </div>
+  <section class="legend" aria-labelledby="legendTitle">
+    <h2 id="legendTitle">On the board</h2>
+    <ul>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M5 9h11" stroke="#b3b9c1" stroke-width="2.4" stroke-linecap="round"/><path d="M16 9h11" stroke="#1b222b" stroke-width="2.4" stroke-linecap="round"/></svg>Ink darkens once felt</li>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><path d="M5 10.5c5-3.5 10 2.5 22-2" fill="none" stroke="#2bb3a3" stroke-width="3" stroke-linecap="round"/></svg>The student's finger path</li>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><circle cx="16" cy="9" r="6.6" fill="none" stroke="#ffb020" stroke-width="1.4"/><circle cx="16" cy="9" r="3.3" fill="#1b222b"/><circle cx="16" cy="9" r="2.8" fill="#ffffff"/><circle cx="16" cy="9" r="2.1" fill="#ffb020"/></svg>A buzz on the phone</li>
+      <li><svg viewBox="0 0 32 18" aria-hidden="true"><rect y="5" width="32" height="8" rx="4" fill="#fbfaf6"/><circle cx="10" cy="9" r="3" fill="#fbfaf6" stroke="#1b222b" stroke-width="1"/><circle cx="22" cy="9" r="3.4" fill="#1b222b"/><circle cx="22" cy="9" r="1.2" fill="#fbfaf6"/></svg>Named point, filled once announced</li>
+    </ul>
+  </section>
+</div>
+<div class="col head right">
+  <div class="status" id="status" data-tone="wait"><i></i><div><b id="statusText" role="status">Connecting…</b><small id="statusSub"></small></div></div>
+</div>
+<div class="col body right heard">
+  <h2 id="heardTitle">Student heard</h2>
+  <p class="empty" id="heardEmpty">Whatever the phone says aloud shows up here.</p>
+  <ol id="heardList" aria-labelledby="heardTitle" aria-live="polite"></ol>
+</div>
+<div id="guide" aria-hidden="true"><div><b>Draw here</b><p>The student feels every line on their phone.</p></div></div>
+<input id="name" type="text" maxlength="24" autocomplete="off" spellcheck="false" aria-label="Point name" placeholder="Name this point">
 <script src="/tactile.js"></script>
 <script src="/board.js"></script>
 <script>
 const { BOARD } = Tactile;
 const B = Board;
 const HEADER_PX = 52, PAD_PX = 12;
+// Side columns: GAP_PX clear of the board (the GIF crop keeps 40 px around it), at most this wide, EDGE_PX off the window edge.
+const GAP_PX = 56, LEFT_PX = 220, RIGHT_PX = 260, EDGE_PX = 20;
 const COL = { surround: '#0e1620', paper: '#fbfaf6', ink: '#1b222b', unfelt: '#b3b9c1', trail: '#2bb3a3', amber: '#ffb020', white: '#ffffff' };
 // Sizes in board millimetres (about 8 px/mm when the page is 1000 px tall, about 4 px/mm in the GIF).
 const INK_MM = 2.4, SETTLE_GAIN = 0.75, TRAIL_MM = 3.2, TRAIL_TAIL_MM = 0.8, TRAIL_MS = 3000;
 const CURSOR_MM = 3.4, CURSOR_BORDER_MM = 1.0, CURSOR_TAU_MS = 35;
-const PHONE_FRESH_MS = 3000;
+const PHONE_FRESH_MS = 3000, HEARD_MAX = 8;
 // Found-by-touch radius: half the phone's core width, updated from its phoneconfig (default 3 mm).
 let feltMm = Board.FELT_MM;
 // Movement-only polish (touch-down pop, lift shrink, ink settle) is skipped under reduced motion.
@@ -129,15 +237,44 @@ function setLandmarks(list) {
   const ids = new Set(landmarks.map((l) => l.id));
   for (const id of foundMarks) if (!ids.has(id)) foundMarks.delete(id);
 }
+function markFound(name) {
+  const l = B.landmarkFor(landmarks, name, finger.last || finger.cur);
+  if (l) foundMarks.add(l.id);
+}
 function onLandmarkCue(h, now) {
   if (!h.name) return;
   caption = { name: h.name, t0: now };
-  const l = B.landmarkFor(landmarks, h.name, finger.last || finger.cur);
-  if (l) foundMarks.add(l.id);
+  markFound(h.name);
+}
+
+// "Student heard" (#92): only lines the phone reports it spoke (#90), newest first. Never inferred from a haptic.
+const heardList = document.getElementById('heardList'), heardEmpty = document.getElementById('heardEmpty');
+const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function onSpoken(ev) {
+  const s = reports.spoken(ev);
+  if (!s) return;
+  if (s.kind === 'landmark') markFound(B.cleanName(s.text));
+  // Timed when it was said: arrival less the time the report waited on the phone, if it says.
+  const at = Date.now() - (Number(ev.age) > 0 ? Number(ev.age) : 0);
+  const li = document.createElement('li');
+  li.className = s.kind + ' latest' + (REDUCE ? '' : ' enter');
+  const text = document.createElement('span');
+  text.textContent = s.kind === 'landmark' ? '“' + s.text + '”' : s.text;
+  const time = document.createElement('time');
+  time.dateTime = new Date(at).toISOString();
+  time.textContent = clock(at);
+  li.append(text, time);
+  const prev = heardList.firstElementChild;
+  if (prev) prev.classList.remove('latest', 'enter');
+  heardList.prepend(li);
+  while (heardList.children.length > HEARD_MAX) heardList.lastElementChild.remove();
+  heardEmpty.hidden = true;
 }
 
 // Relay.
-let tutorOnline = false, mine = null;
+let tutorOnline = false, synced = false, mine = null;
+// Each phone report is used once, and a buzz that waited over a second draws nothing (#92).
+const reports = new B.PhoneReports();
 const es = new EventSource('/events');
 es.onopen = () => { tutorOnline = true; };
 es.onerror = () => { tutorOnline = false; };
@@ -146,8 +283,9 @@ es.onmessage = (m) => {
   try { ev = JSON.parse(m.data); } catch { return; }
   const now = performance.now();
   // phoneconfig repeats every 2 s while the phone is live and is its presence signal (#34).
-  if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'hello' || ev.type === 'presence') lastPhoneAt = now;
+  if (ev.type === 'finger' || ev.type === 'phoneconfig' || ev.type === 'haptic' || ev.type === 'spoken' || ev.type === 'hello' || ev.type === 'presence') lastPhoneAt = now;
   if (ev.type === 'sync') {
+    synced = true;
     setStrokes(mine ? ev.strokes.filter((s) => s.id !== mine.id).concat([mine]) : ev.strokes);
     setLandmarks(ev.landmarks);
   }
@@ -156,12 +294,13 @@ es.onmessage = (m) => {
   else if (ev.type === 'clear') { setStrokes(mine ? [mine] : []); setLandmarks([]); caption = null; }
   else if (ev.type === 'finger') onFinger(ev);
   else if (ev.type === 'haptic') {
-    const h = B.parseHaptic(ev);
+    const h = reports.haptic(ev);
     // An accepted vibrate() replaces the rest of the previous pattern, so its unstarted rings go too.
     if (h) rings = B.dropPending(rings, now);
     if (h && h.kind === 'landmark') onLandmarkCue(h, now);
     spawnRings(haptics.onHaptic(h, now), now);
   }
+  else if (ev.type === 'spoken') onSpoken(ev);
   else if (ev.type === 'phoneconfig') feltMm = B.feltFromConfig(ev, feltMm);
 };
 
@@ -173,16 +312,30 @@ function inBoard(e) {
   return p.x >= -2 && p.y >= -2 && p.x <= BOARD.w + 2 && p.y <= BOARD.h + 2;
 }
 function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
-// Placing a landmark: L arms it, the next click on the board opens the name box there (or on the landmark
-// clicked, to rename it). Enter posts it, Escape or clicking away cancels.
-const nameBox = document.getElementById('name');
-let placing = false, pending = null; // pending: {id, x, y} while the name box is open
-const hint = document.getElementById('hint');
+// Placing a landmark: L (or the Landmark button) arms it, the next click on the board opens the name box there
+// (or on the point clicked, to rename it). Enter posts it, Escape or clicking away cancels. Then back to Draw.
+const nameBox = document.getElementById('name'), hint = document.getElementById('hint');
+const toolDraw = document.getElementById('toolDraw'), toolMark = document.getElementById('toolMark');
+const HINT_DRAW = 'Hold <kbd>Shift</kbd> for a straight line';
+const HINT_PLACE = 'Click the board to place a point, or click a point to rename it. <kbd>Esc</kbd> cancels';
+let placing = false, straight = false, pending = null; // pending: {id, x, y} while the name box is open
 function setPlacing(on) {
   placing = on;
   document.body.classList.toggle('placing', on);
-  hint.innerHTML = on ? 'Click the board to place a landmark, <b>Esc</b> cancels' : '<b>L</b> landmark';
+  toolDraw.setAttribute('aria-pressed', String(!on));
+  toolMark.setAttribute('aria-pressed', String(on));
+  hint.innerHTML = on ? HINT_PLACE : HINT_DRAW;
+  hint.classList.toggle('on', straight && !on);
 }
+// Shift held: the stroke in progress becomes the straight line from its first point (#92), redrawn and re-sent
+// at once, so the phone never feels the freehand wobble. Releasing Shift goes back to freehand.
+function setStraight(on) {
+  if (on === straight) return;
+  straight = on;
+  hint.classList.toggle('on', on && !placing);
+  if (mine) { mine = { ...mine, pts: B.strokePoints(raw, straight) }; upsert(mine); sendMine(); }
+}
+setPlacing(false);
 function openName(p, existing) {
   pending = existing ? { id: existing.id, x: existing.x, y: existing.y } : { id: 'mark-' + Date.now(), x: p.x, y: p.y };
   const px = view.x + pending.x * view.scale, py = view.y + pending.y * view.scale;
@@ -224,8 +377,9 @@ c.addEventListener('pointerdown', (e) => {
   }
   if (!inBoard(e) || mine) return;
   c.setPointerCapture(e.pointerId);
+  setStraight(e.shiftKey);
   raw = [boardPoint(e)];
-  mine = { id: 'tutor-' + Date.now(), by: 'tutor', pts: B.smooth(raw) };
+  mine = { id: 'tutor-' + Date.now(), by: 'tutor', pts: B.strokePoints(raw, straight) };
   upsert(mine);
   sendMine();
 });
@@ -233,7 +387,8 @@ c.addEventListener('pointermove', (e) => {
   if (!mine) return;
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ce of events.length ? events : [e]) raw.push(boardPoint(ce));
-  mine = { ...mine, pts: B.smooth(raw) };
+  if (e.shiftKey !== straight) { setStraight(e.shiftKey); return; } // redraws and sends with these samples
+  mine = { ...mine, pts: B.strokePoints(raw, straight) };
   upsert(mine);
   if (performance.now() - lastSend > 40) sendMine();
 });
@@ -245,16 +400,46 @@ const finish = () => {
 };
 c.addEventListener('pointerup', finish);
 c.addEventListener('pointercancel', finish);
+
+// Clear asks nothing (#92): the relay keeps the cleared board for one undo (0eac4a1), and the toast offers it
+// for 3 s. U works on it as long as nothing new is drawn first; the toast only makes that visible.
+const toast = document.getElementById('toast');
+const TOAST_MS = 3000;
+let toastTimer = 0;
+function showToast(on) {
+  clearTimeout(toastTimer);
+  toast.hidden = !on;
+  hint.hidden = on;
+  if (on) toastTimer = setTimeout(() => showToast(false), TOAST_MS);
+}
+const undo = () => { showToast(false); post({ type: 'undo' }); };
+function clearBoard() {
+  const had = strokes.length > 0 || landmarks.length > 0;
+  post({ type: 'clear' });
+  showToast(had);
+}
+// Buttons act on click but never take focus from a mouse, so Space or Enter later cannot press Clear again.
+// Tab still reaches them. A click first saves a name box that is open, as clicking the board does.
+const buttons = [[toolDraw, () => setPlacing(false)], [toolMark, () => setPlacing(!placing)],
+  [document.getElementById('undo'), undo], [document.getElementById('clear'), clearBoard], [document.getElementById('undoClear'), undo]];
+for (const [btn, act] of buttons) {
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => { closeName(true); act(); });
+}
 addEventListener('keydown', (e) => {
+  if (e.key === 'Shift') { setStraight(true); return; }
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || pending) return;
   const k = e.key.toLowerCase();
-  if (k === 'u') post({ type: 'undo' });
-  else if (k === 'c') post({ type: 'clear' });
+  if (k === 'u') undo();
+  else if (k === 'c') clearBoard();
   else if (k === 'l') setPlacing(!placing);
-  else if (k === 'escape') setPlacing(false);
+  else if (k === 'd' || k === 'escape') setPlacing(false);
 });
+addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });
+addEventListener('blur', () => setStraight(false));
 
-// Layout.
+// Layout: the board as before, then the side columns and the guide placed from it.
+const rootStyle = document.documentElement.style;
 function layout() {
   dpr = window.devicePixelRatio || 1;
   const w = innerWidth, h = innerHeight;
@@ -262,6 +447,10 @@ function layout() {
   c.height = Math.round(h * dpr);
   const f = B.fit(w, h - HEADER_PX, BOARD, PAD_PX);
   view = { ...f, y: f.y + HEADER_PX - PAD_PX / 2 };
+  const lw = Math.max(0, Math.min(LEFT_PX, view.x - GAP_PX - EDGE_PX));
+  const rx = view.x + view.w + GAP_PX, rw = Math.max(0, Math.min(RIGHT_PX, w - rx - EDGE_PX));
+  const vars = { '--bx': view.x, '--by': view.y, '--bw': view.w, '--bh': view.h, '--lx': view.x - GAP_PX - lw, '--lw': lw, '--rx': rx, '--rw': rw };
+  for (const k in vars) rootStyle.setProperty(k, Math.round(vars[k]) + 'px');
 }
 addEventListener('resize', layout);
 layout();
@@ -423,15 +612,29 @@ function drawCaption(now) {
   ctx.fillText(text, x0 + pad, -h / 2);
   ctx.restore();
 }
-function setDot(el, on) { if (el.classList.contains('on') !== on) el.classList.toggle('on', on); }
-const phoneDot = document.getElementById('phoneDot'), tutorDot = document.getElementById('tutorDot');
+// Status in words, and the guide: it sits on the paper only while nothing is drawn and no phone is live, so the
+// board is bare in every take. Both touch the DOM only when something changed.
+const statusEl = document.getElementById('status'), statusText = document.getElementById('statusText'), statusSub = document.getElementById('statusSub');
+let statusKey = '';
+function showStatus(now) {
+  const phoneLive = now - lastPhoneAt < PHONE_FRESH_MS;
+  const s = B.connectionStatus(tutorOnline && es.readyState === 1, phoneLive, finger.down);
+  const key = s.tone + '|' + s.text + '|' + s.sub;
+  if (key !== statusKey) {
+    statusKey = key;
+    statusEl.dataset.tone = s.tone;
+    statusText.textContent = s.text;
+    statusSub.textContent = s.sub;
+  }
+  const busy = !synced || phoneLive || strokes.length > 0 || landmarks.length > 0;
+  if (document.body.classList.contains('board-busy') !== busy) document.body.classList.toggle('board-busy', busy);
+}
 
 let prevFrame = performance.now();
 function frame(now) {
   const dt = Math.min(100, now - prevFrame);
   prevFrame = now;
-  setDot(phoneDot, now - lastPhoneAt < PHONE_FRESH_MS);
-  setDot(tutorDot, tutorOnline && es.readyState === 1);
+  showStatus(now);
 
   if (finger.down && finger.last && finger.cur) {
     finger.cur.x = B.follow(finger.cur.x, finger.last.x, dt, CURSOR_TAU_MS);

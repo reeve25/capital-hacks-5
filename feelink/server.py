@@ -18,6 +18,7 @@ HERE = Path(__file__).parent
 PAGES = {
     "/": ("feel.html", "text/html"),
     "/feel": ("feel.html", "text/html"),
+    "/dev": ("feel.html", "text/html"),  # same page with the test tools shown (#90)
     "/draw": ("draw.html", "text/html"),
     "/tactile.js": ("tactile.js", "text/javascript"),
     "/stage": ("stage.html", "text/html"),
@@ -31,6 +32,7 @@ class Relay:
         self.strokes = {}  # id -> stroke
         self.landmarks = {}  # id -> landmark (a named point), kept like strokes
         self.order = {}  # (type, id) in first-arrival order, so undo pops the newest stroke or landmark
+        self.cleared = None  # the board as it was before the last clear, so one undo brings it back (Reeve, Nov 7)
         self.clients = []
 
     def sync(self):
@@ -59,12 +61,18 @@ class Relay:
                                                "name": event.get("name", ""), "by": event.get("by")}
                 self.order.setdefault(("landmark", event["id"]))
             elif kind == "clear":
+                if self.order:
+                    self.cleared = (dict(self.strokes), dict(self.landmarks), dict(self.order))
                 self.strokes.clear()
                 self.landmarks.clear()
                 self.order.clear()
             elif kind == "undo" and self.order:
                 (newest, item_id), _ = self.order.popitem()  # a dict pops its last-inserted key
                 (self.strokes if newest == "stroke" else self.landmarks).pop(item_id)
+            elif kind == "undo" and self.cleared:
+                # An empty board after a clear: undo restores the whole cleared board, once.
+                self.strokes, self.landmarks, self.order = self.cleared
+                self.cleared = None
             for q in self.clients:
                 q.put(event)
             if kind == "undo":
@@ -176,6 +184,21 @@ def selftest():
     assert ids() == ([], [])
     relay.publish({"type": "undo"})  # nothing left: still relayed, no error
     assert ids() == ([], []) and drain()[-1] == {"type": "sync", "strokes": [], "landmarks": []}
+
+    # Clear is undoable once: the whole board comes back, then undo pops items again as usual.
+    for ev in (s1, lib):
+        relay.publish(ev)
+    relay.publish({"type": "clear"})
+    assert ids() == ([], [])
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1"], ["m1"]) and drain()[-1]["type"] == "sync"
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1"], [])
+    relay.publish({"type": "clear"})
+    relay.publish({"type": "clear"})  # a second clear on an empty board keeps the restorable snapshot
+    relay.publish({"type": "undo"})
+    assert ids() == (["s1"], [])
+    drain()
 
     # Clear empties both, and leaves no stale order behind for the next undo.
     for ev in (lib, s1, {"type": "clear"}, s2):

@@ -4,10 +4,7 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 16:35). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
-
-### A1b. Reeve or Nathan, Do (when the lead asks): TalkBack session on the Pixel
-Reeve made TalkBack the top accessibility check. The lead's agent first writes the research and a measuring script (off-phone). Then, for about 10 minutes, a human turns TalkBack on in Settings > Accessibility on Nathan's phone, explores a line with one finger and with two fingers while the lead records what the page receives, and turns TalkBack off again. Nathan's phone, so Nathan's yes for the setting change.
+## Open, in order of urgency (Sat Nov 7, 17:05). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
 ### A0c. Reeve, Do (after the next phone build ships): re-feel landmark arrival
 Per his 16:23 note the landmark becomes a state: the line hum stops, 400 ms silence while the name is spoken, three long pulses, then only a slow heartbeat while the finger rests on the landmark; the hum returns when the finger leaves. Ships inside the phone product build (#90); the lead posts when the Pixel is reloaded.
@@ -49,6 +46,8 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 17:02, Reeve: TalkBack dropped (no mode, no Pixel session; #91 closed as parked, research stays on main). Other D7 items stand.
+- Sat 16:46: phone product build (#90), undoable Clear, TalkBack research (#91) and the stage product pass (#92) are on main; phone and laptop pages reloaded. Deck still parked.
 - Sat 16:23, Reeve: the lead on Reeve's laptop owns all product work (phone, stage, relay, UI) unless Nathan's lead posts otherwise; Nathan's lane is outreach and validation. A0b: cue stands out but must be unmistakable on-path (now a landmark state, see A0c).
 - Sat 16:21, Reeve: the lead's agents do ALL UI, stage included (#92 running); Nathan's lane otherwise unchanged. #13-#23 closed. Default core 4 mm; fade derives from core (lead's ratio 1.5), not a student setting.
 - Sat 16:16, Reeve: D7 UI plan GO with changes: tutor controls the lesson, student controls exploration; phone home = Connect + status + collapsed advanced settings, testing tools moved out of the student home, spoken confirmations, Back as the accessible exit, TalkBack verification before polish; stage keeps canvas central with obvious controls, Shift straight lines, generic labels, undoable Clear, confirmed spoken log. Full text on the team log 16:16.

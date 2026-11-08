@@ -43,6 +43,16 @@
     });
   }
 
+  // The tutor's stroke from raw pointer samples (#92): smoothed freehand, or while Shift is held, the straight
+  // line from the stroke's first sample to the latest one. Releasing Shift mid-stroke goes back to freehand.
+  function strokePoints(raw, straight = false) {
+    if (!straight) return smooth(raw);
+    if (!raw.length) return [];
+    const a = raw[0], b = raw[raw.length - 1];
+    if (a.x === b.x && a.y === b.y) return [{ x: a.x, y: a.y }];
+    return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
+  }
+
   // Points along the polyline at most `step` apart, always including every original vertex.
   function resample(pts, step = RESAMPLE_MM) {
     if (!pts.length) return [];
@@ -90,8 +100,11 @@
   // Returns null for anything that should not draw a ring, else {burst, level, top, strength 0..1, ms}.
   // burst: a one-off cue (corner, end, tick). Otherwise a held level state (0 means off).
   // ms: how long the phone's vibration runs (pattern total), 0 when unknown.
-  // landmark: the phone's long-short cue [120,60,40,80] plus the spoken name (#64); the event carries `name`.
-  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1, landmark: 1 };
+  // landmark: the phone's arrival cue (three 220 ms buzzes since #90) plus the spoken name; the event carries `name`.
+  // landmark-rest: the 70 ms heartbeat every 1.2 s while the finger rests on a landmark (#90). It is a soft cue:
+  // a small ring at this strength, and like every burst it leaves a held line's state alone.
+  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1, landmark: 1, 'landmark-rest': 1 };
+  const SOFT = { 'landmark-rest': 0.3 };
   function patternMs(p) {
     const list = Array.isArray(p) ? p : [p];
     let total = 0;
@@ -131,10 +144,60 @@
     level = Math.max(0, Math.min(top, level));
     const burst = !!BURSTS[kind];
     if (!burst && level === 0) return { burst: false, kind, level: 0, top, strength: 0, ms: 0 };
-    const out = { burst, kind: kind || 'hold', level, top, strength: burst ? 1 : level / top, ms: patternMs(ev.pattern),
+    const out = { burst, kind: kind || 'hold', level, top, strength: burst ? SOFT[kind] || 1 : level / top, ms: patternMs(ev.pattern),
       pulses: burst ? pulseStarts(ev.pattern) : [0] };
+    if (SOFT[kind]) out.soft = true;
     if (kind === 'landmark') out.name = cleanName(ev.name);
     return out;
+  }
+
+  // What the phone actually said aloud (#90): {type:'spoken', text, kind:'landmark'|'status', t}. The stage's
+  // "Student heard" log shows only these, never a guess from a haptic event. Returns {text, kind} or null.
+  const SPOKEN_MAX = 80;
+  function parseSpoken(ev) {
+    if (!ev || ev.type !== 'spoken' || typeof ev.text !== 'string') return null;
+    const text = ev.text.replace(/\s+/g, ' ').trim().slice(0, SPOKEN_MAX);
+    return text ? { text, kind: ev.kind === 'landmark' ? 'landmark' : 'status' } : null;
+  }
+
+  // Phone reports (#71) carry t (ms on the phone's clock, strictly increasing) and age (ms the report waited
+  // before this send). The phone retries a POST whose reply was lost, so the relay can publish one report twice:
+  // each (type, kind, t) is used once (#92). A buzz that waited over maxAgeMs is history, not something to draw
+  // live, so it draws nothing. A late report that only ends a buzz (stop, or level 0) still applies, or a held
+  // line would keep pulsing on the stage after the phone went quiet. Reports without a t always pass.
+  const REPORT_MAX_AGE_MS = 1000;
+  class PhoneReports {
+    constructor(opts = {}) {
+      this.maxAgeMs = opts.maxAgeMs ?? REPORT_MAX_AGE_MS;
+      this.keep = opts.keep ?? 500; // remembered keys; far more than one retry window holds
+      this.seen = new Set();
+    }
+
+    first(ev) {
+      if (ev.t == null || !Number.isFinite(Number(ev.t))) return true;
+      const key = `${ev.type}|${ev.kind}|${Number(ev.t)}`;
+      if (this.seen.has(key)) return false;
+      this.seen.add(key);
+      if (this.seen.size > this.keep) this.seen.delete(this.seen.values().next().value);
+      return true;
+    }
+
+    stale(ev) { return ev.age != null && Number(ev.age) > this.maxAgeMs; }
+
+    // The parsed haptic to act on (as parseHaptic returns it), or null for a repeat, a refusal or a late buzz.
+    haptic(ev) {
+      if (!ev || ev.type !== 'haptic' || !this.first(ev)) return null;
+      const h = parseHaptic(ev);
+      if (h && this.stale(ev) && (h.burst || h.level > 0)) return null;
+      return h;
+    }
+
+    // A spoken line to log ({text, kind}), or null for a repeat or an empty one. Late lines still count:
+    // the student did hear them.
+    spoken(ev) {
+      if (!ev || ev.type !== 'spoken' || !this.first(ev)) return null;
+      return parseSpoken(ev);
+    }
   }
 
   // Landmarks: named points the tutor places, {id, x, y, name, by} in board mm (#64, #65).
@@ -228,7 +291,8 @@
       if (!h) return [];
       if (h.burst) {
         if (this.state) this.state.next = now + this.period(this.state.level, this.state.top);
-        return (h.pulses || [0]).map((delay) => ({ strength: 1, burst: true, delay }));
+        // A soft cue draws a small ring (the held-level style at its strength), a full burst the heavy one.
+        return (h.pulses || [0]).map((delay) => (h.soft ? { strength: h.strength, burst: false, delay } : { strength: 1, burst: true, delay }));
       }
       if (h.level === 0) { this.state = null; return []; }
       const life = Math.max(this.holdMs, (h.ms || 0) + this.marginMs);
@@ -314,8 +378,17 @@
   const TRAIL_STEPS = 4;
   const trailStep = (age) => Math.min(TRAIL_STEPS, Math.floor(Math.max(0, age) * TRAIL_STEPS)) / TRAIL_STEPS;
 
-  const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, resample, distPointSeg,
+  // The tutor's connection line, in words (#92). The board's own link comes first: without it nothing the
+  // tutor draws reaches the phone. phoneLive means a phone report arrived recently; touching is its finger.
+  function connectionStatus(relayUp, phoneLive, touching) {
+    if (!relayUp) return { tone: 'off', text: 'Board offline', sub: 'Reconnecting…' };
+    if (!phoneLive) return { tone: 'wait', text: "Waiting for the student's phone", sub: '' };
+    return { tone: 'on', text: "Student's phone connected", sub: touching ? 'Touching the board' : 'Not touching the board' };
+  }
+
+  const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
+    SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;

@@ -1,9 +1,9 @@
 # Capital Hacks 5.0 status
 
-One screen, current state only; replace lines, never append. Updated at milestones (tag, newly working interaction, blocker, decision). History: `research/status-history-2026-11-06-07.md`. Decisions: `DECISIONS.md`.
+One screen, current state only; replace lines, never append. Updated at milestones (tag, newly working interaction, blocker). History: `research/status-history-2026-11-06-07.md`. Decisions: `DECISIONS.md`.
 
-## Snapshot (Sat Nov 7, 21:30 PT)
-- **Product:** FeelInk. A sighted tutor draws on the laptop stage (`/stage`); a blind student feels the drawing as vibration on an ordinary Android phone (`/feel`) and hears label names and the tutor's spoken instructions. Human-led, in-person. Pitch Sunday: 4-minute slides, no live demo, recorded takes (plan `.plans/feelink-demo-plan-2026-11-07.md`).
+## Snapshot (Sat Nov 7, 21:45 PT)
+- **Product:** FeelInk. A sighted tutor draws on the laptop stage (`/stage`); a blind student feels the drawing as vibration on an ordinary Android phone (`/feel`) and hears label names and the tutor's spoken instructions. Human-led, in-person. Pitch Sunday: 4-minute slides, no live demo, recorded takes (plan `.plans/feelink-demo-plan-2026-11-07.md`; its process notes are superseded by CLAUDE.md).
 - **Build:** FeelInk code on main is `66d9ef2` (felt-share wording) on top of `bbec5eb` (grouped tutor tools #145, label fix #148, Coordinate plane preset #147). Known-good: **tag `demo-2` = `54e8d50`**; `demo-1` = `c64269c`.
 - **Lead:** Fable session `reeve-41` on Reeve's laptop. It owns `feelink/`, the relay, the keepalive and the Pixel.
 - **Services (main checkout, logs in `.tmp/`):** relay `python -I -u feelink/server.py` pid 56416 (log `relay-20341107.log`), keepalive `tools/pixel_keepalive.py` pid 58376. Before any test, `netstat -ano | findstr :8765` shows one PID. Kill with PowerShell `Stop-Process -Id <pid> -Force`; `taskkill` from Git Bash never kills. Reload the Pixel tab: `adb forward tcp:9222 localabstract:chrome_devtools_remote`, then `node tools/pixel_tab.mjs location.href reload`.
@@ -18,7 +18,7 @@ One screen, current state only; replace lines, never append. Updated at mileston
 - Desktop only, no Pixel: the felt row (`66d9ef2`) shows the mean felt share, checked in the running stage over headless Chrome against a test relay, 41 of 41 stage steps pass, screenshot checked 21:12. README stage screenshots came from a scripted test relay.
 
 ## Broken or unverified
-- Pixel off USB since 21:17:11 (adb and Windows both lost it); it drops a few times an hour, cause unknown, and `tools/usb_watch.ps1` now logs each drop. The Coordinate plane real-device check and the recording wait on it.
+- Pixel off USB since 21:17:11 (adb and Windows both lost it); it drops a few times an hour, cause unknown, and `tools/usb_watch.ps1` (b1346dc) should log the next drop (unverified: its first version missed the 21:17 drop). The Coordinate plane real-device check and the recording wait on it.
 - TalkBack compatibility: untested. Educational effectiveness: unverified, a testable hypothesis. Same-network (non-USB) deployment: not demonstrated.
 - Outside feedback: substantive critical feedback from Ricardo (ACB Students, email reply to outreach) and public Reddit respondents (Reeve, 21:20). It is critique, not validation; no user trial is logged in `USERS.md`.
 

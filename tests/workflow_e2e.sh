@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Slow end-to-end check of the team workflow, run by hand (not from tools/check.sh): about 2 minutes.
+# Slow end-to-end check of the team workflow, run by hand (not from tools/check.sh): about 70 seconds.
 #   bash tests/workflow_e2e.sh
 # Clones this repo's committed main into a temp dir with a local bare origin and a `gh` stub that does GitHub's
 # squash merge, then exercises: a direct small change to main, the secret gates, the agent worktree + tools/ship.sh
@@ -84,6 +84,19 @@ else fail "3b ship rc=$rc"; tail -6 <<< "$out"; fi
 if git -C "$B" worktree remove "$W" && [ "$(git -C "$B" worktree list | wc -l)" -eq 1 ] && git -C "$B" rev-parse -q --verify worktree-agent-test >/dev/null; then
   pass "3c worktree removed after the merge, branch kept"
 else fail "3c worktree removal"; fi
+
+# 3d. The lead's no-PR integration: squash an agent branch into main from the main checkout, then push.
+git -C "$B" pull -q --rebase
+W2=$B/.claude/worktrees/agent-squash
+git -C "$B" worktree add -q "$W2" -b worktree-agent-squash
+echo "squash feature line" >> "$W2/TEAM.md"
+git -C "$W2" commit -qam "feat: squash test"
+git -C "$B" merge -q --squash worktree-agent-squash && git -C "$B" commit -q -m "feat: squash test"
+out=$(cd "$B" && git push origin main 2>&1); rc=$?
+if [ $rc -eq 0 ] && grep -q "check: ok" <<< "$out" && git -C "$T/origin.git" show main:TEAM.md | grep -q "squash feature line"; then
+  pass "3d lead squash-merged the agent branch on main and the push ran check.sh"
+else fail "3d squash integration rc=$rc"; tail -5 <<< "$out"; fi
+git -C "$B" worktree remove "$W2"
 
 # 4. Shared files: a stale clone can't overwrite main, and a same-line edit stops as a conflict.
 git -C "$A" pull -q --rebase

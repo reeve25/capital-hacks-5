@@ -1,6 +1,6 @@
 # Decisions
 
-Reeve's and Nathan's decisions for the agents' development work, newest first; times Pacific, from `date`. The lead records each one here and posts one `DECISION` line to team log #1; a session that receives a decision while it is not the lead posts the DECISION line and the lead folds it in. A later entry overrides an earlier one where they differ. Recording, consent, organizer questions, the fact sheet and the deck are Reeve's and Nathan's, off this file (Reeve, 17:59). Current state and open questions: STATUS.md.
+Reeve's and Nathan's decisions for the agents' development work, newest first; times Pacific, from `date`. The lead records each one here, with a `DECISION` line in team log #1 only when it affects the other lane; a session that receives a decision while it is not the lead posts it as a DECISION line so the lead can fold it in. A later entry overrides an earlier one where they differ. Recording, consent, organizer questions, the fact sheet and the deck are Reeve's and Nathan's, off this file (Reeve, 17:59). Current state and open questions: STATUS.md.
 
 ## Standing facts for agents
 - One lead session at a time (Fable, Reeve's laptop). It alone restarts the relay, reloads pages and touches the Pixel.

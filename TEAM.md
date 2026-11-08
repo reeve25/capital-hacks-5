@@ -13,7 +13,7 @@ Start it in this folder, not your home folder: only then does Claude load the te
 |---|---|---|
 | See what's going on | "What's the team status?" | Reads STATUS.md and the team feed |
 | Fix or change something small | "Fix the label wording" | Makes the change, runs it, commits and pushes to main; the checks run on every push |
-| Build something bigger | "Build the recording export" | Gives it one agent with its own copy of the code (a worktree), tests it, then merges it with `tools/ship.sh` |
+| Build something bigger | "Build the recording export" | Gives it to one agent that builds and tests it, in its own copy of the code (a worktree) when other work is going on, then merges it to main |
 | Tell the other person something | "Tell the team we're using Next.js" | Posts one line to the team log (issue #1) |
 | Hand work to the other person | "Add a task for the deck timing and assign it to Nathan" | Opens an issue. Optional: small work needs no issue |
 | Mark a working demo | "Tag this as a good demo" | `git tag demo-N` on main |

@@ -387,11 +387,11 @@ test('spoken reports: only real spoken lines are logged, once each (#90, #92)', 
 });
 
 test('connection status is in words, board link first, then the phone and its finger (#92)', () => {
-  assert.deepEqual(B.connectionStatus(false, 'connected', true), { tone: 'off', text: 'Board offline', sub: 'Reconnecting…', receiving: false });
-  assert.equal(B.connectionStatus(true, 'waiting', false).text, "Waiting for the student's phone");
+  assert.deepEqual(B.connectionStatus(false, 'connected', true), { tone: 'off', text: 'Studio offline', sub: 'Reconnecting…', receiving: false });
+  assert.deepEqual(B.connectionStatus(true, 'waiting', false), { tone: 'wait', text: 'Waiting for the student', sub: 'Open FeelInk on their phone', receiving: false });
   assert.equal(B.connectionStatus(true, 'waiting', true).tone, 'wait', 'a stale finger is not a live phone');
-  assert.equal(B.connectionStatus(true, 'connected', false).sub, 'Not touching the board');
-  assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'on', text: "Student's phone connected", sub: 'Touching the board', receiving: true });
+  assert.deepEqual(B.connectionStatus(true, 'connected', false), { tone: 'on', text: 'Student connected', sub: 'Not touching the screen', receiving: true });
+  assert.deepEqual(B.connectionStatus(true, 'connected', true), { tone: 'live', text: 'Student exploring', sub: 'Finger on the board', receiving: true });
 });
 
 test('landmark-rest heartbeat is a small one-off ring that leaves a held line alone (#90)', () => {
@@ -424,8 +424,8 @@ test('link states: connected under 5 s since the phone last reported, reconnecti
   assert.equal(B.phoneLink(60000), 'disconnected');
   assert.equal(B.phoneLink(100, true), 'disconnected', 'the phone said it went back to its menu');
   const words = (link) => B.connectionStatus(true, link, false);
-  assert.deepEqual(words('reconnecting'), { tone: 'warn', text: "Student's phone reconnecting…", sub: 'Not receiving drawings', receiving: false });
-  assert.deepEqual(words('disconnected'), { tone: 'off', text: "Student's phone disconnected", sub: 'Not receiving drawings', receiving: false });
+  assert.deepEqual(words('reconnecting'), { tone: 'warn', text: 'Phone reconnecting…', sub: "Your changes reach it once it's back", receiving: false });
+  assert.deepEqual(words('disconnected'), { tone: 'off', text: 'Phone disconnected', sub: 'Your changes reach it when it rejoins', receiving: false });
   // The student can receive drawings only when connected, and only while the board itself is online.
   assert.deepEqual(['waiting', 'connected', 'reconnecting', 'disconnected'].map((l) => words(l).receiving), [false, true, false, false]);
   assert.equal(B.connectionStatus(false, 'connected', false).receiving, false);
@@ -690,4 +690,36 @@ test('reveal: the legend line shows only while something is hidden', () => {
   const v = view(2);
   assert.equal(B.revealLegend(v.shown, v.total), 'Shown 2 of 3 strokes');
   assert.equal(B.revealLegend(view(null).shown, view(null).total), '');
+});
+
+test('reveal meter: the step-through control always says where it stands (D10)', () => {
+  assert.equal(B.revealMeter(0, 0), 'Nothing to reveal yet');
+  assert.equal(B.revealMeter(1, 3), 'Shown 1 of 3 strokes', 'mid-reveal reads as the legend line did');
+  assert.equal(B.revealMeter(0, 1), 'Shown 0 of 1 stroke');
+  assert.equal(B.revealMeter(3, 3), 'All 3 strokes shown');
+  assert.equal(B.revealMeter(1, 1), 'The stroke is shown');
+  const { view } = route();
+  assert.equal(B.revealMeter(view(2).shown, view(2).total), 'Shown 2 of 3 strokes');
+  assert.equal(B.revealMeter(view(null).shown, view(null).total), 'All 3 strokes shown');
+});
+
+test('side panels stay out of the GIF crop zone and off the board (D10)', () => {
+  // The stage's own board placement: 52 px header, 12 px pad (stage.html layout).
+  const place = (w, h) => { const f = B.fit(w, h - 52, BOARD, 12); return { ...f, y: f.y + 52 - 6 }; };
+  // 1280x720: compose.py's auto crop of a stage capture measured 624:702 (before-2 screenshot, Nov 7), centred on the board.
+  const v720 = place(1280, 720), z720 = B.cropZone(v720, 1280, 720);
+  assert.ok(Math.abs(z720.x1 - z720.x0 - 624) < 1 && Math.abs((z720.x0 + z720.x1) / 2 - 640) < 1e-9, JSON.stringify(z720));
+  for (const [w, h, dpr] of [[1280, 720, 1], [1366, 768, 1], [1536, 864, 1.25], [1920, 1080, 1], [2560, 1440, 1.5]]) {
+    const v = place(w, h), p = B.sidePanels(v, w, h, dpr);
+    assert.ok(p.lw >= 272 && p.lw <= 360 && p.rw >= 272 && p.rw <= 360, `${w}x${h}: ${p.lw} ${p.rw}`);
+    assert.ok(p.lw + 8 <= p.zone.x0 + 1e-9 && p.rx >= p.zone.x1 + 8 - 1e-9, `${w}x${h}: panels clear of the crop`);
+    assert.equal(p.rx + p.rw, w, 'docked to the right edge');
+  }
+  assert.deepEqual([B.sidePanels(v720, 1280, 720).lw, B.sidePanels(v720, 1280, 720).rw], [320, 320]);
+  // Too narrow for the zone: the minimum width, into the zone but never onto the board.
+  const v = place(1024, 768), p = B.sidePanels(v, 1024, 768);
+  assert.equal(p.lw, 272);
+  assert.ok(p.lw <= v.x - 16 && p.rx >= v.x + v.w + 16);
+  const tiny = place(640, 480), q = B.sidePanels(tiny, 640, 480);
+  assert.ok(q.lw <= tiny.x - 16 && q.rx >= tiny.x + tiny.w + 16 && q.lw >= 0 && q.rw >= 0, JSON.stringify(q));
 });

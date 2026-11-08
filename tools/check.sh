@@ -40,6 +40,7 @@ bash tests/test_team_feed.sh
 bash tests/test_check.sh
 node --test feelink/tactile.test.cjs >/dev/null
 node --test feelink/board.test.cjs >/dev/null
+node --test feelink/presets.test.cjs >/dev/null
 for t in feelink/server.py tools/metrics.py; do
   "$py" -I "$t" --selftest >/dev/null || { echo "check: $t --selftest failed" >&2; fail=1; }
 done

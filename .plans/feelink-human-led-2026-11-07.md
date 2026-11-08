@@ -1,4 +1,4 @@
-# Human-led, software-assisted: product-direction correction for the tutor UI (Reeve, Sat Nov 7, 19:05 PT)
+# Human-led, software-assisted: product-direction correction for the tutor UI (Reeve, Sat Nov 7, 18:55 PT)
 
 Reeve's words, pasted into the lead session. Supersedes any reading of the Studio brief that makes typed instructions central.
 

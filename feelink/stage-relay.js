@@ -48,7 +48,10 @@ es.onmessage = (m) => {
     spawnRings(haptics.onHaptic(h, now), now);
   }
   else if (ev.type === 'spoken') onSpoken(ev);
-  else if (ev.type === 'phoneconfig') feltMm = B.feltFromConfig(ev, feltMm);
+  else if (ev.type === 'phoneconfig') {
+    feltMm = B.feltFromConfig(ev, feltMm);
+    if (Number.isInteger(ev.steps) && ev.steps > 0) phoneTop = ev.steps + 1;
+  }
 };
 
 let prevFrame = performance.now();
@@ -58,6 +61,7 @@ function frame(now) {
   showStatus(now);
   const rv = revealNow();
   showReveal(rv);
+  showSession(now, rv);
 
   if (finger.down && finger.last && finger.cur) {
     finger.cur.x = B.follow(finger.cur.x, finger.last.x, dt, CURSOR_TAU_MS);

@@ -63,15 +63,21 @@ function upsert(st) {
 
 // Student finger: `last` is the latest real sample, `cur` the drawn cursor that eases toward it.
 // downAt/upAt drive the touch-down pop and the lift shrink; upAt is null while the finger is down.
-const finger = { down: false, last: null, cur: null, downAt: -Infinity, upAt: -Infinity, lastAt: 0 };
+// For the session panel: `level` is the buzz the phone reports playing (NaN when it says nothing), and movedAt is when
+// the finger last moved TOUCH_MOVE_MM from where it had settled, so a still finger reads as resting.
+const finger = { down: false, last: null, cur: null, downAt: -Infinity, upAt: -Infinity, lastAt: 0, level: NaN, anchor: null, movedAt: 0 };
+// The phone's level on the line: its fade steps plus one (tactile.js), from phoneconfig; 4 is the shipped 3-step fade.
+let phoneTop = 4;
 let trail = []; // {x, y, t} or {gap: true, t}
 let lastPhoneAt = -Infinity, phoneLeft = false;
 function onFinger(ev) {
   const now = performance.now();
+  finger.level = Number.isFinite(ev.level) ? ev.level : NaN;
   if (!ev.down || !Number.isFinite(ev.x) || !Number.isFinite(ev.y)) {
     if (finger.down) { trail.push({ gap: true, t: now }); finger.upAt = now; }
     finger.down = false;
     finger.last = null;
+    finger.anchor = null;
     return;
   }
   const p = { x: ev.x, y: ev.y };
@@ -84,6 +90,7 @@ function onFinger(ev) {
     B.markFelt(s.samples, s.felt, from, p, feltMm, stamp(now));
   });
   if (!finger.down) { finger.cur = { ...p }; finger.downAt = now; finger.upAt = null; }
+  if (!finger.anchor || Math.hypot(p.x - finger.anchor.x, p.y - finger.anchor.y) >= B.TOUCH_MOVE_MM) { finger.anchor = p; finger.movedAt = now; }
   finger.down = true;
   finger.last = p;
   finger.lastAt = now;

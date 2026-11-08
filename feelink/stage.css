@@ -122,7 +122,7 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .key li svg { width: 28px; height: 14px; flex: none; overflow: visible; }
 .key kbd { min-width: 18px; height: 18px; }
 
-/* The student's side: presence in the header, then what their phone has said, then the instruction box. */
+/* The student's session: the link in the header, then the student right now, then what their phone has said. */
 .status i { position: relative; width: 10px; height: 10px; flex: none; box-sizing: border-box; border-radius: 50%;
   border: 2px solid var(--faint); }
 .status[data-tone="on"] i, .status[data-tone="live"] i { background: var(--teal); border-color: var(--teal); }
@@ -136,46 +136,70 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 .status small { display: block; font-size: var(--t-sm); line-height: 1.3; color: var(--muted); }
 .status small:empty { display: none; }
 
-/* Spoken on their phone (#92, #107): only what the phone reports it said, newest first and largest; older lines fold
-   under Earlier. An instruction carries its state in words: sent, then spoken once the phone reports playing it. */
-.heard { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.heard h2 { margin-bottom: var(--s-3); }
-.heard .empty { font-size: var(--t-md); line-height: 1.45; color: var(--muted); }
-.heard .empty ul { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: var(--s-3); }
-.heard .empty li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: var(--s-3); padding: 0; border: 0;
-  font-size: var(--t-sm); color: var(--faint); }
-.heard .empty li > svg { grid-row: auto; }
-.heard .empty[hidden] { display: none; }
-.heard ol { list-style: none; margin: 0; padding: 0; }
-.heard li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 6px;
-  padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-md); line-height: 1.35; color: var(--muted); }
-.heard li:first-child { padding-top: 0; border-top: 0; }
-.heard li > svg { grid-row: 1 / span 2; width: 16px; height: 16px; margin-top: 1px; }
-.heard li .say-line { grid-column: 2; overflow-wrap: anywhere; }
-.heard li .meta { grid-column: 2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); }
-.heard li.k-landmark .say-line { font-weight: 700; }
-.heard li.latest { color: var(--text); }
-.heard li.latest .say-line { font-size: var(--t-xl); font-weight: 700; line-height: 1.3; }
-.heard li.latest > svg { margin-top: 4px; }
-.heard .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--s-2); box-sizing: border-box;
-  border-radius: 10px; font-size: var(--t-xs); font-weight: 700; white-space: nowrap; }
-.heard li.is-sent .badge { color: var(--text); border: 1px dashed var(--faint); }
-.heard li.is-heard .badge { color: var(--teal); border: 1px solid #1d5e57; }
-.heard li.is-replaced .badge { color: var(--muted); border: 1px solid var(--line); }
-.heard .count { font-size: var(--t-xs); font-weight: 700; color: var(--text); }
-.heard time { font-size: var(--t-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
-.heard details { min-height: 0; margin-top: var(--s-4); padding-top: var(--s-1); border-top: 1px solid var(--line); overflow-y: auto;
-  scrollbar-width: thin; scrollbar-color: var(--edge) transparent; }
-.heard details[hidden] { display: none; }
-.heard summary { display: flex; align-items: center; justify-content: space-between; min-height: 40px; font-size: var(--t-sm);
-  font-weight: 700; color: var(--muted); cursor: pointer; list-style: none; }
-.heard summary::-webkit-details-marker { display: none; }
-.heard summary:hover { color: var(--text); }
-.heard summary svg { transition: transform 150ms ease-out; }
-.heard details[open] summary svg { transform: rotate(180deg); }
-.heard details ol { padding-bottom: var(--s-2); }
-.heard li.enter { animation: enter 220ms cubic-bezier(0.23, 1, 0.32, 1); }
+/* The student right now (human-led note, Nov 7): three lines, each led by the board's own mark for what it reports, so
+   the panel doubles as the board's key. Big enough to read at a glance while talking to the student; grey until there
+   is something real to say. The history of spoken lines folds away at the foot. */
+.now { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-6); }
+.row { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 3px; }
+.row .g { grid-row: 1 / span 2; width: 22px; height: 22px; margin-top: 1px; overflow: visible; }
+.row b { font-size: var(--t-xl); line-height: 1.3; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.row .sub { grid-column: 2; font-size: var(--t-md); line-height: 1.35; color: var(--muted); }
+.row .sub:empty { display: none; }
+.row[data-state="lifted"] b { font-weight: 400; color: var(--muted); }
+.row[data-state="none"] b { font-weight: 400; color: var(--faint); }
+/* Their finger: the board's cursor (amber in a white ring) while it is on the glass, an empty ring when it is not. */
+.row .g-ring { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+.row .g-dot { fill: none; }
+#touchRow[data-state="exploring"] .g-ring, #touchRow[data-state="resting"] .g-ring { fill: #ffffff; stroke: #ffffff; }
+#touchRow[data-state="exploring"] .g-dot, #touchRow[data-state="resting"] .g-dot { fill: var(--amber); }
+#touchRow[data-state="exploring"] b, #touchRow[data-state="resting"] b { color: var(--teal); }
+/* The point their phone last said: a named point, filled once spoken, as on the board. */
+.row .g-zone { fill: none; stroke: var(--line); stroke-width: 1; }
+#spokeRow .g-dot { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+#spokeRow .g-hole { fill: none; }
+#spokeRow[data-state="on"] .g-zone { stroke: var(--edge); }
+#spokeRow[data-state="on"] .g-dot { fill: var(--teal); stroke: var(--teal); }
+#spokeRow[data-state="on"] .g-hole { fill: var(--panel); }
+/* What they have felt: grey ink turning teal, and one bar per line the tutor drew, filled as far as it is teal. */
+.row .g-unfelt { fill: none; stroke: var(--edge); stroke-width: 2.6; stroke-linecap: round; }
+.row .g-felt { fill: none; stroke: none; stroke-width: 2.6; stroke-linecap: round; }
+#feltRow[data-state="on"] .g-felt { stroke: var(--teal); }
+#feltRow b { font-size: var(--t-lg); }
+.bars { grid-column: 2; display: flex; gap: 4px; height: 6px; margin-top: var(--s-2); }
+.bars:empty { display: none; }
+.bars i { flex: 0 1 36px; min-width: 4px; border-radius: 3px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--edge);
+  overflow: hidden; }
+.bars i.track { flex: 1 1 auto; max-width: 200px; }
+.bars span { display: block; height: 100%; background: var(--teal); }
+.row.enter { animation: enter 260ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes enter { from { opacity: 0.35; transform: translateY(-4px); } }
+
+/* Spoken on their phone (#92, #107): every line the phone reports it said, newest first, with an instruction's state in
+   words (sent, then spoken once the phone reports playing it). Folded until the tutor wants it. */
+.said { margin-top: auto; border-top: 1px solid var(--line); }
+.said[hidden] { display: none; }
+.said summary { display: flex; align-items: center; gap: var(--s-2); min-height: 44px; font-size: var(--t-sm); font-weight: 700;
+  color: var(--muted); cursor: pointer; list-style: none; }
+.said summary::-webkit-details-marker { display: none; }
+.said summary:hover { color: var(--text); }
+.said summary .n { font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
+.said summary svg { margin-left: auto; transition: transform 150ms ease-out; }
+.said[open] summary svg { transform: rotate(180deg); }
+.said ol { list-style: none; margin: 0; padding: 0 0 var(--s-1); max-height: 38vh; overflow-y: auto; scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent; }
+.said li { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: var(--s-3); row-gap: 4px; padding: 10px 0;
+  border-top: 1px solid var(--line); font-size: var(--t-sm); line-height: 1.35; color: var(--muted); }
+.said li > svg { grid-row: 1 / span 2; width: 16px; height: 16px; margin-top: 1px; }
+.said li .say-line { grid-column: 2; color: var(--text); overflow-wrap: anywhere; }
+.said li.k-status .say-line { color: var(--muted); }
+.said li .meta { grid-column: 2; display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); }
+.said .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--s-2); box-sizing: border-box;
+  border-radius: 10px; font-size: var(--t-xs); font-weight: 700; white-space: nowrap; }
+.said li.is-sent .badge { color: var(--text); border: 1px dashed var(--faint); }
+.said li.is-heard .badge { color: var(--teal); border: 1px solid #1d5e57; }
+.said li.is-replaced .badge { color: var(--muted); border: 1px solid var(--line); }
+.said .count { font-size: var(--t-xs); font-weight: 700; color: var(--text); }
+.said time { font-size: var(--t-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
 
 /* Instruction box (#107): a task the phone reads aloud and the student can replay, so it lives below the record, not
    above it: the tutor's own voice is the main channel. Keys typed here are text, not board shortcuts. */
@@ -202,8 +226,8 @@ kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; 
 #guide p { margin-top: var(--s-2); font-size: 15px; line-height: 1.45; color: var(--ink-soft); text-wrap: balance; }
 body.board-busy #guide { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .heard li.enter, .status[data-tone="live"] i::after { animation: none; }
-  #guide, .tool, .say kbd, .pips i, .heard summary svg { transition: none; }
+  .row.enter, .status[data-tone="live"] i::after { animation: none; }
+  #guide, .tool, .say kbd, .pips i, .said summary svg { transition: none; }
 }
 
 /* Name box for a new point, opened on the board where the tutor clicked; the board marks that spot meanwhile. The

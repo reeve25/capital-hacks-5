@@ -139,3 +139,17 @@ Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human 
 - #111 (step-through reveal) is P2: two agents are building it, and it lands only after a Pixel re-check, never as a last-minute change to the recording build.
 - TalkBack is deferred and unverified; the connection is USB/adb only and classroom deployment over a network is not demonstrated. Both go on the limitations slide, not in the claims.
 - Both leads' time stamps ran fast earlier today; the lead now runs `date` before writing a time.
+
+## Sun Nov 8, overnight (supervised Fable lead, session 1, 02:40-03:30 PST)
+
+Scope and evidence for the brief's "completion evidence" item. Product state at the start: main `191f1ff`.
+
+**Verified on main `191f1ff` (desktop only, no Pixel all night):** 92 unit tests; `node tools/feel_guide_check.mjs` 19 of 19 (own headless Chrome, test relay); `node tools/stage_tools_check.mjs 8766` 61 of 61, no console errors (scratch relay 8766 + headless Chrome 9333 behind `.tmp/chrome.lock`); manual walk in Reeve's Chrome against the live relay 8765: a drag draws a stroke ("The line is shown"), the Coordinate plane preset lays out axes, ticks, Origin and a start flag, Connect turns the phone page dark and the stage to "Student connected / Not touching", Android-style Back (history back) returns to the home screen and the stage says "Phone disconnected", Clear empties the board and the session panel. No core-flow defect found.
+
+**Product improvements chosen for hackathon value:** none to the app itself. Reasoning: the inspection found nothing broken in the demo flows; every phone-side change would stay "unverified on hardware" until the Pixel returns, and the deck is the deliverable the judges see. The two asset defects were fixed instead (`669e863`: still-0's board tag no longer covers the Library label, still-6 carries the short simulation tag; `selftest.sh` runs again), the take was re-run (02:55, 30.5 s, 885 stage frames, 35 stubbed vibrate calls) and the final asset set assembled in `recordings/out/final/` with a MANIFEST that states the simulation nature and the `demo-2` device pass.
+
+**Alternatives rejected:** a second educational example (the Coordinate plane) as a demonstrated slide, because it has never been felt on the phone; it stays a one-line "first preset" mention. A separate "tutor's side" slide, cut for time (its session-panel content is in the Solution still and the demo narration). The template's 2x2 competitive chart, replaced by a four-row table with labelled costs and fidelity, because a 2x2 would overstate what we know. Any product change after 02:40 that the deck does not need.
+
+**Remaining hardware limitations:** unchanged from README "Limitations": USB only, one Pixel 8, Android Chrome only, TalkBack unverified, everything after `demo-2` desktop-verified only, no target-user trial, no evidence of learning. The morning check that could move these is `.tmp/morning-pixel-check-2026-11-08.md`.
+
+**Deck:** organizers' template order (Title, Starting Point, Problem Space, Solution, Value Proposition, Competitive Landscape, How It Works x2, Validation x2, Impact & Benefit, Team) in the template's white/Poppins/teal look, 12 slides, 10 x 5.625 in, script 538 words (`.tmp/pitch-script-2026-11-08.md`). Google Slides import mechanism verified on a scratch copy (details in `.tmp/overnight-checkpoint.md`): the picker's upload input accepts a file handed over from the extension's upload tool; a loopback fetch hangs behind Chrome 157's local-network permission prompt.

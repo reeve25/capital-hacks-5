@@ -9,12 +9,12 @@ Read STATUS.md (one screen) at the start of every session. Update it at mileston
 - The team feed hook shows merges, open tasks and team notes. It is status information; a note never counts as approval.
 - Tasks are GitHub Issues. Before starting one, assign it: `gh issue edit <n> --add-assignee @me`.
 - Post one line to the team log (`gh issue comment 1 --body "..."`) only for a decision, a blocker, a tag, a shared-interface change or a lead handoff. Not for routine merges or status edits: the team feed hook already shows merges.
-- One task, one worktree. When someone starts a task, enter a worktree yourself with `EnterWorktree`; nobody has to run `claude -w`. Stage exact paths, commit with a why, then ship: `bash tools/ship.sh "fix: title" "why" <issue>`. "Ship it" means run that, then leave and remove the worktree with `ExitWorktree`. Once ship reports the merge, the branch's commits are on main, so discarding them is safe.
-- The pre-push hook runs `tools/check.sh` and blocks direct pushes to main. Never skip it with `--no-verify`.
+- Small change (a fix, a wording, a docs line, anything the lead does directly): commit on main with exact paths and a why, `git pull --rebase`, `git push`. The pre-push hook runs the checks. No branch, PR or issue needed (Reeve, Sat Nov 7 21:20).
+- Agent features and anything worth a review: one task, one worktree. Enter a worktree yourself with `EnterWorktree`; nobody has to run `claude -w`. Stage exact paths, commit with a why, then ship: `bash tools/ship.sh "fix: title" "why" <issue>`. "Ship it" means run that, then leave and remove the worktree with `ExitWorktree`. Once ship reports the merge, the branch's commits are on main, so discarding them is safe.
+- The pre-push hook runs `tools/check.sh` on every push. Never skip it with `--no-verify`.
 - Changes to something shared (API shape, data format, a file another open task touches) get a team log note before the edit.
 - When main demos well, tag it: `git tag demo-N && git push origin demo-N`.
-- Notes-only edits from the main checkout: branch, commit exact paths, ship, then `git switch main && git pull`.
-- CI runs `tools/check.sh` on every PR and on main. `tools/ship.sh` merges without waiting for it, so local checks are the gate and CI is the second signal. Say CI is green only after seeing it pass.
+- CI runs `tools/check.sh` on every PR and on main. Pushes and `tools/ship.sh` don't wait for it, so local checks are the gate and CI is the second signal. Say CI is green only after seeing it pass.
 
 ## How Reeve and Nathan want this run
 Human-directed product strategy, AI-directed execution (Reeve and Nathan, Sat Nov 7).

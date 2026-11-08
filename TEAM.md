@@ -21,7 +21,7 @@ Run `claude` once in the repo folder, then say what you want, like "start a task
 - `CLAUDE.local.md`: who is at this laptop. It is never committed.
 
 ## If something goes wrong
-- **"Direct push to main is off"**: expected. Ask Claude to ship from a task branch.
+- **A push was refused by the checks**: expected. Ask Claude to fix what `tools/check.sh` reported, then push again.
 - **Merge conflict**: ask Claude to resolve it and show you what it chose.
 - **Wifi is down**: work continues locally, and the team feed goes quiet. Use a phone hotspot to ship.
 - **Demo broke on main**: ask Claude to revert the last shipped task. Each task is one commit, and `demo-N` tags mark the last good versions.

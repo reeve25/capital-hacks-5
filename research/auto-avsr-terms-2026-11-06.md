@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Auto-AVSR terms, read Nov 6, 2026, about 08:25 PT
 
 Read through a page-summarizing fetch, so re-read the sources before relying on exact wording. Not legal advice.

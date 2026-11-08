@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Haptic wristband: parts and actuator options, Nov 6, 2026, about 18:00 PT
 
 Asked by Reeve and Nathan after liking Invisible Leash and reshaping it as a wristband. Nothing here has been built, tested or ordered. Evidence labels: **Read** (I read the page or PDF), **Excerpt** (search-result excerpt only; page blocked or unreachable), **Reasoned** (my inference), **Live** (read from Amazon at about 17:55 PT, signed in, account default address).

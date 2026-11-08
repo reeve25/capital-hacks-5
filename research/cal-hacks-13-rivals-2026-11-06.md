@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Cal Hacks 13.0 rivals to Silent Voice, checked Nov 6, 2026, about 13:20 PT
 
 Reeve spotted this. The advisor's and Codex's earlier rival searches missed it, and `research/creative-checkin-2026-11-06.md` wrongly called "speaks aloud in a cloned voice" the innovation gap. Labels: **Read** = opened the source. All placement and accuracy figures are the teams' own claims.

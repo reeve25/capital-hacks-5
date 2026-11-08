@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Wild demos, worked backward, Nov 6, 2026, 14:35 PT
 
 Nothing here is chosen, built, tested or shown to a user. Problems and feasibility are reasoned unless labeled. Local leads are ideas; nobody was contacted.

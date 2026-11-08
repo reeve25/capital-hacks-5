@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 **Verified:** No files edited.
 
 1. **Product match — Verified:** No. This builds a wearable wrist actuator, not a cane. **Reasoned:** The gap is the entire mobility system: destination selection, localization, navigation and hazard handling. A hand pointing somewhere does not establish a safe path there.

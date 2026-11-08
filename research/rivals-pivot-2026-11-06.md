@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Rival check, Capital Hacks 5.0 candidates (Fri Nov 6, 2026)
 
 Labels: **Read** = I opened the page or README. **Secondary** = I only saw a search-result snippet or news summary.

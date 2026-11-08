@@ -31,6 +31,8 @@ PAGES = {
     "/stage-session.js": ("stage-session.js", "text/javascript"),
     "/stage-tools.js": ("stage-tools.js", "text/javascript"),
     "/stage-relay.js": ("stage-relay.js", "text/javascript"),
+    "/stage-presets.js": ("stage-presets.js", "text/javascript"),
+    "/presets.js": ("presets.js", "text/javascript"),
     "/board.js": ("board.js", "text/javascript"),
 }
 

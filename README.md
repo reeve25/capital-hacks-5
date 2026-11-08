@@ -83,7 +83,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 
 1. **Device and engineering behaviour, Measured** on one Pixel 8: the numbers above, label arrival and speech heard on the phone, recovery after a USB drop.
 2. **Prototype usability, one session:** a sighted tester with eyes closed named 4 of 5 shapes, median 49.9 s per shape. This was an older build (14 mm core). It does not validate the current build, route learning or any educational effect.
-3. **Feedback from blind students or teachers: none yet.** Outreach emails have gone out; no replies are recorded, and no one from the target group has tried FeelInk.
+3. **Feedback from blind students or teachers: one written reply, and it is critical.** A blind student with tactile-graph experience answered our outreach email (Sat, logged anonymously in `USERS.md`): in their view a single vibrating point on flat glass gives no spatial context once the finger slips off, TalkBack intercepts single-finger gestures, and motor latency plus fingertip numbness turn the lesson into chasing a buzz; they suggest audio sonification or low-cost raised-line boards instead. Nobody from the target group has tried FeelInk.
 4. **Evidence that FeelInk helps students learn: none.** It is a hypothesis to test, not a result.
 
 ## Limitations
@@ -94,7 +94,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 - **TalkBack is unverified.** Reading the Android sources suggests one-finger exploring may never reach the page with the screen reader on; nobody has tested it. Do not assume FeelInk works with TalkBack.
 - **No target-user validation and no evidence of educational effect** (see above).
 - **Far lower fidelity than a tactile display:** one fingertip, no raised dots, no braille.
-- **Not yet checked on the Pixel:** the step-through reveal, the redesigned Studio stage, the Coordinate plane and the new phone home screen. The last build that passed a check on the Pixel is tag `demo-1`.
+- **Not yet checked on the Pixel:** the Coordinate plane preset, the grouped tutor tools, the label-placement fix and the felt-share row (everything on main after tag `demo-2`). The last build that passed a check on the Pixel is `demo-2` (Connect, route trace with spoken labels, step-through reveal), Sat 20:33.
 - **No authentication.** Anyone on the same network can open the pages, so run the relay only while you use it.
 
 ## What we'd do next

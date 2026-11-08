@@ -2,7 +2,7 @@
 // the renderer, relay events in and posts out, touch and gestures, and the page-lifecycle stops. Loaded first.
 
 const { BOARD, SHAPES, Renderer, poster, sendQueue, drawingKey, doubleTapper, landmarkLine, startMark, replayLine, landmarkVoice, speechCut,
-  revealUpto, nextSeq, revealed, revealChanged } = Tactile;
+  revealUpto, nextSeq, revealed, revealChanged, changeLine } = Tactile;
 const $ = (id) => document.getElementById(id);
 const canvas = $('board'), ctx = canvas.getContext('2d');
 const SCREEN_WIDTH_MM = 64.6; // Pixel 8: 6.2 in at 20:9, calculated from the spec, not measured.
@@ -279,7 +279,7 @@ function sendFinger(msg) {
 // change, not one per move. `heard` is the drawing as the student was last told it, so a change undone within the
 // pause, or a reconnect's sync of the same board, says nothing. The student's own two-finger stroke is their doing:
 // it is absorbed unless a tutor change is already waiting. With no baseline yet (Live opened before the link), the
-// first sync is the starting drawing.
+// first sync is the starting drawing. A change that leaves nothing to feel says "Drawing cleared." (tactile.js changeLine).
 const CHANGE_MS = 1500;
 let heard = null, changeTimer = null, synced = false;
 function noteDrawing(ev) {
@@ -287,8 +287,8 @@ function noteDrawing(ev) {
   clearTimeout(changeTimer);
   changeTimer = setTimeout(() => {
     changeTimer = null;
-    const now = shownKey();
-    if (now !== heard) { heard = now; say('Drawing changed.', 'status'); }
+    const now = shownKey(), line = changeLine(heard, now);
+    if (line) { heard = now; say(line, 'status'); }
   }, CHANGE_MS);
 }
 // "Drawing updated." when a reveal changes what the student can feel (#111): said at once, as a status line, and it

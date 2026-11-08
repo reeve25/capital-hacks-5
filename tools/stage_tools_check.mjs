@@ -1,7 +1,9 @@
 // Drive every stage tutor tool (#141) through headless Chrome over CDP against a TEST relay, checking the real state
 // after each step: Draw, Label, Start point (buttons and D/L/S/Escape), rename, Undo/U, Clear/C and its in-place toast,
-// Previous/Next/Reveal all and P/N/Shift+N, keyboard focus, and that the board's view never moves. Posts its own test
-// route (Classroom start -> Library) first, so it clears that relay's board. Never point it at the live relay (8765).
+// Previous/Next/Reveal all and P/N/Shift+N, keyboard focus, and that the board's view never moves. Last, the real /feel
+// page in a second window (speech and vibrate stubbed: desktop simulation, no phone): the stage's link state before and
+// after Connect, and the status line the phone says for each tutor change. Posts its own test route (Classroom start ->
+// Library) first, so it clears that relay's board. Never point it at the live relay (8765).
 // Run from the repo root:
 //   python -I -u feelink/server.py 8766
 //   chrome --headless=new --remote-debugging-port=9333 --user-data-dir=<a scratch dir> --window-size=1600,1000 about:blank
@@ -20,16 +22,20 @@ const tabs = await (await fetch('http://127.0.0.1:9333/json')).json();
 const ws = new WebSocket(tabs.find((t) => t.type === 'page').webSocketDebuggerUrl);
 let id = 0;
 const errors = [], results = [];
-const send = (method, params = {}) => new Promise((res) => {
+const sender = (sock) => (method, params = {}) => new Promise((res) => {
   const my = ++id;
-  const on = (ev) => { const m = JSON.parse(ev.data); if (m.id === my) { ws.removeEventListener('message', on); res(m); } };
-  ws.addEventListener('message', on); ws.send(JSON.stringify({ id: my, method, params }));
+  const on = (ev) => { const m = JSON.parse(ev.data); if (m.id === my) { sock.removeEventListener('message', on); res(m); } };
+  sock.addEventListener('message', on); sock.send(JSON.stringify({ id: my, method, params }));
 });
-ws.addEventListener('message', (ev) => {
+const send = sender(ws);
+// The phone page has no favicon, so Chrome's own request for one 404s; that is not the page's error.
+const watchErrors = (sock) => sock.addEventListener('message', (ev) => {
   const m = JSON.parse(ev.data);
   if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text + ' ' + (m.params.exceptionDetails.exception?.description || '').slice(0, 200));
-  if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push(m.params.entry.text.slice(0, 200));
+  const entry = m.method === 'Log.entryAdded' && m.params.entry;
+  if (entry && entry.level === 'error' && !/\/favicon\.ico$/.test(entry.url || '')) errors.push(entry.text.slice(0, 200));
 });
+watchErrors(ws);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ev = async (expr) => { const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true }); if (r.result?.exceptionDetails) throw new Error(expr + ': ' + JSON.stringify(r.result.exceptionDetails).slice(0, 300)); return r.result.result.value; };
 const state = () => ev(`({ tool, data: document.body.dataset.tool, pressed: Object.fromEntries(Object.entries(tools).map(([k, b]) => [k, b.getAttribute('aria-pressed')])),
@@ -49,6 +55,20 @@ const click = async (x, y) => { await mouse('mouseMoved', x, y); await mouse('mo
 const center = async (sel) => ev(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
 const clickEl = async (sel) => { const [x, y] = await center(sel); await click(x, y); };
 const px = async (mx, my) => ev(`[view.x + ${mx} * view.scale, view.y + ${my} * view.scale]`);
+// The relay's own board: the sync it sends every new client, read off a fresh event stream.
+const relayBoard = async () => {
+  const ac = new AbortController();
+  const r = await fetch(`http://127.0.0.1:${port}/events`, { signal: ac.signal });
+  const dec = new TextDecoder();
+  let buf = '';
+  try {
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true });
+      const m = buf.match(/^data: (.*)\n\n/m);
+      if (m) return JSON.parse(m[1]);
+    }
+  } finally { ac.abort(); }
+};
 
 ws.addEventListener('open', async () => {
   try {
@@ -109,6 +129,19 @@ ws.addEventListener('open', async () => {
     check('Undo button removes Office', s.marks === 'Classroom,Library,Gym*', s);
     await key('u', 'KeyU'); await sleep(300); s = await state();
     check('U removes Gym (start returns to none)', s.marks.startsWith('Classroom') && !s.marks.includes('Gym'), s);
+
+    // A click in Draw is no line (review, Nov 8): nothing on the board, nothing posted to the relay, so the stepper
+    // below still counts 2 lines after the drag.
+    const relayLines = async () => (await relayBoard()).strokes.length;
+    [x, y] = await px(30, 50); await click(x, y); s = await state();
+    let relayN = await relayLines();
+    check('a click in Draw adds no line, on the board or the relay', s.strokes === 1 && relayN === 1, { s, relayN });
+    const mmPx = await ev('view.scale');
+    await mouse('mousePressed', x, y); mouse.down = true;
+    await mouse('mouseMoved', x + 0.6 * mmPx, y); await mouse('mouseMoved', x + 0.3 * mmPx, y + 0.7 * mmPx);
+    await mouse('mouseReleased', x + 0.3 * mmPx, y + 0.7 * mmPx); mouse.down = false; await sleep(300); s = await state();
+    relayN = await relayLines();
+    check('a press that moves under 1 mm adds no line', s.strokes === 1 && relayN === 1, { s, relayN });
 
     // Draw: a drag adds a stroke; Shift lights the readout's key.
     [x, y] = await px(40, 30); const [x2, y2] = await px(48, 60);
@@ -192,10 +225,71 @@ ws.addEventListener('open', async () => {
     check('relay unreachable: P changes nothing', p.reveal === null, p);
     await ev('connect()'); await sleep(800); p = await paused();
     check('relay back: notice gone, tools live', !p.on && !p.inert && p.status !== 'Studio offline', p);
+
+    // The phone (review, Nov 8): the real /feel page in a second window on this relay, its speech and vibrate stubbed,
+    // so this is desktop simulation, not a device. Its home screen is not the student; Connect is. Then what it says for
+    // each tutor change, and that the stage's caption and history show the same line.
+    const bws = new WebSocket((await (await fetch('http://127.0.0.1:9333/json/version')).json()).webSocketDebuggerUrl);
+    await new Promise((r) => bws.addEventListener('open', r));
+    const { targetId } = (await sender(bws)('Target.createTarget', { url: 'about:blank', newWindow: true })).result;
+    const pws = new WebSocket((await (await fetch('http://127.0.0.1:9333/json')).json()).find((t) => t.id === targetId).webSocketDebuggerUrl);
+    await new Promise((r) => pws.addEventListener('open', r));
+    watchErrors(pws);
+    const psend = sender(pws);
+    const pev = async (expr) => { const r = await psend('Runtime.evaluate', { expression: expr, returnByValue: true }); return r.result?.exceptionDetails ? undefined : r.result.result.value; };
+    await psend('Runtime.enable'); await psend('Log.enable'); await psend('Page.enable');
+    await psend('Page.addScriptToEvaluateOnNewDocument', { source: `window.__said = [];
+      Object.defineProperty(Navigator.prototype, 'vibrate', { configurable: true, value: () => true });
+      const synth = { speak(u) { window.__said.push(u.text); setTimeout(() => u.onend && u.onend(), 20); }, cancel() {}, getVoices: () => [] };
+      Object.defineProperty(window, 'speechSynthesis', { configurable: true, get: () => synth });` });
+    const status = () => ev('statusText.textContent');
+    const loadPhone = async () => {
+      await pev('window.__stale = true'); // so a reload waits for the new page, not the one it replaces
+      await psend('Page.navigate', { url: `http://127.0.0.1:${port}/feel` });
+      for (let i = 0; i < 25 && !(await pev('!window.__stale && typeof link !== "undefined" && link === "on"')); i++) await sleep(200);
+    };
+    await loadPhone(); await sleep(2500); // past one 2 s config beat, had it been sending them
+    let st = { status: await status(), mode: await pev('mode'), visible: await pev('document.visibilityState') };
+    check('phone on its home screen: the stage still waits for the student', st.status === 'Waiting for the student' && st.mode === 'home', st);
+    await pev(`$('live').click()`); await sleep(800);
+    st = { status: await status(), mode: await pev('mode') };
+    check('phone taps Connect: the stage says Student connected', st.status === 'Student connected' && st.mode === 'live', st);
+    // What the phone said after a tutor change, and what the stage shows of it.
+    let n0 = 0;
+    const mark = async () => { n0 = await pev('__said.length'); };
+    const saidSince = async () => pev(`__said.slice(${n0})`);
+    const told = async () => ({ phone: await saidSince(), caption: await ev('caption && caption.name'), history: await ev('log.items[0] && log.items[0].text') });
+    await mark();
+    [x, y] = await px(20, 30); const [x3, y3] = await px(30, 40);
+    await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y); mouse.down = true;
+    for (let i = 1; i <= 6; i++) await mouse('mouseMoved', x + (x3 - x) * i / 6, y + (y3 - y) * i / 6);
+    await mouse('mouseReleased', x3, y3); mouse.down = false;
+    await sleep(1000); const early = await saidSince();
+    await sleep(1300); let t = await told();
+    check('a new line: "Drawing changed." after the 1.5 s pause, not before', early.length === 0 && t.phone.join() === 'Drawing changed.'
+      && t.caption === 'Drawing changed', { early, ...t });
+    await mark(); await key('c', 'KeyC'); await sleep(2100); t = await told();
+    check('Clear: the phone says "Drawing cleared."', t.phone.join() === 'Drawing cleared.', t);
+    check('Clear: the stage caption and history say "Drawing cleared"', t.caption === 'Drawing cleared' && t.history === 'Drawing cleared.', t);
+    await mark(); await key('u', 'KeyU'); await sleep(2100); t = await told();
+    check('Undo of the Clear: "Drawing changed."', t.phone.join() === 'Drawing changed.' && t.caption === 'Drawing changed', t);
+    await mark(); await key('p', 'KeyP'); await sleep(400); t = await told();
+    check('Previous step: "Drawing updated." at once', t.phone.join() === 'Drawing updated.' && t.caption === 'Drawing updated', t);
+    await key('N', 'KeyN', 8); await sleep(400);
+    await mark(); relayN = await relayLines();
+    [x, y] = await px(30, 50); await click(x, y); await sleep(2000);
+    t = await told(); const relayAfter = await relayLines();
+    check('a click in Draw: the relay gets no line and the phone says nothing', relayAfter === relayN && t.phone.length === 0, { ...t, relayN, relayAfter });
+    // Back to the home screen by a reload: the leaving config marks the phone gone at once (#107).
+    await loadPhone(); await sleep(800);
+    st = { status: await status(), mode: await pev('mode') };
+    check('phone reloaded to its home screen: the stage says Phone disconnected', st.status === 'Phone disconnected' && st.mode === 'home', st);
+    await sender(bws)('Target.closeTarget', { targetId });
+    bws.close();
   } catch (e) { results.push(['FAIL', 'script error', String(e).slice(0, 300)]); }
   for (const r of results) console.log(r.join('  '));
   const fails = results.filter((r) => r[0] === 'FAIL').length;
   console.log(`${results.length - fails}/${results.length} passed; console errors: ${errors.length ? errors.join(' | ') : 'none'}`);
   ws.close(); process.exit(fails || errors.length ? 1 : 0);
 });
-setTimeout(() => { console.log('timeout'); process.exit(3); }, 90000);
+setTimeout(() => { console.log('timeout'); process.exit(3); }, 150000);

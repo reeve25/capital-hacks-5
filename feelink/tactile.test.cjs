@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, guideInterval, poster, sendQueue, drawingKey, doubleTapper,
-  landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged } = require('./tactile.js');
+  landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
 const rendererWith = (strokes, opts = {}) => {
@@ -302,6 +302,21 @@ test('drawingKey: the tutor drawing or a landmark changing is a change; a stroke
   assert.notEqual(drawingKey([tutor], [mark]), base, 'tutor removed the phone stroke');
   assert.notEqual(drawingKey([], []), base, 'board cleared');
   assert.equal(drawingKey(undefined, undefined), drawingKey([], []));
+});
+
+test('changeLine: Clear says "Drawing cleared.", adding or undoing a line "Drawing changed.", no change nothing (review, Nov 8)', () => {
+  const t1 = { id: 't1', by: 'tutor', pts: [{ x: 5, y: 60 }, { x: 30, y: 60 }] };
+  const t2 = { id: 't2', by: 'tutor', pts: [{ x: 30, y: 60 }, { x: 30, y: 90 }] };
+  const mark = { id: 'm1', x: 30, y: 60, name: 'Library' };
+  const key = (strokes, landmarks = [mark]) => drawingKey(strokes, landmarks);
+  assert.equal(changeLine(key([t1]), key([t1, t2])), 'Drawing changed.', 'a line added');
+  assert.equal(changeLine(key([t1, t2]), key([t1])), 'Drawing changed.', 'Undo of one line of two');
+  assert.equal(changeLine(key([t1, t2]), drawingKey([], [])), 'Drawing cleared.', 'Clear');
+  assert.equal(changeLine(drawingKey([], []), key([t1, t2])), 'Drawing changed.', 'the Undo that brings a cleared board back');
+  assert.equal(changeLine(key([t1], []), drawingKey([], [])), 'Drawing cleared.', 'Undo of the last line leaves blank glass too');
+  assert.equal(changeLine(key([t1, t2]), drawingKey([], [mark])), 'Drawing changed.', 'a label left on the glass is not cleared');
+  assert.equal(changeLine(key([t1]), key([t1])), null, 'cleared and redrawn the same within the pause: nothing');
+  assert.equal(changeLine(drawingKey([], []), drawingKey(undefined, undefined)), null);
 });
 
 test('doubleTapper: two quick still two-finger taps repeat; drawing, a third finger, a slow tap or a long gap do not', () => {

@@ -53,6 +53,13 @@
     return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }];
   }
 
+  // A press in Draw becomes a stroke only once the pen has moved this far from where it went down (review, Nov 8): a
+  // plain click used to post an invisible one-point stroke that the stepper counted as a line and the phone announced
+  // as "Drawing changed.". 1 mm is a chosen threshold (under 10 px on the laptop stage), shorter than any line a tutor means.
+  const MIN_STROKE_MM = 1;
+  const strokeStarted = (raw, minMm = MIN_STROKE_MM) =>
+    raw.length > 1 && raw.some((p) => Math.hypot(p.x - raw[0].x, p.y - raw[0].y) >= minMm);
+
   // Points along the polyline at most `step` apart, always including every original vertex.
   function resample(pts, step = RESAMPLE_MM) {
     if (!pts.length) return [];
@@ -658,7 +665,7 @@
     return { lw, rx: winW - rw, rw, zone };
   }
 
-  const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
+  const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, MIN_STROKE_MM, strokeStarted, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, TOUCH_LIFT_MS, touchState, ago, feltLine,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,

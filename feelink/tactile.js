@@ -304,6 +304,16 @@
     return JSON.stringify([s, m]);
   }
 
+  // What the phone says once the tutor pauses, from the drawing as last told (heardKey) and as it is now (both
+  // drawingKey): nothing if they match, "Drawing cleared." if nothing is left to feel, else "Drawing changed.". Clear
+  // used to sound the same as adding a line (review, Nov 8). Cleared is the glass, not the button: an Undo of the last
+  // line says it too, since a student told "changed" would search blank glass for the change.
+  const EMPTY_KEY = drawingKey([], []);
+  function changeLine(heardKey, nowKey) {
+    if (nowKey === heardKey) return null;
+    return nowKey === EMPTY_KEY ? 'Drawing cleared.' : 'Drawing changed.';
+  }
+
   // Step-through reveal (#111): the tutor shows the drawing a stroke at a time. `upto` is how many strokes are shown,
   // in arrival order; anything but a whole number >= 0 (null, absent, 2.5, -1) shows all, as on the stage. Revealing
   // the last stroke arrives as null too.
@@ -440,7 +450,7 @@
   };
 
   const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, guideInterval, Renderer, poster, sendQueue, drawingKey, doubleTapper,
-    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged };
+    landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged, changeLine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;
 })(this);

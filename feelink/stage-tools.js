@@ -130,27 +130,29 @@ c.addEventListener('pointerdown', (e) => {
     else openName(p, t === 'label' ? B.landmarkAt(landmarks, p) : null, t === 'start');
     return;
   }
-  if (!inBoard(e) || mine) return;
+  if (!inBoard(e) || raw.length) return;
   c.setPointerCapture(e.pointerId);
   setStraight(e.shiftKey);
-  raw = [boardPoint(e)];
-  mine = { id: 'tutor-' + Date.now(), by: 'tutor', pts: B.strokePoints(raw, straight) };
-  upsert(mine);
-  sendMine();
+  raw = [boardPoint(e)]; // the pen is down; it is a stroke only once it moves (board.js strokeStarted)
 });
 addEventListener('pointermove', (e) => { pointerAt = { x: e.clientX, y: e.clientY }; });
 c.addEventListener('pointermove', (e) => {
-  if (!mine) return;
+  if (!raw.length) return;
   const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
   for (const ce of events.length ? events : [e]) raw.push(boardPoint(ce));
+  const fresh = !mine;
+  if (fresh) {
+    if (!B.strokeStarted(raw)) return; // still a click: nothing on the board, nothing to the phone
+    mine = { id: 'tutor-' + Date.now(), by: 'tutor', pts: [] };
+  }
   if (e.shiftKey !== straight) { setStraight(e.shiftKey); return; } // redraws and sends with these samples
   mine = { ...mine, pts: B.strokePoints(raw, straight) };
   upsert(mine);
-  if (performance.now() - lastSend > 40) sendMine();
+  if (fresh || performance.now() - lastSend > 40) sendMine();
 });
+// A press that never moved MIN_STROKE_MM ends here without a trace.
 const finish = () => {
-  if (!mine) return;
-  sendMine();
+  if (mine) sendMine();
   mine = null;
   raw = [];
 };

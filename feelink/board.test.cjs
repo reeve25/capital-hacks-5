@@ -337,6 +337,20 @@ test('Shift snaps the tutor stroke to the straight line from its first point (#9
   assert.notEqual(line[0], raw[0]);
 });
 
+test('a press is a stroke only once the pen moves 1 mm from where it went down (review, Nov 8)', () => {
+  assert.equal(B.MIN_STROKE_MM, 1);
+  assert.equal(B.strokeStarted([]), false);
+  assert.equal(B.strokeStarted([{ x: 30, y: 40 }]), false, 'a plain click is no stroke');
+  assert.equal(B.strokeStarted([{ x: 30, y: 40 }, { x: 30, y: 40 }, { x: 30.4, y: 40.5 }]), false, 'a hand tremor under 1 mm is no stroke');
+  assert.equal(B.strokeStarted([{ x: 30, y: 40 }, { x: 31, y: 40 }]), true, 'exactly 1 mm starts it');
+  // Measured from the first point, so a wiggle that comes back still counted once it went far enough.
+  assert.equal(B.strokeStarted([{ x: 30, y: 40 }, { x: 30, y: 41.2 }, { x: 30, y: 40 }]), true);
+  // Strokes that already exist with one point (old relay state, a replay) still lay out as a dot and count as a step.
+  const dot = { id: 'old', by: 'tutor', pts: [{ x: 3, y: 4 }] };
+  assert.deepEqual(B.resample(dot.pts), [{ x: 3, y: 4 }]);
+  assert.equal(B.revealStrokes([dot], null).total, 1);
+});
+
 test('haptic reports: a retried (kind, t) is used once, reports without t always pass (#92)', () => {
   const r = new B.PhoneReports();
   const hold = { type: 'haptic', kind: 'hold', level: 4, top: 4, pattern: 5000, ok: true, t: 1000, age: 12, dropped: 0 };

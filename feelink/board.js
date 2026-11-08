@@ -296,8 +296,10 @@
   // student may feel, null for all (the default); anything but a whole number >= 0 means all. Only by:'tutor' strokes are
   // steps: anyone else's (the student's) are always shown and never counted. The same rule runs on the phone (tactile.js):
   // a tutor stroke is shown when its index among the tutor's strokes < upto. A landmark within LANDMARK_MM of a shown
-  // stroke's segments is shown; one near only hidden strokes is hidden; one on no stroke at all is shown when it arrived
-  // before the first hidden stroke. Hidden means faint on the stage, blank glass on the phone.
+  // tutor stroke's segments is shown; one near only hidden tutor strokes is hidden; one on no tutor stroke is shown when
+  // it arrived before the first hidden stroke. Anyone else's line (the phone's by:'phone', draw.html's by:'laptop')
+  // never decides a landmark, so one crossing a hidden point does not reveal it. Hidden means faint on the stage, blank
+  // glass on the phone.
   const cleanReveal = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
   const isStep = (st) => !!st && st.by === 'tutor';
 
@@ -326,6 +328,7 @@
     const mark = landmarks.map((l) => {
       let onHidden = false;
       for (let i = 0; i < strokes.length; i++) {
+        if (!isStep(strokes[i])) continue;
         const pts = strokes[i].pts || [];
         if (!pts.length || !nearStroke(l, pts, radius)) continue;
         if (stroke[i]) return true;

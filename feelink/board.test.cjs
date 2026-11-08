@@ -651,22 +651,25 @@ test('reveal: next, previous and all step through the strokes from the default',
 
 test("reveal: only the tutor's strokes are steps; the student's are always shown and never counted", () => {
   const t = (id, pts) => ({ id, by: 'tutor', pts });
-  const kid = (id, pts) => ({ id, by: 'student', pts });
-  // tutor s1, the student's own line, tutor s2, then a stroke from the laptop canvas (draw.html posts by:'laptop').
-  const strokes = [t('s1', [{ x: 10, y: 20 }, { x: 10, y: 60 }]), kid('k', [{ x: 30, y: 10 }, { x: 30, y: 40 }]),
-    t('s2', [{ x: 10, y: 60 }, { x: 46, y: 60 }]), { id: 'l', by: 'laptop', pts: [{ x: 50, y: 100 }, { x: 50, y: 110 }] }];
+  // tutor s1, a line from the phone (by:'phone'), tutor s2, then one from the laptop canvas (draw.html posts by:'laptop')
+  // crossing s2 at x = 40.
+  const strokes = [t('s1', [{ x: 10, y: 20 }, { x: 10, y: 60 }]), { id: 'k', by: 'phone', pts: [{ x: 30, y: 10 }, { x: 30, y: 40 }] },
+    t('s2', [{ x: 10, y: 60 }, { x: 46, y: 60 }]), { id: 'l', by: 'laptop', pts: [{ x: 40, y: 50 }, { x: 40, y: 70 }] }];
+  const marks = [{ id: 'onKid', x: 30, y: 30 }, { id: 'onS2', x: 28, y: 61 }, { id: 'crossed', x: 40, y: 60 }];
   const a = new B.Arrivals();
-  for (const st of strokes) a.add('stroke', st.id);
-  a.add('landmark', 'onKid');
-  a.add('landmark', 'onS2');
-  const marks = [{ id: 'onKid', x: 30, y: 30 }, { id: 'onS2', x: 28, y: 61 }];
+  for (const [kind, id] of [['stroke', 's1'], ['stroke', 'k'], ['landmark', 'onKid'], ['stroke', 's2'], ['landmark', 'onS2'],
+    ['stroke', 'l'], ['landmark', 'crossed']]) a.add(kind, id);
   const v = (upto) => B.revealView(strokes, marks, upto, (k, id) => a.of(k, id));
   assert.deepEqual(v(1).stroke, [true, true, false, true], "upto 1 is the tutor's first stroke, not the first two strokes");
   assert.deepEqual([v(1).shown, v(1).total, v(1).hiding], [1, 2, true]);
   assert.deepEqual(v(0).stroke, [false, true, false, true]);
   assert.deepEqual(v(2).stroke, [true, true, true, true]);
   assert.equal(v(2).hiding, false, "two tutor strokes, both shown: nothing hidden, whatever else is on the board");
-  assert.deepEqual(v(0).mark, [true, false], "a point on the student's line stays; one on a hidden tutor stroke goes");
+  // "On a stroke" means a tutor stroke: a point on someone else's line follows the arrival rule, and a line crossing a
+  // hidden point does not reveal it.
+  assert.deepEqual(v(0).mark, [false, false, false], 'onKid arrived after s1, the first hidden; crossed sits on hidden s2');
+  assert.deepEqual(v(1).mark, [true, false, false], "onKid arrived before s2; the laptop's line through crossed does not count");
+  assert.deepEqual(v(2).mark, [true, true, true]);
   assert.equal(B.revealLegend(v(1).shown, v(1).total), 'Shown 1 of 2 strokes');
   assert.equal(B.revealLegend(v(2).shown, v(2).total), '');
   // Steps count the tutor's strokes only.

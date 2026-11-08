@@ -398,6 +398,12 @@
 
   // The legend line, only while something is hidden: the tutor's strokes, as revealView counts them.
   const revealLegend = (shown, total) => (shown < total ? `Shown ${shown} of ${total} stroke${total === 1 ? '' : 's'}` : '');
+  // The step-through control's own line, in every state (Studio, D10): never blank, so the control explains itself.
+  function revealMeter(shown, total) {
+    if (!(total > 0)) return 'Nothing to reveal yet';
+    if (shown < total) return revealLegend(shown, total);
+    return total === 1 ? 'The stroke is shown' : `All ${total} strokes shown`;
+  }
 
   // Where a landmark's label goes: right, left, above or below the dot. Spots that run off the board are
   // out; of the rest, the one crossing the fewest ink samples wins (so the route leaving a landmark doesn't
@@ -555,25 +561,48 @@
     return ageMs < LINK_DISCONNECTED_MS ? 'reconnecting' : 'disconnected';
   }
 
-  // The tutor's connection line, in words (#92, #107). The board's own link comes first: without it nothing the
-  // tutor draws reaches the phone. `link` is phoneLink's answer; touching is the student's finger. `receiving` (the
-  // student can feel what is drawn right now) is true only when both links are up.
+  // The tutor's connection line, in words (#92, #107; Studio copy, D10). The board's own link comes first: without it
+  // nothing the tutor draws reaches the phone. `link` is phoneLink's answer; touching is the student's finger, the one
+  // live fact the stage has about what the student is doing, so 'live' (exploring) is a tone of its own. `receiving`
+  // (the student can feel what is drawn right now) is true only when both links are up.
   const LINKS = {
-    waiting: { tone: 'wait', text: "Waiting for the student's phone", sub: '' },
-    reconnecting: { tone: 'warn', text: "Student's phone reconnecting…", sub: 'Not receiving drawings' },
-    disconnected: { tone: 'off', text: "Student's phone disconnected", sub: 'Not receiving drawings' },
+    waiting: { tone: 'wait', text: 'Waiting for the student', sub: 'Open FeelInk on their phone' },
+    reconnecting: { tone: 'warn', text: 'Phone reconnecting…', sub: "Your changes reach it once it's back" },
+    disconnected: { tone: 'off', text: 'Phone disconnected', sub: 'Your changes reach it when it rejoins' },
   };
   function connectionStatus(relayUp, link, touching) {
-    if (!relayUp) return { tone: 'off', text: 'Board offline', sub: 'Reconnecting…', receiving: false };
+    if (!relayUp) return { tone: 'off', text: 'Studio offline', sub: 'Reconnecting…', receiving: false };
     if (link !== 'connected') return { ...(LINKS[link] || LINKS.waiting), receiving: false };
-    return { tone: 'on', text: "Student's phone connected", sub: touching ? 'Touching the board' : 'Not touching the board', receiving: true };
+    return touching ? { tone: 'live', text: 'Student exploring', sub: 'Finger on the board', receiving: true }
+      : { tone: 'on', text: 'Student connected', sub: 'Not touching the screen', receiving: true };
+  }
+
+  // Studio side panels (D10). The GIF pipeline (tools/record/compose.py detect_board) crops the stage video to the board
+  // plus 40 video px, then widens that about the board's centre to its 960x1080 panel shape, so anything in that zone
+  // lands in the slide clip. The panels dock to the window edges outside it (plus `safe`), at most `max` wide; a window
+  // too narrow for `min` lets them into the zone, never onto the board (`gap`). view: the board in CSS px, as fit gives.
+  const CROP_MARGIN_PX = 40, CROP_ASPECT = 960 / 1080;
+  function cropZone(view, winW, winH, dpr = 1) {
+    const m = CROP_MARGIN_PX / dpr;
+    const h = Math.min(winH, view.y + view.h + m) - Math.max(0, view.y - m);
+    const w = Math.min(winW, Math.max(view.w + 2 * m, h * CROP_ASPECT));
+    const x0 = Math.min(Math.max(0, view.x + view.w / 2 - w / 2), winW - w);
+    return { x0, x1: x0 + w };
+  }
+  function sidePanels(view, winW, winH, dpr = 1, opts = {}) {
+    const { min = 272, max = 360, safe = 8, gap = 16 } = opts;
+    const zone = cropZone(view, winW, winH, dpr);
+    const width = (room, limit) => Math.max(0, Math.min(limit, Math.max(min, Math.min(max, room))));
+    const lw = width(zone.x0 - safe, view.x - gap);
+    const rw = width(winW - zone.x1 - safe, winW - view.x - view.w - gap);
+    return { lw, rx: winW - rw, rw, zone };
   }
 
   const api = { FELT_MM, RESAMPLE_MM, RING_MS, SETTLE_MS, TRAIL_STEPS, fit, toMm, clampToBoard, smooth, strokePoints, resample, distPointSeg,
     markFelt, feltRuns, parseHaptic, pulseStarts, dropPending, feltFromConfig, HapticRings,
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
-    cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend,
+    cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend, revealMeter, cropZone, sidePanels,
     LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;

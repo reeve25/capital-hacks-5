@@ -2,7 +2,7 @@
 
 Current state only, kept by the lead session; replace stale lines, do not append a log. History: `research/status-history-2026-11-06-07.md` (Nov 6-7 chronology, verbatim) and `C:\Users\reeve\dev\_old-silent-voice\STATUS.md` (Silent Voice). Decisions and open human items: `DECISIONS.md`. Labels: **Told** = from Reeve or Nathan, **Measured**, **Built**, **Reasoned**.
 
-## Snapshot (Sat Nov 7, 19:23 PT)
+## Snapshot (Sat Nov 7, 19:40 PT)
 
 ### Direction and scope (Told)
 - **FeelInk**: interactive spatial education for blind students. A sighted tutor draws on the laptop stage (`/stage`), the student feels the drawing as vibration on an ordinary Android phone (`/feel`) and hears landmark names and the tutor's spoken instructions. General-purpose spatial teaching tool (routes, diagrams, graphs, circuits), first demonstrated through route learning. Not a navigation app: no location, no obstacles, never "safe for real navigation". Direction: `.plans/feelink-direction-update-2026-11-07.md`; UI brief: team log 16:16 (D7); tutor-interaction brief: team log 17:10 (#107).
@@ -31,11 +31,11 @@ Current state only, kept by the lead session; replace stale lines, do not append
 - **Closed or parked:** #107 merged; #90 #92 #64 #66 #71 #33 #34 shipped; #91 TalkBack parked; #13-#23 hardware closed; #65 superseded by #92.
 
 ### Immediate priorities (critical path, in order; Reeve 17:59: finish the product, basic functionality complete, professional look, no more validation bookkeeping)
-1. **Pixel re-check of main** (Reeve, 3 minutes): Connect on the new home, trace the route ('Start: Classroom'), P on the stage hides the route ('Drawing updated.', line silent), N brings it back, T then a cue flips Sent to Spoken, Back shows Disconnected. Pass = tag `demo-2`, the recording build (Studio look needs fresh takes).
-2. **Open for Reeve (no code until answered):** rename 'Landmark' to 'Label'; phone button 'Connect to tutor' vs 'Feel the drawing'; the GitHub description and topics proposed on the team log (apply when the repo goes public). **Next engineering candidates:** caption-bubble clipping at the board's left edge; fresh recorded takes on the Studio look.
+1. **Pixel re-check of main** (Reeve, 3 minutes; both pages reloaded first): Connect on the new home, trace the route ('Start: Classroom'; the stage's Touch line reads Exploring, one line), P on the stage hides the route ('Drawing updated.', line silent), N brings it back, Back shows Disconnected. No typed-cue step (Reeve, 19:35: no typed instructions read aloud). Pass = tag `demo-2` at the commit tested, the recording build (Studio look needs fresh takes).
+2. **Answered 19:35 and shipped:** Landmark is 'Label' in the UI (protocol keeps `landmark`); phone button 'Connect'; GitHub description and topics applied (repo still private); typed spoken-cue tool removed from the stage (relay and phone still accept `instruction` events). Also shipped: caption bubble kept inside the board (#136), calm one-line Touch state (#138, Reeve's 19:35 feedback). **Copy standard (Reeve, 19:35):** a professional tool, Apple/Google-grade intentional design. **Next engineering candidates:** fresh recorded takes on the Studio look; docs/ screenshots still show the old 'Landmark' and cue tool.
 3. **Recording and footage:** Reeve and Nathan, on `demo-1` or a later re-checked tag; runbook `tools/record/README.md`.
 4. **Nathan's lane, outside the agents' board:** organizer questions, fact sheet, deck.
-5. **Re-tag** `demo-2` when #111 and the polish pass have passed on the Pixel.
+5. **Tag** `demo-2` at the commit Reeve's re-check passes on; merge nothing to main between his reload and the tag.
 
 ### Outstanding human decisions (development only, Reeve 17:59)
 See `DECISIONS.md`: D10, what still looks incomplete to Reeve. Recording, consent, organizer questions, fact sheet and deck are Reeve's and Nathan's, off the board.

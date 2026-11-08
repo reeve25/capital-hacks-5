@@ -24,7 +24,7 @@
         <button class="tool" id="toolDraw" type="button" aria-pressed="true" aria-keyshortcuts="D">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l4 4L8.5 19.5h-4v-4z"/><path d="M13 7l4 4"/></svg><span>Draw</span><kbd>D</kbd></button>
         <button class="tool" id="toolMark" type="button" aria-pressed="false" aria-keyshortcuts="L">
-          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="12" r="3.5"/><path d="M14 9.5h6.5M14 14.5h4"/></svg><span>Landmark</span><kbd>L</kbd></button>
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="12" r="3.5"/><path d="M14 9.5h6.5M14 14.5h4"/></svg><span>Label</span><kbd>L</kbd></button>
       </div>
       <div class="pair">
         <button class="tool quiet" id="undo" type="button" aria-keyshortcuts="U">
@@ -47,20 +47,6 @@
       <button class="tool quiet" id="revealAll" type="button" aria-keyshortcuts="Shift+N">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg><span>Reveal all</span><kbd>Shift</kbd><kbd>N</kbd></button>
       <p class="say" id="stepNote" aria-live="polite"></p>
-    </section>
-    <!-- Optional, closed by default: the tutor talks to the student. A typed line their phone says aloud is for remote
-         lessons, replay or a fallback. -->
-    <section class="cue" aria-label="Spoken cue">
-      <button class="cue-toggle" id="cueToggle" type="button" aria-expanded="false" aria-controls="tell" aria-keyshortcuts="T">
-        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.2 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>Send a spoken cue</span><kbd>T</kbd></button>
-      <form class="tell" id="tell" autocomplete="off" hidden>
-        <div class="field">
-          <input id="tellText" type="text" maxlength="120" spellcheck="true" enterkeyhint="send" aria-label="Spoken cue" placeholder="Words their phone will say">
-          <button id="tellSend" type="submit" aria-label="Send cue" title="Send (Enter)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v7a3 3 0 0 1-3 3H6"/><path d="M10 11l-4 4 4 4"/></svg></button>
-        </div>
-        <p class="cue-state" id="cueState" role="status" hidden><q id="cueText"></q><b class="badge" id="cueBadge"></b></p>
-        <small>For remote lessons, replay or a fallback. A two-finger double tap on the phone repeats it.</small>
-      </form>
     </section>
   </div>
 </aside>

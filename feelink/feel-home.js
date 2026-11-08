@@ -17,7 +17,7 @@ const store = {
 const LINK = {
   connecting: { text: 'Connecting to the laptop…', sub: '' },
   waiting: { text: 'Waiting for the laptop', sub: 'Ask your tutor to start FeelInk on their laptop. This phone connects by itself.' },
-  on: { text: 'Connected to the laptop', sub: 'Tap Connect to tutor to feel the drawing.' },
+  on: { text: 'Connected to the laptop', sub: 'Tap Connect to feel the drawing.' },
   lost: { text: 'Reconnecting to the laptop', sub: 'The connection dropped. Keep this page open. It reconnects by itself.' },
 };
 const linkLine = (s) => LINK[s].text.replace(/…$/, '') + '.';
@@ -25,7 +25,7 @@ const WELCOME = 'Connected to your tutor. Touch the screen to explore.';
 let link = 'connecting', welcomed = false, leftLive = false; // leftLive: home after Back, worded as a return
 function showLink() {
   $('net').textContent = LINK[link].text;
-  $('netsub').textContent = link === 'on' && leftLive ? 'You left the drawing. Tap Connect to tutor to go back.' : LINK[link].sub;
+  $('netsub').textContent = link === 'on' && leftLive ? 'You left the drawing. Tap Connect to go back.' : LINK[link].sub;
   $('conn').dataset.state = link;
 }
 function setLink(next) {

@@ -430,6 +430,20 @@
     return { side, x, y, align };
   }
 
+  // Where the caption bubble sits for a finger at fx: to the right of the cursor when that fits inside the board,
+  // else to the left, else (a caption wider than the room on either side of a 56 mm board) centred on the finger and
+  // held inside the board. `margin` is how far it may hang over the board's edge: the docked panels start 16 px out,
+  // so the bubble never slides under them. Returns the body's left edge and the tail's base x, both in board mm; the
+  // tail base stays inside the body, so a clamped bubble still points at the finger.
+  function captionPlace(fx, widthMm, board, offMm, margin = 1) {
+    const lo = -margin, hi = board.w + margin - widthMm;
+    let x0 = fx + offMm;
+    if (x0 > hi) x0 = fx - offMm - widthMm;
+    if (x0 < lo) x0 = Math.min(Math.max(fx - widthMm / 2, lo), hi);
+    const tail = Math.min(Math.max(fx, x0 + 2.5), x0 + widthMm - 2.5);
+    return { x0, tail };
+  }
+
   // Caption bubble scale over its life: pops in, holds, shrinks away. 0 means hidden.
   const CAPTION_MS = 1600, CAPTION_IN_MS = 160, CAPTION_OUT_MS = 140;
   function captionScale(ageMs) {
@@ -641,7 +655,7 @@
     SPOKEN_MAX, REPORT_MAX_AGE_MS, parseSpoken, PhoneReports, connectionStatus, TOUCH_MOVE_MM, TOUCH_REST_MS, touchState, ago, feltLine,
     INSTRUCTION_MAX, HEARD_MERGE_MS, LINK_RECONNECTING_MS, LINK_DISCONNECTED_MS, cleanInstruction, markName, HeardLog, phoneLink,
     cleanReveal, isStep, revealStrokes, revealView, Arrivals, bySeq, revealStep, revealLegend, revealMeter, cropZone, sidePanels,
-    LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
+    LANDMARK_MM, NAME_MAX, CAPTION_MS, cleanName, validLandmark, upsertById, landmarkFor, landmarkAt, labelPlace, captionPlace, captionScale, mixHex, follow, cubicBezier, easeOut, ringAt, cursorScale, settle, trailStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Board = api;
 })(this);

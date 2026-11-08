@@ -95,7 +95,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 - **TalkBack is unverified.** Reading the Android sources suggests one-finger exploring may never reach the page with the screen reader on; nobody has tested it. Do not assume FeelInk works with TalkBack.
 - **No target-user validation and no evidence of educational effect** (see above).
 - **Far lower fidelity than a tactile display:** one fingertip, no raised dots, no braille.
-- **Not yet checked on the Pixel:** the Coordinate plane preset, the grouped tutor tools, the label-placement fix and the felt-share row (everything on main after tag `demo-2`). The last build that passed a check on the Pixel is `demo-2` (Connect, route trace with spoken labels, step-through reveal), Sat 20:33.
+- **Not yet checked on the Pixel:** the Coordinate plane preset, the grouped tutor tools, the label-placement fix, the felt-share row, the guide-back taps and their switch, label names drawn over the finger and the stage's "Drawing updated" caption (everything on main after tag `demo-2`). The last build that passed a check on the Pixel is `demo-2` (Connect, route trace with spoken labels, step-through reveal), Sat 20:33.
 - **No authentication.** Anyone on the same network can open the pages, so run the relay only while you use it.
 
 ## What we'd do next
@@ -116,7 +116,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 | `feelink/*.test.cjs` | Node unit tests (`node --test`) |
 | `tools/check.sh` | The gate run by the pre-push hook and CI |
 | `tools/pixel_keepalive.py` | Re-applies `adb reverse` after every USB reconnect |
-| `tools/record/` | Turns a stage capture and an overhead phone video into one side-by-side GIF/MP4 |
+| `tools/record/` | Turns a stage capture and an overhead phone video into one side-by-side GIF/MP4; `sim_take.mjs` records a labelled desktop simulation of the route lesson |
 | `STATUS.md`, `DECISIONS.md`, `research/`, `.plans/` | Our working notes: current state, decisions, measurements and research |
 
 ## AI-assisted development and open source

@@ -2,9 +2,9 @@
 
 One screen, current state only; replace lines, never append. Updated at milestones (tag, newly working interaction, blocker). History: `research/status-history-2026-11-06-07.md`. Decisions: `DECISIONS.md`.
 
-## Snapshot (Sat Nov 7, 23:13 PT)
+## Snapshot (Sat Nov 7, 23:58 PT)
 - **Product:** FeelInk. A sighted tutor draws on the laptop stage (`/stage`); a blind student feels the drawing as vibration on an ordinary Android phone (`/feel`) and hears label names and the tutor's spoken instructions. Human-led, in-person. Pitch Sunday: 4-minute slides, no live demo, recorded takes (plan `.plans/feelink-demo-plan-2026-11-07.md`; its process notes are superseded by CLAUDE.md).
-- **Build:** FeelInk code on main is `66d9ef2` (felt-share wording) on top of `bbec5eb` (grouped tutor tools #145, label fix #148, Coordinate plane preset #147). Known-good: **tag `demo-2` = `54e8d50`**; `demo-1` = `c64269c`.
+- **Build:** FeelInk code on main is `d0cb719` (guide setting drawn as a switch, "Find the line again" help) on `c692a80` (label names drawn over the finger, "Drawing updated" caption on the stage) and `dc98e4a` (guide-back taps); before those `66d9ef2` and `bbec5eb` (grouped tutor tools, label fix, Coordinate plane). Known-good: **tag `demo-2` = `54e8d50`**; `demo-1` = `c64269c`.
 - **Lead:** one Fable session on Reeve's laptop; handoff in `.tmp/lead-handoff.md`. Mission (Reeve, late Sat): product and demonstration assets only; the deck is assembled separately. It owns `feelink/`, the relay, the keepalive and the Pixel.
 - **Services (main checkout, logs in `.tmp/`):** relay `python -I -u feelink/server.py` pid 56416 (log `relay-20341107.log`), keepalive `tools/pixel_keepalive.py` pid 58376. Before any test, `netstat -ano | findstr :8765` shows one PID. Kill with PowerShell `Stop-Process -Id <pid> -Force`; `taskkill` from Git Bash never kills. Reload the Pixel tab: `adb forward tcp:9222 localabstract:chrome_devtools_remote`, then `node tools/pixel_tab.mjs location.href reload`.
 
@@ -16,6 +16,7 @@ One screen, current state only; replace lines, never append. Updated at mileston
 - Blind run 1 (Reeve, eyes closed, old build): 4 of 5 shapes, median 49.9 s. The one prototype result.
 - Measured on the Pixel: Chrome ignores `vibrate(0)`, `vibrate(1)` stops; buzzes capped at 1000 ms.
 - Desktop only, no Pixel: "Guide back to the line" (`dc98e4a`): off the ink the phone taps every 250-900 ms, quicker nearer the nearest stroke, silent past 20 mm, Advanced-settings toggle, faint stage ring per tap. 37 tactile unit tests; `node tools/feel_guide_check.mjs` 19 of 19 in headless Chrome against a test relay (about 20 s). Not felt on the Pixel; whether a 15 ms tap is felt at all is the open question.
+- Desktop simulation, no Pixel: the route lesson (finger guided onto the line, "Start: Classroom", Next and "Drawing updated", "Office", the tutor draws and labels the last leg live, "Library") plays end to end against a test relay in headless Chrome with stubbed vibrate and speech: `node tools/record/sim_take.mjs`, 23:49, 30.6 s take. Assets in `recordings/out/` (git-ignored), every one tagged "Desktop simulation" in the picture: `sim-route-lesson.mp4/.gif` (board + emulated phone, GIF 3.1 MB), `sim-route-lesson-stage.mp4/.gif` (whole stage window), seven stills `sim-route-lesson-*still*.png`. Recording selftest ok; stage_tools_check 41 of 41.
 - Desktop only, no Pixel: the felt row (`66d9ef2`) shows the mean felt share, checked in the running stage over headless Chrome against a test relay, 41 of 41 stage steps pass, screenshot checked 21:12. README stage screenshots came from a scripted test relay.
 
 ## Broken or unverified
@@ -24,7 +25,7 @@ One screen, current state only; replace lines, never append. Updated at mileston
 - Outside feedback: one critical email reply logged anonymously in `USERS.md` (critique, not validation; no user trial). The r/AskABlindPerson replies could not be fetched automatically (reddit.com 403, old.reddit 404, mirror 502); Reeve pastes them.
 
 ## Next
-1. Product-first: a polished FeelInk plus clearly labelled screenshots, GIFs and MP4 clips (`tools/record/`, `tools/stage_tools_check.mjs` for headless stage runs). Next: critique /stage and /feel in a running headless browser, pick the one teaching interaction to showcase, script it on a test relay, export a stage GIF/MP4 labelled desktop simulation.
+1. Product-first: the route-lesson desktop simulation is exported (`tools/record/sim_take.mjs`, section 8 of `tools/record/README.md`). Next: keep polishing from what the take shows; a Coordinate plane take only if it earns a slide.
 2. When the Pixel is back on USB: one focused device check (demo-2 flow, Coordinate plane, guide cue: steps in the `dc98e4a` commit's agent report, summarised in README), tag `demo-3` if it passes, then the real takes.
 3. Deck: Reeve and Nathan, separately; outline `.plans/feelink-deck-2026-11-07.md`, Google Slides "FeelInk Presentation" in Reeve's Drive.
 

@@ -4,7 +4,7 @@ Builds `recordings/out/FeelInk-deck-draft-2026-11-08.pptx` from the simulation a
 
 ```
 cd tools/deck && npm install pptxgenjs@3.12.0 && node build.js
-powershell -NoProfile -ExecutionPolicy Bypass -File export_png.ps1 ..\..ecordings\out\FeelInk-deck-draft-2026-11-08.pptx ..\..ecordings\out\deck-png
+powershell -NoProfile -ExecutionPolicy Bypass -File export_png.ps1 ..\..\recordings\out\FeelInk-deck-draft-2026-11-08.pptx ..\..\recordings\out\deck-png
 ```
 
 `export_png.ps1` renders every slide to PNG through PowerPoint (COM) so the result can be inspected; the pptx skill's `validate.py` checks the file. Import the result into the Google Slides deck with File > Import slides, or present it as is (GIFs animate in PowerPoint and Google Slides, not in PDF).

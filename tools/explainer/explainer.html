@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FeelInk explainer</title>
+<style>
+  html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #0e1620; }
+  svg { display: block; font-family: "Segoe UI", system-ui, sans-serif; }
+  .cap { fill: #e9eef5; font-size: 34px; font-weight: 600; }
+  .sub { fill: #9fb0c4; font-size: 26px; }
+  .small { fill: #7f90a6; font-size: 20px; }
+  .big { fill: #ffffff; font-size: 44px; font-weight: 700; }
+  .huge { fill: #ffffff; font-size: 120px; font-weight: 800; letter-spacing: -2px; }
+  .ink { stroke: #141a22; stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .inkphone { stroke: #e9eef5; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .faint { stroke: #c9d1dc; stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 10 14; }
+</style>
+</head>
+<body>
+<svg id="s" width="1280" height="720" viewBox="0 0 1280 720"></svg>
+<script>
+const q = new URLSearchParams(location.search);
+const B = (q.get('b') || '0,8,16,24,32,40,48,54').split(',').map(Number); // scene start times + total
+const svg = document.getElementById('s');
+const NS = 'http://www.w3.org/2000/svg';
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = (t) => (t = clamp(t), t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2);
+const fade = (u, d, inT = .5, outT = .4) => Math.min(clamp(u / inT), clamp((d - u) / outT));
+
+function el(tag, attrs = {}, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  svg.appendChild(e);
+  return e;
+}
+function txt(x, y, cls, s, anchor = 'middle', op = 1) { return el('text', { x, y, class: cls, 'text-anchor': anchor, opacity: op }, s); }
+function caption(s, op = 1) { el('rect', { x: 0, y: 630, width: 1280, height: 90, fill: '#0e1620' }); txt(640, 686, 'cap', s, 'middle', op); }
+
+// Path helpers: polyline points -> partial path by progress p in [0,1]
+function polyLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); return L; }
+function pointAt(pts, p) {
+  const L = polyLen(pts); let d = clamp(p) * L;
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]);
+    if (d <= seg || i === pts.length - 1) { const t = seg ? d / seg : 0; return [lerp(pts[i-1][0], pts[i][0], t), lerp(pts[i-1][1], pts[i][1], t)]; }
+    d -= seg;
+  }
+  return pts[pts.length-1];
+}
+function partial(pts, p) {
+  const L = polyLen(pts); let d = clamp(p) * L; const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]);
+    if (d <= seg) { const t = seg ? d / seg : 0; out.push([lerp(pts[i-1][0], pts[i][0], t), lerp(pts[i-1][1], pts[i][1], t)]); return out; }
+    out.push(pts[i]); d -= seg;
+  }
+  return out;
+}
+function poly(pts, cls, op = 1) { if (pts.length < 2) return; el('polyline', { points: pts.map(p => p.join(',')).join(' '), class: cls, opacity: op }); }
+function rings(cx, cy, pulseTimes, now, color = '#ffb347') {
+  for (const pt of pulseTimes) { const a = now - pt; if (a < 0 || a > .55) continue; el('circle', { cx, cy, r: 16 + 70*a, fill: 'none', stroke: color, 'stroke-width': 4, opacity: (1 - a/.55) * .9 }); }
+}
+function steady(now, from, to, every = .3) { const out = []; for (let t = from; t < to; t += every) out.push(t); return out; }
+
+// Scene furniture
+function board(x, y, w, h, op = 1) {
+  el('rect', { x, y: y, width: w, height: h + 44, rx: 14, fill: '#1b2633', opacity: op });
+  el('circle', { cx: x+22, cy: y+22, r: 7, fill: '#ff5f57', opacity: op }); el('circle', { cx: x+44, cy: y+22, r: 7, fill: '#febc2e', opacity: op }); el('circle', { cx: x+66, cy: y+22, r: 7, fill: '#28c840', opacity: op });
+  el('rect', { x: x+10, y: y+44, width: w-20, height: h-10, rx: 6, fill: '#ffffff', opacity: op });
+}
+function phone(x, y, w, h, op = 1) {
+  el('rect', { x: x-10, y: y-10, width: w+20, height: h+20, rx: 36, fill: '#2a3442', opacity: op });
+  el('rect', { x, y, width: w, height: h, rx: 28, fill: '#0b0f14', opacity: op });
+  el('circle', { cx: x + w/2, cy: y + 22, r: 7, fill: '#1b2633', opacity: op });
+}
+function finger(x, y, op = 1) { el('circle', { cx: x, cy: y, r: 20, fill: '#f2c9a8', stroke: '#c98f63', 'stroke-width': 3, opacity: op }); }
+function pen(x, y, op = 1) { el('circle', { cx: x, cy: y, r: 9, fill: '#1f6feb', opacity: op }); }
+
+// Shapes (board coords are a 460x430 area; phone coords mapped)
+const TRI_B = [[160, 560], [360, 220], [560, 560], [160, 560]];
+function mapTo(pts, sx, sy, sw, sh, bx = 130, by = 170, bw = 460, bh = 420) { return pts.map(([x, y]) => [sx + (x - bx) / bw * sw, sy + (y - by) / bh * sh]); }
+
+function render(t) {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  el('rect', { x: 0, y: 0, width: 1280, height: 720, fill: '#0e1620' });
+  let i = 0; while (i < B.length - 2 && t >= B[i+1]) i++;
+  const u = t - B[i], d = B[i+1] - B[i];
+  const op = fade(u, d);
+
+  if (i === 0) {
+    txt(640, 330, 'huge', 'FeelInk', 'middle', op);
+    txt(640, 400, 'sub', 'Feel what the tutor draws.', 'middle', op);
+    txt(640, 470, 'small', 'A weekend prototype. Capital Hacks 5.0, Sacramento State.', 'middle', op * clamp((u - 1.2) / .6));
+    txt(640, 600, 'small', 'Computer voice. The screen shows a simulation, not the real phone.', 'middle', op * clamp((u - 2.8) / .6));
+  }
+
+  if (i === 1) {
+    board(120, 110, 480, 470, op);
+    const p = ease(u / 2.2);
+    poly(partial(TRI_B, p), 'ink', op);
+    if (p < 1) { const [px, py] = pointAt(TRI_B, p); pen(px, py, op); }
+    txt(900, 200, 'cap', 'The blind student gets it:', 'middle', op);
+    const items = ['in words,', 'later, as a tactile sheet,', 'or not at all.'];
+    items.forEach((s, k) => txt(900, 280 + k*70, 'sub', s, 'middle', op * clamp((u - (3.3 + k*1.6)) / .5)));
+    caption('A teacher draws. A blind student waits.', op);
+  }
+
+  if (i === 2) {
+    board(90, 90, 500, 500, op);
+    phone(830, 80, 300, 560, op);
+    const p = ease(clamp((u - 2.2) / 5.5));
+    poly(partial(TRI_B, p), 'ink', op);
+    if (p > 0 && p < 1) { const [px, py] = pointAt(TRI_B, p); pen(px, py, op); }
+    const PH = mapTo(TRI_B, 870, 180, 220, 360);
+    poly(partial(PH, p), 'inkphone', op);
+    const pf = clamp(p - .06);
+    const [fx, fy] = p > 0 ? pointAt(PH, pf) : [985, 400];
+    if (p > 0 && p < 1) rings(fx, fy, steady(0, u - 2.2 - .4, 20, .3).map(x => x + 2.2 + .4), u);
+    finger(fx, fy, op);
+    txt(340, 55, 'small', 'Tutor: any laptop, web browser', 'middle', op);
+    txt(980, 50, 'small', "Student: their own Android phone", 'middle', op);
+    caption(p <= 0 ? 'A tutor draws. The student rests a finger on the phone.' : 'Each line is felt as it is drawn.', op);
+  }
+
+  if (i === 3) {
+    phone(490, 60, 300, 580, op);
+    const L = [[560, 560], [560, 220], [740, 220]];
+    poly(L, 'inkphone', op);
+    const q1 = .28, q2 = .52, q3 = .76; const f = u / d;
+    let fx, fy, pulses = [], cap;
+    if (f < q1) { const p = f / q1 * .55; [fx, fy] = pointAt(L, p); pulses = steady(0, u, 20, .3); cap = 'On the line: a steady buzz.'; }
+    else if (f < q2) { const p = lerp(.55, .70, (f - q1) / (q2 - q1)); [fx, fy] = pointAt(L, p); const tc = B[i] + d * (q1 + .25*(q2-q1)); pulses = [tc, tc + .18].map(x => x - B[i]); cap = 'At a corner: a double tap.'; }
+    else if (f < q3) { const p = lerp(.70, 1.0, (f - q2) / (q3 - q2)); [fx, fy] = pointAt(L, p); const te = d * (q2 + .55*(q3-q2)); pulses = [te, te + .18, te + .36]; cap = 'At the end of a line: a triple tap.'; }
+    else { const k = (f - q3) / (1 - q3); fx = lerp(740, 640, k); fy = lerp(220, 420, k); pulses = []; cap = 'Off the line: silence.'; }
+    rings(fx, fy, pulses, u);
+    finger(fx, fy, op);
+    txt(640, 40, 'small', 'Simulated. Rings stand for vibration pulses.', 'middle', op);
+    caption(cap, op);
+  }
+
+  if (i === 4) {
+    txt(640, 190, 'big', 'No app. No hardware.', 'middle', op);
+    txt(640, 260, 'sub', 'A web page in Chrome, and the vibration motor already in the phone.', 'middle', op * clamp((u - 1.8) / .5));
+    const k = clamp((u - 5.2) / .6);
+    el('rect', { x: 300, y: 350, width: 300, height: 170, rx: 10, fill: '#1b2633', opacity: op * k });
+    txt(450, 425, 'cap', '$15,500', 'middle', op * k);
+    txt(450, 470, 'small', 'closest product: a tactile display', 'middle', op * k);
+    phone(905, 345, 90, 180, op * k);
+    txt(950, 580, 'small', 'the phone in your pocket', 'middle', op * k);
+    txt(750, 445, 'sub', 'vs', 'middle', op * k);
+    caption('Nothing to install, nothing to buy.', op);
+  }
+
+  if (i === 5) {
+    txt(640, 170, 'cap', 'What you see here is drawn on a laptop.', 'middle', op);
+    txt(640, 250, 'sub', 'The real test runs on a Pixel 8 in Chrome.', 'middle', op * clamp((u - 2.2) / .5));
+    txt(640, 360, 'big', 'No blind person has tried it yet.', 'middle', op * clamp((u - 4.6) / .5));
+    txt(640, 440, 'sub', 'Tell us if it is worth building, or what we have wrong.', 'middle', op * clamp((u - 7.0) / .5));
+    caption('We would like you to be the first.', op);
+  }
+
+  if (i === 6) {
+    txt(640, 260, 'big', 'Reply to our email, or ask for a short call.', 'middle', op);
+    txt(640, 340, 'sub', 'Thank you for your time.', 'middle', op * clamp((u - 1.8) / .5));
+    txt(640, 560, 'small', 'FeelInk. Reeve and Nathan, Sacramento State. Capital Hacks 5.0, November 2026.', 'middle', op);
+  }
+}
+render(0);
+</script>
+</body>
+</html>

@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 Cutoff: **November 6, 2026**. I treated “recent” as 2026, prioritizing September–November. **KILLED** means recent, findable work already covers the central demo mechanism; differences in setting or hardware are stated below. Capabilities are source-reported unless noted otherwise.
 
 Searches covered Devpost, GitHub, products, web-indexed app stores, startups/YC, corporate features and papers. Representative vocabulary appears under each demo. **“—” under prize means no prize verified**, not that none exists. “Opened” means the source was read, not the app tested.

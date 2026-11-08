@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Capital Hacks workflow audit against Johnathan Mo
 
 Snapshot: November 6, 2026, approximately 15:10 PT. This is an audit, not a new project choice or build authorization. Other chats were active during the audit; the final checks below supersede earlier observations.

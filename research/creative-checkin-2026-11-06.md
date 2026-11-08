@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 # Creative check-in, opened Nov 6, 2026, 08:35 PT
 
 Reeve's call. First pass by the advisor, reasoned only, to be redone properly with him. Goal: win the $1,500 grand prize. Judging: innovation, applicability, technical proficiency, potential impact. Test: retell in one sentence; "that's real"; only possible now; a life visibly changes; survives the toughest question.

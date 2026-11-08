@@ -1,3 +1,5 @@
+> Historical: Nov 6 ideation material, superseded when FeelInk was chosen (Nov 6, about 21:35). Research preserved as written; current state is in STATUS.md.
+
 **Two independent candidates.** Both are untested bets with concrete demos and substantial prior art to disclose. I read the specified project material and searched products, papers and hackathon projects; I did not consult the other vendor’s current list or edit files.
 
 **Labels:** **Read** means supported by a linked source. **Reasoned** means my proposal, inference or estimate—including every build-time estimate and pass bar below. **Measured:** nothing.

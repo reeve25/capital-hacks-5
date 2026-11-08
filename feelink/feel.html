@@ -62,6 +62,9 @@
         <input id="width" type="range" min="1" max="5" step="1" aria-describedby="width-note">
         <div class="scale" aria-hidden="true"><span>1 mm</span><span>5 mm</span></div>
         <p class="note" id="width-note">How wide the strongest buzz is along each line, with a softer edge of <b><span id="fval"></span> mm</b> on each side. Most students do best with the default, 4 mm.</p>
+        <!-- No checkbox rule in feel.css yet, so its size and spacing are inline. -->
+        <label class="field" for="guide" style="align-items: center; gap: 16px; min-height: 48px; margin-top: 20px;">Guide back to the line <input id="guide" type="checkbox" checked aria-describedby="guide-note" style="flex: none; width: 28px; height: 28px; margin: 0;"></label>
+        <p class="note" id="guide-note">When the finger slips off a line, short taps come faster as it gets closer to the nearest one. Silent more than 20 mm from every line.</p>
       </div>
     </details>
   </div>

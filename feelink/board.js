@@ -96,15 +96,15 @@
   }
 
   // The one place that reads phone haptic events (format decided by Reeve on issue #34, shipped in
-  // feel.html): {type:'haptic', kind:'hold'|'fade'|'corner'|'end'|'tick'|'stop', level, top, pattern, ok, t}.
+  // feel.html): {type:'haptic', kind:'hold'|'fade'|'corner'|'end'|'tick'|'guide'|'stop', level, top, pattern, ok, t}.
   // Returns null for anything that should not draw a ring, else {burst, level, top, strength 0..1, ms}.
   // burst: a one-off cue (corner, end, tick). Otherwise a held level state (0 means off).
   // ms: how long the phone's vibration runs (pattern total), 0 when unknown.
   // landmark: the phone's arrival cue (three 220 ms buzzes since #90) plus the spoken name; the event carries `name`.
   // landmark-rest: the 70 ms heartbeat every 1.2 s while the finger rests on a landmark (#90). It is a soft cue:
   // a small ring at this strength, and like every burst it leaves a held line's state alone.
-  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1, landmark: 1, 'landmark-rest': 1 };
-  const SOFT = { 'landmark-rest': 0.3 };
+  const BURSTS = { corner: 1, end: 1, tick: 1, node: 1, landmark: 1, 'landmark-rest': 1, guide: 1 };
+  const SOFT = { 'landmark-rest': 0.3, guide: 0.3 }; // guide: the 15 ms off-line tap, a small faint ring
   function patternMs(p) {
     const list = Array.isArray(p) ? p : [p];
     let total = 0;

@@ -94,6 +94,17 @@
     return { segs, nodes };
   }
 
+  // Guide back to the line: a blind student's critique was that once a finger slips off the line there is no way to know
+  // which direction to search. Off the ink, the phone taps on a cadence that quickens as the finger nears the closest
+  // stroke, like a Geiger counter. `d` is that distance (mm) and `edge` the fade band's outer edge (halfWidth + fade).
+  // Returns the ms between taps, linear from `near` at the edge to `farMs` at `far`, or null: inside the band the fade
+  // speaks for the line, and past `far` (an empty board is Infinity) it is silent, so the tutor talks. Chosen, not tuned.
+  function guideInterval(d, opts = {}) {
+    const edge = opts.edge ?? 0, far = opts.far ?? 20, near = opts.near ?? 250, farMs = opts.farMs ?? 900;
+    if (!(d > edge) || d > far) return null; // !(d > edge) is also true for NaN
+    return Math.round(near + (farMs - near) * (d - edge) / (far - edge));
+  }
+
   // Levels: 0 off the line, 1..steps in the fade beside it (1 faintest), top on it.
   class Renderer {
     constructor(opts) {
@@ -138,6 +149,11 @@
       let best = Infinity;
       for (const s of this.scene.segs) best = Math.min(best, distPointSeg(p, s.a, s.b));
       return best;
+    }
+
+    // The guide's ms between taps at p (guideInterval), from this renderer's own line and fade widths.
+    guideAt(p) {
+      return guideInterval(this.nearest(p), { edge: this.halfWidth + this.fade });
     }
 
     sweptNearest(a, b) {
@@ -423,7 +439,7 @@
     'open at left': [line([-1, -1], [1, -1], [1, 1], [-1, 1])],
   };
 
-  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, Renderer, poster, sendQueue, drawingKey, doubleTapper,
+  const api = { BOARD, LANDMARK_MM, SHAPES, distPointSeg, distSegSeg, simplify, buildScene, guideInterval, Renderer, poster, sendQueue, drawingKey, doubleTapper,
     landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Tactile = api;

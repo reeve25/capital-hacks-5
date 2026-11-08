@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, poster, sendQueue, drawingKey, doubleTapper,
+const { Renderer, SHAPES, LANDMARK_MM, buildScene, simplify, guideInterval, poster, sendQueue, drawingKey, doubleTapper,
   landmarkLine, startMark, replayLine, landmarkVoice, speechCut, revealUpto, nextSeq, revealed, revealChanged } = require('./tactile.js');
 
 const hline = { pts: [{ x: 10, y: 50 }, { x: 46, y: 50 }] };
@@ -546,4 +546,47 @@ test('reveal: hidden geometry is blank glass, and a part hidden under a resting 
   const start = { ...m3, start: true };
   assert.equal(startMark(revealed(route, [start], 2).landmarks), null);
   assert.equal(startMark(revealed(route, [start], null).landmarks), start);
+});
+
+test('guide: off the ink the taps quicken nearer the line, silent inside the fade band and beyond 20 mm', () => {
+  const edge = 8; // the default phone: core 4 mm (halfWidth 2) plus a 6 mm fade
+  // Inside the band (the fade handles it), past `far`, an empty board (Infinity) and a bad distance: no guide.
+  for (const d of [0, 3, edge, 20.001, 25, Infinity, NaN]) assert.equal(guideInterval(d, { edge }), null, `d=${d}`);
+  // The two ends of the range: `near` just past the edge, `farMs` at `far` itself.
+  assert.equal(guideInterval(edge + 1e-9, { edge }), 250);
+  assert.equal(guideInterval(20, { edge }), 900);
+  assert.equal(guideInterval(30, { edge, far: 30, near: 100, farMs: 1000 }), 1000);
+  // Linear and whole: 12 mm is a third of the way from 8 to 20, so 250 + 650 / 3.
+  assert.equal(guideInterval(12, { edge }), 467);
+  let prev = -Infinity;
+  for (let d = edge + 0.1; d <= 20; d += 0.1) {
+    const ms = guideInterval(d, { edge });
+    assert.ok(Number.isInteger(ms), `integer at d=${d}`);
+    assert.ok(ms >= prev, `farther is never faster: d=${d}`);
+    prev = ms;
+  }
+  assert.ok(guideInterval(10, { edge }) < guideInterval(18, { edge }));
+  // An edge at or past `far` leaves no range, and never divides by zero.
+  assert.equal(guideInterval(20, { edge: 20 }), null);
+  assert.equal(guideInterval(25, { edge: 30 }), null);
+});
+
+test('guide: Renderer.guideAt measures from the nearest stroke with its own line and fade widths', () => {
+  const r = rendererWith([hline], { halfWidth: 2, fade: 6 }); // line at y = 50, band edge 8 mm
+  assert.equal(r.guideAt({ x: 28, y: 50 }), null);
+  assert.equal(r.guideAt({ x: 28, y: 58 }), null);
+  assert.equal(r.guideAt({ x: 28, y: 62 }), guideInterval(12, { edge: 8 }));
+  assert.equal(r.guideAt({ x: 28, y: 38 }), 467); // either side of the line
+  assert.equal(r.guideAt({ x: 28, y: 80 }), null);
+  // A wider line moves the edge out, so the same spot is nearer the band and taps faster.
+  const wide = rendererWith([hline], { halfWidth: 4, fade: 6 });
+  assert.equal(wide.guideAt({ x: 28, y: 62 }), guideInterval(12, { edge: 10 }));
+  assert.ok(wide.guideAt({ x: 28, y: 62 }) < r.guideAt({ x: 28, y: 62 }));
+  // No ink, no guide: an empty board is silent.
+  assert.equal(new Renderer({ halfWidth: 2, fade: 6 }).guideAt({ x: 28, y: 50 }), null);
+  // It reads, never moves: the level and node are untouched.
+  r.move({ x: 28, y: 62 });
+  r.guideAt({ x: 28, y: 50 });
+  assert.equal(r.level, 0);
+  assert.equal(r.move({ x: 28, y: 63 }), null);
 });

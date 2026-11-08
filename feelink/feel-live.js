@@ -123,7 +123,7 @@ function apply(cmd) {
   if (cmd.type === 'node' && cmd.kind === 'landmark') return enterMark(cmd);
   if (atMark) { if (cmd.type === 'level') level = cmd.level; return; } // on a landmark: only its heartbeat
   if (cmd.type === 'level') return setBuzz(cmd.level);
-  if (cmd.type === 'tick') { clearTimeout(rearm); if (canVibrate) vibrate('tick', TICK_MS); return; }
+  if (cmd.type === 'tick') { clearTimeout(rearm); stopGuide(); if (canVibrate) vibrate('tick', TICK_MS); return; }
   if (cmd.type === 'node') {
     const pattern = NODE[cmd.kind];
     clearTimeout(rearm);
@@ -162,6 +162,34 @@ function enterMark(cmd) {
     vibrate('landmark', MARK.cue, named ? { name: cmd.name } : undefined);
     rearm = setTimeout(beat, MARK.cue.reduce((a, b) => a + b, 0) + MARK.everyMs - MARK.beatMs);
   }, MARK.quietMs);
+}
+
+// Guide back to the line. A blind student's critique: "once a finger slips off the line, there is no way to know which
+// direction to search." While the finger is down off the ink (level 0, past the fade band), on no label, and has been
+// off for OFF_MS: one 15 ms tap, then the next renderer.guideAt ms after it, read again from the latest finger position
+// at every tap and every move, so the cadence quickens as the finger nears the closest line (tactile.js
+// guideInterval). Over 20 mm from any ink it is silent, and the tutor talks. It runs only while nothing else buzzes:
+// any level above 0, a label, a lift or leaving Live stops it, and a tick (the finger just crossed a line) restarts the
+// wait. Live only, so the /dev blind test keeps its protocol. Chosen values, not yet felt on the Pixel.
+const GUIDE_MS = 15, OFF_MS = 600;
+let guideOn = true; // the Advanced setting, read at setup below
+let guideTimer = null, guideDue = 0, offSince = null, lastGuide = -Infinity;
+const offInk = () => canVibrate && guideOn && mode === 'live' && primary !== null && !!fingerAt && level === 0 && !renderer.node && !atMark;
+function stopGuide() { clearTimeout(guideTimer); guideTimer = null; offSince = null; }
+// Call after anything that can move the finger or the ink; `fire` is the timer's own call, which taps first.
+function guide(fire) {
+  if (!offInk()) return stopGuide();
+  const now = performance.now();
+  if (offSince === null) offSince = now;
+  const every = renderer.guideAt(fingerAt);
+  if (every === null) { clearTimeout(guideTimer); guideTimer = null; return; } // too far: silent, though still off the line
+  if (fire) { lastGuide = now; vibrate('guide', GUIDE_MS); }
+  // A finger moving closer brings the next tap forward; one moving away waits for the tap already coming.
+  const due = Math.max(offSince + OFF_MS, lastGuide + every);
+  if (guideTimer && due >= guideDue) return;
+  clearTimeout(guideTimer);
+  guideDue = due;
+  guideTimer = setTimeout(() => { guideTimer = null; guide(true); }, due - now);
 }
 
 // Board placement: same millimetre scale as the screen, centred.
@@ -311,6 +339,7 @@ function connect() {
       renderer.setLandmarks(shown.landmarks);
       // A part hidden under a resting finger goes quiet exactly as if the finger had moved off it.
       apply(renderer.refresh());
+      guide();
       draw();
       if (updated) noteReveal(); else noteDrawing(ev);
     }
@@ -393,7 +422,7 @@ function startLive() {
 function leaveLive() { if (history.state && history.state.feelLive) history.back(); else goHome(); }
 function goHome() {
   const wasLive = mode === 'live';
-  apply(renderer.lift()); setBuzz(0); // before leaving live mode, so the stage hears the stop
+  apply(renderer.lift()); stopGuide(); setBuzz(0); // before leaving live mode, so the stage hears the stop
   clearTimeout(changeTimer); changeTimer = null;
   mode = 'home'; hint(''); showInk = false; strokes = []; show('home'); draw();
   if (wasLive) { hush(); say('Back to menu.', 'status'); sendConfig(); leftLive = true; showLink(); }
@@ -409,7 +438,7 @@ document.addEventListener('fullscreenchange', () => {
 
 // Touch
 let fingerAt = null; // the feeling finger's last board position
-function feel(p) { fingerAt = p; apply(renderer.move(p)); }
+function feel(p) { fingerAt = p; apply(renderer.move(p)); guide(); }
 // Two fingers draw only once the feeling finger has moved 3 mm, so a two-finger tap (which barely moves) leaves no
 // ink. The stroke then starts where the finger was when the second finger landed, so no ink is lost.
 const DRAW_START_MM = 3;
@@ -476,6 +505,7 @@ function release(e) {
   if (e.pointerId === primary) {
     primary = null;
     apply(renderer.lift());
+    stopGuide();
     if (mode === 'live') sendFinger({ type: 'finger', down: false, level });
   }
   if (!fingers.size && touch) {
@@ -501,9 +531,18 @@ if (history.state && history.state.feelLive) history.replaceState(null, '');
 // A hidden page must not keep re-arming the hold. Chrome refuses vibrate() once the page is hidden
 // (Blink checks visibility before the visibilitychange event runs), so that stop may report ok: false.
 // Lifting the renderer makes the next touch buzz again. A hidden page stops talking too.
-function stopForHide() { renderer.lift(); if (atMark) leaveMark(); setBuzz(0); hush(); }
+function stopForHide() { renderer.lift(); if (atMark) leaveMark(); stopGuide(); setBuzz(0); hush(); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopForHide(); });
 addEventListener('pagehide', stopForHide);
+// "Guide back to the line" in Advanced settings: on unless turned off, kept on this phone like the line width. Wired
+// here beside the guide it switches; feel-home.js's store loads after this file, so the storage calls are its own.
+try { guideOn = localStorage.getItem('fi.guide') !== 'off'; } catch {}
+$('guide').checked = guideOn;
+$('guide').onchange = () => {
+  guideOn = $('guide').checked;
+  try { localStorage.setItem('fi.guide', guideOn ? 'on' : 'off'); } catch {}
+  if (!guideOn) stopGuide();
+};
 // The relay replays only the drawing (strokes and landmarks), so the config repeats; 2 s is a chosen default, not measured. Doubles as presence.
 setInterval(() => { if (mode === 'live' && !document.hidden) sendConfig(); }, 2000);
 addEventListener('resize', layout);

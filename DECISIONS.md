@@ -6,11 +6,6 @@ Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human 
 
 ## Open, in order of urgency (Sat Nov 7, 17:22). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
-### D9. Decide: how "sequential diagram presentation" works (Reeve's 17:14 phrase)
-The lead's proposal, not yet built: **step-through reveal.** Strokes and landmarks already reach the relay in the order the tutor drew them, so the tutor draws the whole diagram first, then presses "Reveal next" (N) or "Reveal all"; the phone renders and buzzes only the parts revealed so far and says "New part of the drawing." on each step; the stage draws hidden parts faint so the tutor still sees the whole plan. Default is everything revealed, so today's behaviour is unchanged. Undo and Clear reset it. Fits items 1-5 of #107 (an instruction can accompany each step) and is general: a circuit, a flowchart or a route all reveal one part at a time.
-Alternative B: the tutor groups strokes into named steps (a "Step 2: ..." label box) and the phone announces the step name on reveal. More typing for the tutor mid-lesson; the lead's lean is the plain reveal first and names later if wanted.
-Needed: yes to the step-through reveal (then it is filed as the next issue after #107 lands), or a different reading of "sequential presentation".
-
 ### D5. Decide: who appears in footage (consent)
 Anyone in frame gives their own yes, hands included. The Pixel is Nathan's phone, so his hand on it needs his yes. Reeve's consent covers only Reeve. Needed: who is in frame for the shape run and for the route take, and each person's yes, logged in `USERS.md` if a name or face is used.
 
@@ -42,6 +37,7 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 17:32, Reeve: D9 yes to the step-through reveal, not named steps; P2 after #107, reliable phone behaviour and the recorded end-to-end demonstration; details on #111 (hidden parts faint for the tutor and silent on the phone, stroke-order steps, Reveal Next/All and Previous if easy, landmarks follow their geometry, one 'Drawing updated' cue, Undo keeps a sensible state, Clear resets, no step authoring).
 - Sat 17:14, Reeve: next cycle = guided learning (landmarks, start/end points, live student feedback, sequential diagram presentation) on the existing drawing interface. Step-through reveal proposed on #107 as item 6 (reveal pointer on the relay).
 - Sat 17:10, Reeve: A0c passed (landmark arrival clear and spoken; Back and two-finger double tap work). Tutor-interaction brief: spoken instructions to the phone, live finger visibility, collapsed heard-log distinguishing sent from heard, clear link states, a start point; keep layout and ownership; filed as the 'Tutor guides the student' issue for the next lead to launch.
 - Sat 17:02, Reeve: TalkBack dropped (no mode, no Pixel session; #91 closed as parked, research stays on main). Other D7 items stand.

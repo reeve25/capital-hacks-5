@@ -1,6 +1,6 @@
 # FeelInk
 
-**A sighted tutor draws on a laptop. A blind student feels the drawing as vibration on an ordinary Android phone and hears its landmarks and the tutor's instructions spoken aloud.**
+**A sighted tutor draws on a laptop. A blind student feels the drawing as vibration on an ordinary Android phone and hears its labels spoken aloud.**
 Diagrams, routes and maps drawn during a lesson usually need time, materials or preparation before a blind student can explore them by touch. FeelInk is a prototype that tries to close that gap live, with hardware people already own.
 
 [![checks](https://github.com/reeve25/capital-hacks-5/actions/workflows/ci.yml/badge.svg)](https://github.com/reeve25/capital-hacks-5/actions/workflows/ci.yml)
@@ -16,10 +16,10 @@ FeelInk is meant as a **supplementary channel**. It does not replace tactile gra
 
 The tutor controls the lesson. The student controls their own exploration.
 
-1. **Tutor:** opens the FeelInk Studio page (`/stage`) on a laptop and draws freehand (hold Shift for a straight line). `L` then a click places a named landmark, and `S` over a landmark makes it the start point.
-2. **Student:** opens `/feel` in Chrome on an Android phone and taps **Connect to tutor**. The screen goes black and the whole board (56 x 120 mm) maps onto it at true scale, by our calculation from the screen's specs.
-3. **Student:** slides one finger across the glass. Lines buzz under the finger, getting fainter toward the edge of a line. Corners and line ends have their own short cues. On a landmark the phone gives a distinct triple pulse and says its name ("Start: Classroom").
-4. **Tutor:** types an instruction ("Follow the hallway from the classroom to the library"). The phone reads it aloud, and a two-finger double tap replays it. The stage shows **Sent, not spoken yet** until the phone reports it finished speaking, then **Spoken**.
+1. **Tutor:** opens the FeelInk Studio page (`/stage`) on a laptop and draws freehand (hold Shift for a straight line). `L` then a click places a named label, and `S` over a label makes it the start point.
+2. **Student:** opens `/feel` in Chrome on an Android phone and taps **Connect**. The screen goes black and the whole board (56 x 120 mm) maps onto it at true scale, by our calculation from the screen's specs.
+3. **Student:** slides one finger across the glass. Lines buzz under the finger, getting fainter toward the edge of a line. Corners and line ends have their own short cues. On a label the phone gives a distinct triple pulse and says its name ("Start: Classroom").
+4. **Tutor:** talks to the student, as in any lesson, and watches the stage's student panel: their finger, the last label spoken and how much of the drawing they have felt. (Labels are `landmark` events in the protocol.)
 5. **Tutor:** can reveal the drawing one stroke at a time (`N` next, `P` previous, `Shift+N` all). Hidden strokes are dashed for the tutor and silent on the phone, which says "Drawing updated." once per step.
 6. **Both:** the stage shows the student's finger live, teal where they have already felt the ink, and an amber ring for each buzz the phone asked for. Android **Back** takes the student out of the drawing.
 
@@ -101,7 +101,7 @@ Labels: **Measured** = on the real Pixel 8 or by a command; **Built** = in the c
 1. Put it in front of blind students and teachers of the visually impaired, with consent, and find out whether it helps at all before building more.
 2. A classroom network path (shared Wi-Fi or a local hotspot) instead of a USB cable, and find out why the venue network failed.
 3. Test TalkBack on a real device, and test more Android phones.
-4. Lessons beyond routes: graphs, geometry, circuits, built from the same lines, landmarks, labels and reveal steps.
+4. Lessons beyond routes: graphs, geometry, circuits, built from the same lines, labels and reveal steps.
 5. Show the student what changed when the tutor edits a drawing, not only that it changed.
 
 ## Repository map

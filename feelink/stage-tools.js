@@ -1,4 +1,4 @@
-// FeelInk stage, left panel (the tutor's tools) and the tutor's input on the board: Draw/Landmark, the pen and Shift line,
+// FeelInk stage, left panel (the tutor's tools) and the tutor's input on the board: Draw/Label, the pen and Shift line,
 // the name box and start point, Undo/Clear and its toast, the reveal stepper, hints, keys and buttons.
 
 // Tutor input: pointer on the board, smoothed before sending so phone and stage share one geometry.
@@ -10,15 +10,15 @@ function inBoard(e) {
   return p.x >= -2 && p.y >= -2 && p.x <= BOARD.w + 2 && p.y <= BOARD.h + 2;
 }
 function sendMine() { post({ type: 'stroke', ...mine }); lastSend = performance.now(); }
-// Placing a landmark: L (or the Landmark button) arms it, the next click on the board opens the name box there
+// Placing a label (a named point; 'landmark' in the protocol): L (or the Label button) arms it, the next click on the board opens the name box there
 // (or on the point clicked, to rename it). Enter posts it, Escape or clicking away cancels. Then back to Draw.
 const nameBox = document.getElementById('name'), nameWrap = document.getElementById('namebox'), nameStart = document.getElementById('nameStart');
 const hint = document.getElementById('hint');
 const toolDraw = document.getElementById('toolDraw'), toolMark = document.getElementById('toolMark');
 // Key hints only, no explanations (human-led note, Nov 7): the line under the tools names the key that changes what the
-// tool does next. The start point lives with the Landmark tool, where the tutor is thinking about points.
+// tool does next. The start point lives with the Label tool, where the tutor is thinking about points.
 const HINT_DRAW = 'Hold <kbd>Shift</kbd> for a straight line.';
-const HINT_PLACE = 'Click to place a point or rename one. <kbd>S</kbd> over a point makes it the start.';
+const HINT_PLACE = 'Click to place a label or rename one. <kbd>S</kbd> over a point makes it the start.';
 // The reveal group's line: a state, shown only while something is hidden (#111). A new stroke drawn then arrives last
 // and stays hidden too, dashed like the rest, so the dashes are all the tutor needs to read.
 const STEP_HIDING = 'Dashed lines are hidden from the student.';
@@ -179,7 +179,7 @@ function clearBoard() {
 const buttons = [[toolDraw, () => setPlacing(false)], [toolMark, () => setPlacing(!placing)],
   [document.getElementById('undo'), undo], [document.getElementById('clear'), clearBoard], [document.getElementById('undoClear'), undo],
   [document.getElementById('revealNext'), () => stepReveal('next')], [document.getElementById('revealPrev'), () => stepReveal('prev')],
-  [document.getElementById('revealAll'), () => stepReveal('all')], [cueToggle, () => setCue(tell.hidden)]];
+  [document.getElementById('revealAll'), () => stepReveal('all')]];
 for (const [btn, act] of buttons) {
   btn.addEventListener('mousedown', (e) => e.preventDefault());
   btn.addEventListener('click', () => { closeName(true); act(); });
@@ -194,7 +194,6 @@ addEventListener('keydown', (e) => {
   else if (k === 's') toggleStartNear();
   else if (k === 'n') stepReveal(e.shiftKey ? 'all' : 'next');
   else if (k === 'p') stepReveal('prev');
-  else if (k === 't') { e.preventDefault(); setCue(true); } // the spoken cue; preventDefault keeps the T out of its field
   else if (k === 'd' || k === 'escape') setPlacing(false);
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') setStraight(false); });

@@ -271,7 +271,11 @@ function drawFlag(l, ink = COL.ink) {
   shape(); ctx.fillStyle = ink; ctx.fill();
 }
 // A hidden landmark (#111) draws all in 25% ink, never filled as announced: the phone gives it no cue yet.
+// Names are placed here and painted by drawNames after the cursor: the finger rests on a point exactly while its name
+// is spoken, and the cursor drawn over the name hid its first letters then.
+let names = [];
 function drawLandmarks(rv) {
+  names = [];
   if (!landmarks.length) return;
   ctx.textBaseline = 'middle';
   ctx.font = FONT(LM_FONT_MM);
@@ -302,9 +306,15 @@ function drawLandmarks(rv) {
     const name = B.cleanName(l.name);
     if (!name) continue;
     const w = ctx.measureText(name).width, gap = B.LANDMARK_MM + 0.8;
-    const at = B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, l.start ? ink.concat(flagPoints(l)) : ink);
+    names.push({ name, tone, at: B.labelPlace(l, w, BOARD, gap, LM_FONT_MM, l.start ? ink.concat(flagPoints(l)) : ink) });
+  }
+}
+function drawNames() {
+  ctx.textBaseline = 'middle';
+  ctx.font = FONT(LM_FONT_MM);
+  ctx.lineWidth = 1.4;
+  for (const { name, tone, at } of names) {
     ctx.textAlign = at.align;
-    ctx.lineWidth = 1.4;
     ctx.strokeStyle = COL.paper;
     ctx.strokeText(name, at.x, at.y);
     ctx.fillStyle = tone;

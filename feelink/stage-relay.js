@@ -89,6 +89,7 @@ function frame(now) {
   // Rings, cursor and caption may spill past the paper edge onto the surround instead of being cut off.
   drawRings(now);
   drawCursor(now);
+  drawNames();
   drawCaption(now);
   requestAnimationFrame(frame);
 }

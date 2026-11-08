@@ -4,10 +4,7 @@ Kept by the lead (engineering manager) session. A separate "decision desk" chat 
 
 Labels: **Decide** = Level 3, the humans' call. **Do** = an action only a human can take. **FYI** = no action, just know it.
 
-## Open, in order of urgency (Sat Nov 7, 17:05). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
-
-### A0c. Reeve, Do (after the next phone build ships): re-feel landmark arrival
-Per his 16:23 note the landmark becomes a state: the line hum stops, 400 ms silence while the name is spoken, three long pulses, then only a slow heartbeat while the finger rests on the landmark; the hum returns when the finger leaves. Ships inside the phone product build (#90); the lead posts when the Pixel is reloaded.
+## Open, in order of urgency (Sat Nov 7, 17:15). Product first: deck and presentation items are parked below until Reeve reopens them (his 15:12 decision).
 
 ### D5. Decide: who appears in footage (consent)
 Anyone in frame gives their own yes, hands included. The Pixel is Nathan's phone, so his hand on it needs his yes. Reeve's consent covers only Reeve. Needed: who is in frame for the shape run and for the route take, and each person's yes, logged in `USERS.md` if a name or face is used.
@@ -46,6 +43,7 @@ Lead's lean: Option 1. Fact needed from Reeve: is PowerPoint installed on his la
 Also parked: A1 organizer questions timing is theirs; A2 recording session confirmation.
 
 ## Decided (newest first)
+- Sat 17:10, Reeve: A0c passed (landmark arrival clear and spoken; Back and two-finger double tap work). Tutor-interaction brief: spoken instructions to the phone, live finger visibility, collapsed heard-log distinguishing sent from heard, clear link states, a start point; keep layout and ownership; filed as the 'Tutor guides the student' issue for the next lead to launch.
 - Sat 17:02, Reeve: TalkBack dropped (no mode, no Pixel session; #91 closed as parked, research stays on main). Other D7 items stand.
 - Sat 16:46: phone product build (#90), undoable Clear, TalkBack research (#91) and the stage product pass (#92) are on main; phone and laptop pages reloaded. Deck still parked.
 - Sat 16:23, Reeve: the lead on Reeve's laptop owns all product work (phone, stage, relay, UI) unless Nathan's lead posts otherwise; Nathan's lane is outreach and validation. A0b: cue stands out but must be unmistakable on-path (now a landmark state, see A0c).

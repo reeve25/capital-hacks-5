@@ -1,0 +1,7 @@
+This is FeelInk, a weekend prototype built by two students at Sacramento State. This video uses a computer voice, and the screen shows a simulation.
+Here is the problem. When a teacher draws a triangle, a graph or a diagram on the board, a blind student gets it in words, gets it later as a tactile sheet, or does not get it at all.
+FeelInk works like this. A sighted tutor draws in a web browser on a laptop. The student rests one finger on the screen of their own Android phone. As each line is drawn, the student feels it under their finger.
+On the line, a steady buzz. At a corner, a double tap. At the end of a line, a triple tap. Off the line, silence, so the finger learns to follow the shape.
+There is nothing to install and nothing to buy. It is a web page in Chrome, using the vibration motor already inside the phone. The closest product today is a fifteen thousand dollar tactile display.
+What you see here is drawn on a laptop. The real test runs on a Pixel 8 phone. No blind person has tried it yet. We would like you to be the first to tell us whether this is worth building, or what we have wrong.
+Reply to our email, or ask for a short call. Thank you for your time.

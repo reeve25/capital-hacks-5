@@ -568,9 +568,9 @@ def story_plates(spec, tmp, texts, board_win, screen):
     ly = 784
     texts.add("KEY (TUTOR'S BOARD)", mx, ly, 18, C["muted"], "bold")
     # The board's own legend words (feelink/stage-board.js), larger, each with what it means.
-    rows = [("felt", "Covered: ink the student's finger passed over"), ("unfelt", "Not yet: drawn, not passed over"),
+    rows = [("felt", "Covered: ink the student's finger passed over"), ("unfelt", "Unexplored: drawn, not passed over"),
             ("hidden", "Hidden by tutor: shown with Next"), ("dot", "Student's finger, live"),
-            ("ring", "Phone asked to buzz: a request, not proof")]
+            ("ring", "Vibration requested: a request, not proof")]
     for i, (kind, label) in enumerate(rows):
         y = ly + 34 + i * 46
         cy = y + 15

@@ -322,7 +322,7 @@ try {
   console.log('scripted steps, clip s:', JSON.stringify(marks));
   console.log('vibrate() calls (stubbed):', buzzes, '| stage board:', JSON.stringify(board));
   if (errors.length) throw new Error('page errors: ' + errors.join(' | '));
-  const want = ['Start: Classroom', 'Drawing updated.', 'Office', 'Drawing changed.', 'Library'];
+  const want = ['Start: Classroom', 'Line and label added.', 'Office', 'Line added.', 'Label added.', 'Library'];
   if (want.some((w) => !said.includes(w)) || board.marks !== 'Classroom*,Office,Library' || board.strokes !== 3) throw new Error('the lesson did not play as scripted');
 
   // Frames -> constant 30 fps clips (compose.py frames), then the composed take and the whole stage window.
@@ -345,7 +345,7 @@ try {
   // steps in `marks`, the phone's speech in `saidLog`), and the captions say which side is scripted.
   const D = +(t1 - t0).toFixed(3), m = marks;
   const say = (text, after = 0) => { const s = saidLog.find((x) => x.text === text && x.t >= after); if (!s) throw new Error(`no "${text}" in the speech log`); return s.t; };
-  const tStart = say('Start: Classroom'), tUpd = say('Drawing updated.', m.next), tOffice = say('Office', m.next), tLib = say('Library', m.follow);
+  const tStart = say('Start: Classroom'), tUpd = say('Line and label added.', m.next), tOffice = say('Office', m.next), tLib = say('Library', m.follow);
   const nextEnd = +Math.max(m.next + 1.8, tUpd + 0.9).toFixed(3);
   const session = { title: "ON THE TUTOR'S LAPTOP: SESSION PANEL", rect: rects.now };
   const [tl, bd, se, cr, pr, nw] = [rects.tools, rects.board, rects.session, rects.create, rects.present, rects.now];
@@ -362,9 +362,9 @@ try {
       { t0: m.onLine, t1: m.corner, who: 'student', cause: 'The scripted finger reaches the line and moves up to the start.',
         effect: 'The phone buzzes on the ink and says “Start: Classroom”.' },
       { t0: m.corner, t1: m.penGlide, who: 'tutor', cause: 'The scripted finger stops at the corner. The tutor sees it on the laptop and clicks Next.',
-        effect: 'The next leg appears (“Drawing updated”); the finger follows it to “Office”.' },
+        effect: 'The next leg appears (“Line and label added”); the finger follows it to “Office”.' },
       { t0: m.penGlide, t1: m.follow, who: 'tutor', cause: 'The tutor draws the last leg live and names it Library.',
-        effect: 'The phone says “Drawing changed”.' },
+        effect: 'The phone says “Line added”, then “Label added”.' },
       { t0: m.follow, t1: D, who: 'student', cause: 'The scripted finger follows the new leg to its end.', effect: 'The phone says “Library”.' },
     ],
     insets: [
